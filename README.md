@@ -24,13 +24,11 @@ Before you start, make sure you have the following installed and configured on y
 
 ## 🛠️ Setup Instructions
 
-This is the quickest way to get up and running. You just need to add a single function to your shell's configuration file.
+This guide provides two options for your `copilot_here` function. Option 1 is recommended as it's safer, while Option 2 offers convenience at the cost of security. Choose the one that best fits your workflow.
 
-> ⚠️ **Important Security Note:** This function uses the `--allow-all-tools` flag, which allows Copilot to execute commands on your machine without asking for confirmation first. For example, if a prompt was misunderstood, it could potentially run a dangerous command like `rm`.
->
-> **However, this is precisely why this containerized approach is so powerful!** Because Copilot is running inside a secure, isolated container, the "blast radius" of a bad command is limited. It can only affect files inside the container and the single project directory you've shared with it.
->
-> While this doesn't eliminate all risk, it dramatically lowers it, making this a worthy option for those who value both convenience and a strong layer of security.
+### Option 1: The Safe Version (Recommended)
+
+This version will always ask for your confirmation before executing any commands (like `git commit` or `npm install`) when used in non-interactive mode.
 
 1.  **Add the function to your shell profile.**
     Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) and add the following code:
@@ -41,7 +39,6 @@ This is the quickest way to get up and running. You just need to add a single fu
       local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
 
       # Pull the latest version of the image to stay up-to-date.
-      # The output is suppressed for a cleaner experience.
       echo "Checking for the latest version of copilot_here..."
       docker pull "$image_name" > /dev/null 2>&1
 
@@ -68,9 +65,63 @@ This is the quickest way to get up and running. You just need to add a single fu
 
       if [ $# -eq 0 ]; then
         # No arguments provided, start interactive mode.
-        docker run "${docker_args[@]}" copilot --allow-all-tools
+        docker run "${docker_args[@]}" copilot --banner
       else
-        # Arguments provided, run in non-interactive mode.
+        # Arguments provided, run in non-interactive (but safe) mode.
+        docker run "${docker_args[@]}" copilot -p "$*"
+      fi
+    }
+    ```
+
+2.  **Reload your shell.**
+    For the new function to be available, either restart your terminal or reload the configuration file (e.g., `source ~/.zshrc`).
+
+### Option 2: The Auto-Approve Version
+
+> ⚠️ **Important Security Note:** This version uses the `--allow-all-tools` flag, which allows Copilot to execute commands on your machine without asking for confirmation first. For example, if a prompt was misunderstood, it could potentially run a dangerous command like `rm`.
+>
+> **However, this is precisely why this containerized approach is so powerful!** Because Copilot is running inside a secure, isolated container, the "blast radius" of a bad command is limited. It can only affect files inside the container and the single project directory you've shared with it.
+>
+> While this doesn't eliminate all risk, it dramatically lowers it, making this a worthy option for those who value both convenience and a strong layer of security.
+
+1.  **Add the function to your shell profile.**
+    To use this version, add the following function to your shell's startup file instead of the one from Option 1.
+
+    ```bash
+    copilot_here() {
+      # Define the image name for easy reference
+      local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
+
+      # Pull the latest version of the image to stay up-to-date.
+      echo "Checking for the latest version of copilot_here..."
+      docker pull "$image_name" > /dev/null 2>&1
+
+      # Define path for our persistent copilot config on the host machine.
+      local copilot_config_path="$HOME/.config/copilot-cli-docker"
+      mkdir -p "$copilot_config_path"
+
+      # Use the 'gh' CLI itself to reliably get the current auth token.
+      local token=$(gh auth token 2>/dev/null)
+      if [ -z "$token" ]; then
+        echo "⚠️  Could not retrieve token using 'gh auth token'. Please ensure you are logged in."
+      fi
+
+      # Base Docker command arguments
+      local docker_args=(
+        --rm -it
+        -v "$(pwd)":/work
+        -v "$copilot_config_path":/home/appuser/.copilot
+        -e PUID=$(id -u)
+        -e PGID=$(id -g)
+        -e GITHUB_TOKEN="$token"
+        "$image_name"
+      )
+
+      if [ $# -eq 0 ]; then
+        # No arguments provided, start interactive mode with auto-approval.
+        docker run "${docker_args[@]}" copilot --banner --allow-all-tools
+      else
+        # Arguments provided, run in non-interactive mode with auto-approval.
         docker run "${docker_args[@]}" copilot -p "$*" --allow-all-tools
       fi
     }
@@ -88,6 +139,8 @@ For a full, interactive chat session, run the command with no arguments:
 ```bash
 copilot_here
 ````
+
+This will start with the welcome banner by default.
 
 ### 2\. Non-Interactive Mode
 
