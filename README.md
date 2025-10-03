@@ -45,7 +45,7 @@ This version will always ask for your confirmation before executing any commands
       fi
 
       # 2. Warn if the token has highly privileged scopes.
-      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'admin:org'|'admin:enterprise'"; then
+      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'(admin:|manage_|write:public_key'|delete_repo'|(write|delete)_packages')"; then
         echo "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise)."
         # Use a portable prompt that works in both bash and zsh
         printf "Are you sure you want to proceed with this token? [y/N]: "
@@ -118,7 +118,7 @@ This version will always ask for your confirmation before executing any commands
       fi
 
       # 2. Warn if the token has highly privileged scopes.
-      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'admin:org'|'admin:enterprise'"; then
+      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'(admin:|manage_|write:public_key'|delete_repo'|(write|delete)_packages')"; then
         echo "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise)."
         # Use a portable prompt that works in both bash and zsh
         printf "Are you sure you want to proceed with this token? [y/N]: "
