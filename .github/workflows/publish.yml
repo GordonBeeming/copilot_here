@@ -42,11 +42,12 @@ jobs:
       # This step only runs on scheduled or manual triggers, not on push events.
       - name: Get digest of the remote 'latest' image
         if: github.event_name != 'push'
-        uses: oleg-chudnovskiy/docker-pull-remote-image-digest@v1
         id: remote_digest
-        with:
-          image: ghcr.io/${{ github.repository }}
-          tag: latest
+        run: |
+          # Try to get the digest of the remote image, handle case when it doesn't exist
+          DIGEST=$(docker manifest inspect ghcr.io/${{ github.repository }}:latest 2>/dev/null | jq -r '.config.digest' || echo "")
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "Remote digest: $DIGEST"
 
       # Step 5: Build the image and check for changes
       # This step builds the image locally and tags it, making it ready for a potential push.
