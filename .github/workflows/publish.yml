@@ -42,6 +42,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            # Add 'latest' tag for pushes to the main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Add tag for the git branch name (e.g., 'main')
+            type=ref,event=branch
+            # Add tag for the git commit SHA
+            type=sha
 
       # Step 5: Get the digest of the currently published 'latest' image
       # This step only runs on scheduled or manual triggers, not on push events.
