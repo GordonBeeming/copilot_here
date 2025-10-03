@@ -13,6 +13,7 @@ The `copilot_here` shell function is a lightweight wrapper around a Docker conta
 - **Keeps your machine clean** by avoiding a global Node.js installation.
 - **Authenticates automatically** by using your host machine's existing `gh` CLI credentials.
 - **Persists its configuration**, so it remembers which folders you've trusted across sessions.
+- **Stays up-to-date** by automatically pulling the latest image version on every run.
 
 ## ✅ Prerequisites
 
@@ -36,6 +37,14 @@ This is the quickest way to get up and running. You just need to add a single fu
 
     ```bash
     copilot_here() {
+      # Define the image name for easy reference
+      local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
+
+      # Pull the latest version of the image to stay up-to-date.
+      # The output is suppressed for a cleaner experience.
+      echo "Checking for the latest version of copilot_here..."
+      docker pull "$image_name" > /dev/null 2>&1
+
       # Define path for our persistent copilot config on the host machine.
       local copilot_config_path="$HOME/.config/copilot-cli-docker"
       mkdir -p "$copilot_config_path"
@@ -54,7 +63,7 @@ This is the quickest way to get up and running. You just need to add a single fu
         -e PUID=$(id -u)
         -e PGID=$(id -g)
         -e GITHUB_TOKEN="$token"
-        ghcr.io/gordonbeeming/copilot_here:latest
+        "$image_name"
       )
 
       if [ $# -eq 0 ]; then
