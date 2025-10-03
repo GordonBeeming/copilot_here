@@ -1,0 +1,90 @@
+# This workflow builds and publishes the Docker image.
+# It triggers on a push to main, on a nightly schedule, or manually.
+name: Publish Docker Image to GHCR
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    # Runs nightly at 3:15 AM UTC to check for npm package updates.
+    - cron: "15 3 * * *"
+  workflow_dispatch: # Allows the workflow to be run manually from the Actions tab
+
+# Sets the minimum required permissions for the entire workflow for security.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Log in to the GitHub Container Registry (GHCR)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 3: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+
+      # Step 4: Get the digest of the currently published 'latest' image
+      # This step only runs on scheduled or manual triggers, not on push events.
+      - name: Get digest of the remote 'latest' image
+        if: github.event_name != 'push'
+        uses: oleg-chudnovskiy/docker-pull-remote-image-digest@v1
+        id: remote_digest
+        with:
+          image: ghcr.io/${{ github.repository }}
+          tag: latest
+
+      # Step 5: Build the image and check for changes
+      # This step builds the image locally and tags it, making it ready for a potential push.
+      # It uses the remote 'latest' image as a cache source to speed things up.
+      - name: Build image and get its new digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false # We don't push yet; we decide that in the next step.
+          load: true # Load the image into the runner's Docker daemon.
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:latest,mode=max
+          cache-to: type=inline
+
+      # Step 6: Decide if a push is required based on the trigger and image changes
+      - name: Determine if a push is required
+        id: push_decision
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "Decision: Pushing new image due to a commit on the main branch."
+            echo "push_needed=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ steps.build.outputs.digest }}" != "${{ steps.remote_digest.outputs.digest }}" ]]; then
+            echo "Decision: New image digest (${{ steps.build.outputs.digest }}) differs from remote digest (${{ steps.remote_digest.outputs.digest }}). Pushing update."
+            echo "push_needed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Decision: Image is already up-to-date. No push required."
+            echo "push_needed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Step 7: Push the image to the registry only if needed
+      - name: Push image to registry
+        if: steps.push_decision.outputs.push_needed == 'true'
+        # The image was already built and tagged, so we just need to push it.
+        run: docker push --all-tags ghcr.io/${{ github.repository }}
+
+      # Step 8: Provide a clear summary message for scheduled runs when no update was needed
+      - name: Print summary for scheduled run
+        if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
+        run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
