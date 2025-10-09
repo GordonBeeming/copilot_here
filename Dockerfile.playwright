@@ -33,20 +33,16 @@ RUN apt-get update && apt-get install -y \
 # Install Playwright globally via npm
 RUN npm install -g playwright@latest
 
-# Create appuser for build-time operations if it doesn't exist
-# The entrypoint will handle proper UID/GID mapping at runtime
-RUN groupadd --gid 1000 appuser_group 2>/dev/null || true && \
-    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser 2>/dev/null || true
+# Create the directory structure for playwright cache
+# We'll install as root but place files where appuser can access them
+RUN mkdir -p /home/appuser/.cache/ms-playwright
 
-# Create the .copilot cache directory for appuser
-RUN mkdir -p /home/appuser/.cache/ms-playwright && \
-    chown -R 1000:1000 /home/appuser
+# Install Chromium browser for Playwright as root
+# Place it in a location that will be accessible to appuser at runtime
+RUN PLAYWRIGHT_BROWSERS_PATH=/home/appuser/.cache/ms-playwright npx playwright install chromium --with-deps
 
-# Switch to appuser before installing browsers so they're in the right cache location
-USER appuser
-
-# Install Chromium browser for Playwright as appuser
-RUN npx playwright install chromium --with-deps
+# Fix ownership for the appuser (UID/GID from entrypoint will match)
+RUN chown -R 1000:1000 /home/appuser 2>/dev/null || true
 
 # The entrypoint and CMD remain the same as the base image
 # They are inherited automatically
