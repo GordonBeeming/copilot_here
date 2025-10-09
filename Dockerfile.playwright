@@ -33,7 +33,10 @@ RUN apt-get update && apt-get install -y \
 # Install Playwright globally via npm
 RUN npm install -g playwright@latest
 
-# Install Chromium browser for Playwright
+# Switch to appuser before installing browsers so they're in the right cache location
+USER appuser
+
+# Install Chromium browser for Playwright as appuser
 RUN npx playwright install chromium --with-deps
 
 # The entrypoint and CMD remain the same as the base image

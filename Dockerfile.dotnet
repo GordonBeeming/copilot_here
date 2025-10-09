@@ -31,9 +31,5 @@ ENV DOTNET_ROOT="/usr/share/dotnet"
 # Verify installations
 RUN dotnet --list-sdks
 
-# Install Playwright browsers (inherited from playwright image)
-# Run as root since we're still in root context
-RUN npx playwright install chromium --with-deps
-
 # The entrypoint and CMD remain the same as the base image
 # They are inherited automatically
