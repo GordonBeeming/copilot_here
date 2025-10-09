@@ -202,13 +202,70 @@ copilot_yolo "write a C# function that takes a string and returns it in reverse"
 
 ## 🐳 Docker Image Variants
 
-This project provides multiple Docker image variants for different use cases:
+This project provides multiple Docker image variants for different development scenarios. All images include the GitHub Copilot CLI and inherit the base security and authentication features.
 
-- **Base Image** (`latest`): Standard Copilot CLI environment
-- **Playwright Image** (`playwright`): Includes Playwright and Chromium for web testing
-- **.NET Image** (`dotnet`): Includes .NET 8 and 9 SDKs for .NET development
+### Available Images
 
-For detailed information about each image variant, see the [Docker Images Documentation](docs/docker-images.md).
+#### Base Image
+**Tag:** `latest`
+
+The standard Copilot CLI environment with Node.js 20, Git, and essential tools. Use this for general-purpose development and scripting tasks.
+
+```bash
+# Already configured in the setup instructions above
+copilot_here() {
+  local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
+  # ... rest of function
+}
+```
+
+#### .NET Image
+**Tag:** `dotnet`
+
+Extends the base image with .NET SDK support for building and testing .NET applications.
+
+**Includes:**
+- .NET 8.0 SDK
+- .NET 9.0 SDK
+- ASP.NET Core runtimes
+- All base image features
+
+**Usage:**
+```bash
+# Update the image_name in your function to use the .NET variant
+local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet"
+```
+
+**Best for:** .NET development, building/testing .NET applications, ASP.NET Core projects
+
+#### .NET + Playwright Image
+**Tag:** `dotnet-playwright`
+
+Extends the .NET image with Playwright browser automation capabilities.
+
+**Includes:**
+- Everything from the .NET image
+- Playwright 1.56.0
+- Chromium browser with dependencies
+- FFmpeg for video recording
+
+**Usage:**
+```bash
+# Update the image_name in your function to use the .NET + Playwright variant
+local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet-playwright"
+```
+
+**Best for:** .NET web testing, browser automation, E2E testing with Playwright
+
+**Note:** This image is approximately 500-600MB larger than the .NET image due to Chromium browser binaries.
+
+### Choosing the Right Image
+
+- Use **`latest`** for general development, scripting, and Node.js projects
+- Use **`dotnet`** when working with .NET projects without browser testing needs
+- Use **`dotnet-playwright`** when you need both .NET and browser automation capabilities
+
+Future variants may include Python, Java, and other language-specific toolchains.
 
 ## 📚 Documentation
 
