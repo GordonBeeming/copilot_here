@@ -114,24 +114,7 @@ jobs:
           docker tag ghcr.io/${{ steps.repo.outputs.name }}:latest ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
           docker push ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
 
-      # Step 10: Build and push Playwright image (based on the base image)
-      - name: Build and push Playwright image
-        if: steps.push_decision.outputs.push_needed == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.playwright
-          push: true
-          build-args: |
-            BASE_IMAGE_TAG=sha-${{ github.sha }}
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:playwright
-            ghcr.io/${{ steps.repo.outputs.name }}:playwright-sha-${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:playwright,mode=max
-          cache-to: type=inline
-
-      # Step 11: Build and push .NET image (based on the Playwright image)
+      # Step 10: Build and push .NET image (based on the base image)
       - name: Build and push .NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
@@ -140,12 +123,29 @@ jobs:
           file: ./Dockerfile.dotnet
           push: true
           build-args: |
-            PLAYWRIGHT_IMAGE_TAG=playwright-sha-${{ github.sha }}
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:dotnet
             ghcr.io/${{ steps.repo.outputs.name }}:dotnet-sha-${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
+          cache-to: type=inline
+
+      # Step 11: Build and push Playwright image (based on the .NET image)
+      - name: Build and push Playwright image
+        if: steps.push_decision.outputs.push_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.playwright
+          push: true
+          build-args: |
+            DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}:playwright
+            ghcr.io/${{ steps.repo.outputs.name }}:playwright-sha-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:playwright,mode=max
           cache-to: type=inline
 
       # Step 12: Provide a clear summary message for scheduled runs when no update was needed

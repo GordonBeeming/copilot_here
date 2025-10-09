@@ -1,7 +1,7 @@
-# Build on top of the playwright image
+# Build on top of the base copilot_here image
 # ARG will be provided by the build process with the commit hash
-ARG PLAYWRIGHT_IMAGE_TAG
-FROM ghcr.io/gordonbeeming/copilot_here:${PLAYWRIGHT_IMAGE_TAG}
+ARG BASE_IMAGE_TAG
+FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 
 # Switch to root to install packages
 USER root
