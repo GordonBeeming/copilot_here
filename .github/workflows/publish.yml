@@ -63,7 +63,7 @@ jobs:
 
       # Step 6: Build the image and check for changes
       # This step builds the image locally and tags it, making it ready for a potential push.
-      # It uses the remote 'latest' image as a cache source to speed things up.
+      # We don't use cache to ensure npm always checks for the latest @github/copilot version.
       - name: Build image and get its new digest
         id: build
         uses: docker/build-push-action@v5
@@ -73,8 +73,7 @@ jobs:
           load: true # Load the image into the runner's Docker daemon.
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
-          cache-to: type=inline
+          no-cache: true # Force fresh build to get latest npm package version
 
       # Step 7: Decide if a push is required based on the trigger and image changes
       - name: Determine if a push is required
