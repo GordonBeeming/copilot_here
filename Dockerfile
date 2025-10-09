@@ -12,8 +12,12 @@ RUN apt-get update && apt-get install -y \
   gosu \
   && rm -rf /var/lib/apt/lists/*
 
+# ARG for the Copilot CLI version - passed from build process
+# This ensures cache invalidation when a new version is available
+ARG COPILOT_VERSION=latest
+
 # Install the standalone GitHub Copilot CLI via npm.
-RUN npm install -g @github/copilot
+RUN npm install -g @github/copilot@${COPILOT_VERSION}
 
 # Set the working directory for the container.
 WORKDIR /work
