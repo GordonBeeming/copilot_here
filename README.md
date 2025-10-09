@@ -200,6 +200,21 @@ copilot_here "explain the code in ./my-script.js"
 copilot_yolo "write a C# function that takes a string and returns it in reverse"
 ```
 
+## 🐳 Docker Image Variants
+
+This project provides multiple Docker image variants for different use cases:
+
+- **Base Image** (`latest`): Standard Copilot CLI environment
+- **Playwright Image** (`playwright`): Includes Playwright and Chromium for web testing
+- **.NET Image** (`dotnet`): Includes .NET 8 and 9 SDKs for .NET development
+
+For detailed information about each image variant, see the [Docker Images Documentation](docs/docker-images.md).
+
+## 📚 Documentation
+
+- [Docker Images Documentation](docs/docker-images.md) - Details about available image variants
+- [Task Documentation](docs/tasks/) - Development task history and changes
+
 ## 📜 License
 
 This project is licensed under the MIT License.

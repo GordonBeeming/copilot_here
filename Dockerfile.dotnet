@@ -1,0 +1,35 @@
+# Build on top of the playwright image
+# ARG will be provided by the build process with the commit hash
+ARG PLAYWRIGHT_IMAGE_TAG
+FROM ghcr.io/gordonbeeming/copilot_here:${PLAYWRIGHT_IMAGE_TAG}
+
+# Switch to root to install packages
+USER root
+
+# Install .NET SDK prerequisites
+RUN apt-get update && apt-get install -y \
+  wget \
+  ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install .NET 8 SDK
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && ./dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet \
+  && rm dotnet-install.sh
+
+# Install .NET 9 SDK
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && ./dotnet-install.sh --channel 9.0 --install-dir /usr/share/dotnet \
+  && rm dotnet-install.sh
+
+# Add .NET to PATH
+ENV PATH="/usr/share/dotnet:${PATH}"
+ENV DOTNET_ROOT="/usr/share/dotnet"
+
+# Verify installations
+RUN dotnet --list-sdks
+
+# The entrypoint and CMD remain the same as the base image
+# They are inherited automatically

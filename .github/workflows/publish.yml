@@ -97,7 +97,41 @@ jobs:
         # The image was already built and tagged, so we just need to push it.
         run: docker push --all-tags ghcr.io/${{ steps.repo.outputs.name }}
 
-      # Step 9: Provide a clear summary message for scheduled runs when no update was needed
+      # Step 9: Build and push Playwright image (based on the base image)
+      - name: Build and push Playwright image
+        if: steps.push_decision.outputs.push_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.playwright
+          push: true
+          build-args: |
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}:playwright
+            ghcr.io/${{ steps.repo.outputs.name }}:playwright-sha-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:playwright,mode=max
+          cache-to: type=inline
+
+      # Step 10: Build and push .NET image (based on the Playwright image)
+      - name: Build and push .NET image
+        if: steps.push_decision.outputs.push_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.dotnet
+          push: true
+          build-args: |
+            PLAYWRIGHT_IMAGE_TAG=playwright-sha-${{ github.sha }}
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}:dotnet
+            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-sha-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
+          cache-to: type=inline
+
+      # Step 11: Provide a clear summary message for scheduled runs when no update was needed
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
         run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
