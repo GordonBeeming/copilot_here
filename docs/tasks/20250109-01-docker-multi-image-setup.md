@@ -146,6 +146,12 @@ Each image variant uses registry caching:
 
 ## Follow-up Items
 
+### Completed Fixes
+- [x] Fixed Docker cache preventing latest npm package detection (2025-01-09)
+  - Problem: Workflow used cached layers, so `npm install -g @github/copilot` never checked for new versions
+  - Solution: Added `no-cache: true` to base image build step
+  - Impact: Nightly builds will now always get the latest Copilot CLI version
+
 ### Potential Improvements
 - [ ] Consider adding health checks to Dockerfiles
 - [ ] Add automated testing for image functionality
