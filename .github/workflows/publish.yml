@@ -118,7 +118,7 @@ jobs:
           file: ./Dockerfile.playwright
           push: true
           build-args: |
-            BASE_IMAGE_TAG=sha-${{ github.sha }}
+            BASE_IMAGE_TAG=latest
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:playwright
             ghcr.io/${{ steps.repo.outputs.name }}:playwright-sha-${{ github.sha }}
@@ -135,7 +135,7 @@ jobs:
           file: ./Dockerfile.dotnet
           push: true
           build-args: |
-            PLAYWRIGHT_IMAGE_TAG=playwright-sha-${{ github.sha }}
+            PLAYWRIGHT_IMAGE_TAG=playwright
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:dotnet
             ghcr.io/${{ steps.repo.outputs.name }}:dotnet-sha-${{ github.sha }}
