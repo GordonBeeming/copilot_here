@@ -131,8 +131,8 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
           cache-to: type=inline
 
-      # Step 11: Build and push Playwright image (based on the .NET image)
-      - name: Build and push Playwright image
+      # Step 11: Build and push Playwright+.NET image (based on the .NET image)
+      - name: Build and push Playwright+.NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
         with:
@@ -142,10 +142,10 @@ jobs:
           build-args: |
             DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
           tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:playwright
-            ghcr.io/${{ steps.repo.outputs.name }}:playwright-sha-${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright
+            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright-sha-${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:playwright,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright,mode=max
           cache-to: type=inline
 
       # Step 12: Provide a clear summary message for scheduled runs when no update was needed
