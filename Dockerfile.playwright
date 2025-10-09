@@ -33,10 +33,14 @@ RUN apt-get update && apt-get install -y \
 # Install Playwright globally via npm
 RUN npm install -g playwright@latest
 
-# Create appuser for build-time operations (matching the runtime user from entrypoint)
-# Using UID/GID 1000 as defaults (same as entrypoint default)
-RUN groupadd --gid 1000 appuser_group && \
-    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
+# Create appuser for build-time operations if it doesn't exist
+# The entrypoint will handle proper UID/GID mapping at runtime
+RUN groupadd --gid 1000 appuser_group 2>/dev/null || true && \
+    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser 2>/dev/null || true
+
+# Create the .copilot cache directory for appuser
+RUN mkdir -p /home/appuser/.cache/ms-playwright && \
+    chown -R 1000:1000 /home/appuser
 
 # Switch to appuser before installing browsers so they're in the right cache location
 USER appuser
