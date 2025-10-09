@@ -103,11 +103,16 @@ jobs:
             echo "push_needed=false" >> $GITHUB_OUTPUT
           fi
 
-      # Step 9: Push the image to the registry only if needed
+      # Step 9: Push the image to registry only if needed
       - name: Push image to registry
         if: steps.push_decision.outputs.push_needed == 'true'
         # The image was already built and tagged, so we just need to push it.
-        run: docker push --all-tags ghcr.io/${{ steps.repo.outputs.name }}
+        # Also tag with full SHA for variant image builds
+        run: |
+          docker push --all-tags ghcr.io/${{ steps.repo.outputs.name }}
+          # Tag with full SHA for variant builds to reference
+          docker tag ghcr.io/${{ steps.repo.outputs.name }}:latest ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
+          docker push ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
 
       # Step 10: Build and push Playwright image (based on the base image)
       - name: Build and push Playwright image
