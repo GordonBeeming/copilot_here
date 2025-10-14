@@ -47,10 +47,8 @@ This version will always ask for your confirmation before executing any commands
       # 2. Warn if the token has highly privileged scopes.
       if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)'"; then
         echo "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise)."
-        # Use a portable prompt that works in both bash and zsh
         printf "Are you sure you want to proceed with this token? [y/N]: "
         read confirmation
-        # Use a portable method to convert to lowercase
         local lower_confirmation
         lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
         if [[ "$lower_confirmation" != "y" && "$lower_confirmation" != "yes" ]]; then
@@ -63,9 +61,35 @@ This version will always ask for your confirmation before executing any commands
       # Define the image name for easy reference
       local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
 
-      # Pull the latest version of the image to stay up-to-date.
-      echo "Checking for the latest version of copilot_here..."
-      docker pull "$image_name" > /dev/null 2>&1
+      # Pull the latest version of the image, showing a spinner for feedback.
+      printf "Checking for the latest version of copilot_here... "
+      
+      # Run docker pull in the background and capture its process ID (PID)
+      (docker pull "$image_name" > /dev/null 2>&1) &
+      local pull_pid=$!
+      local spin='|/-\'
+      
+      # While the pull process is running, display a spinner
+      local i=0
+      while ps -p $pull_pid > /dev/null; do
+        i=$(( (i+1) % 4 ))
+        # Print the spinner character, then move the cursor back
+        printf "%s\b" "${spin:$i:1}"
+        sleep 0.1
+      done
+
+      # Wait for the process to finish and get its exit code
+      wait $pull_pid
+      local pull_status=$?
+      
+      # Replace the spinner with a final status and add a newline
+      if [ $pull_status -eq 0 ]; then
+        echo "✅"
+      else
+        echo "❌"
+        echo "Error: Failed to pull the Docker image. Please check your Docker setup and network."
+        return 1
+      fi
 
       # Define path for our persistent copilot config on the host machine.
       local copilot_config_path="$HOME/.config/copilot-cli-docker"
@@ -118,12 +142,10 @@ This version will always ask for your confirmation before executing any commands
       fi
 
       # 2. Warn if the token has highly privileged scopes.
-      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)"; then
+      if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)'"; then
         echo "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise)."
-        # Use a portable prompt that works in both bash and zsh
         printf "Are you sure you want to proceed with this token? [y/N]: "
         read confirmation
-        # Use a portable method to convert to lowercase
         local lower_confirmation
         lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
         if [[ "$lower_confirmation" != "y" && "$lower_confirmation" != "yes" ]]; then
@@ -136,9 +158,35 @@ This version will always ask for your confirmation before executing any commands
       # Define the image name for easy reference
       local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
 
-      # Pull the latest version of the image to stay up-to-date.
-      echo "Checking for the latest version of copilot_here..."
-      docker pull "$image_name" > /dev/null 2>&1
+      # Pull the latest version of the image, showing a spinner for feedback.
+      printf "Checking for the latest version of copilot_here... "
+      
+      # Run docker pull in the background and capture its process ID (PID)
+      (docker pull "$image_name" > /dev/null 2>&1) &
+      local pull_pid=$!
+      local spin='|/-\'
+      
+      # While the pull process is running, display a spinner
+      local i=0
+      while ps -p $pull_pid > /dev/null; do
+        i=$(( (i+1) % 4 ))
+        # Print the spinner character, then move the cursor back
+        printf "%s\b" "${spin:$i:1}"
+        sleep 0.1
+      done
+
+      # Wait for the process to finish and get its exit code
+      wait $pull_pid
+      local pull_status=$?
+      
+      # Replace the spinner with a final status and add a newline
+      if [ $pull_status -eq 0 ]; then
+        echo "✅"
+      else
+        echo "❌"
+        echo "Error: Failed to pull the Docker image. Please check your Docker setup and network."
+        return 1
+      fi
 
       # Define path for our persistent copilot config on the host machine.
       local copilot_config_path="$HOME/.config/copilot-cli-docker"
