@@ -32,9 +32,11 @@ This provides a graceful fallback that allows the container to run even when use
 ### Modified Files
 
 - `entrypoint.sh`: Added user existence check before attempting to switch users
+- `README.md`: Restructured setup instructions to treat Windows as a first-class platform
 
 ### Code Changes
 
+**entrypoint.sh:**
 ```bash
 # Verify the user was created successfully
 if ! id appuser >/dev/null 2>&1; then
@@ -43,6 +45,12 @@ if ! id appuser >/dev/null 2>&1; then
     exec "$@"
 fi
 ```
+
+**README.md:**
+- Reorganized setup instructions to show modes first (Safe vs YOLO), then platforms
+- Added Windows PowerShell instructions alongside Linux/macOS bash instructions
+- Grouped code in collapsible sections for better readability
+- Made usage examples show both platforms side-by-side
 
 ## Testing
 
@@ -57,3 +65,4 @@ The fix should be tested on:
 - Running as root is not ideal from a security perspective, but it's acceptable for local development environments
 - The warning message alerts users that user creation failed, in case they want to investigate
 - This is a temporary fallback solution; future improvements could investigate why user creation fails on Windows and implement a more robust solution
+- Windows is now treated as a first-class platform in the documentation with equal prominence
