@@ -39,8 +39,6 @@ Choose your platform and preferred mode. You can install both modes side-by-side
 
 ### Option 1: Safe Mode (Recommended)
 
-### Option 1: Safe Mode (Recommended)
-
 This mode asks for confirmation before executing any commands, giving you full control.
 
 #### For Linux/macOS (Bash/Zsh)
@@ -260,10 +258,6 @@ This mode asks for confirmation before executing any commands, giving you full c
    ```
 
 ---
-
-### Option 2: YOLO Mode (Auto-Approve)
-
-This mode automatically approves all tool usage. Use with caution!
 
 ### Option 2: YOLO Mode (Auto-Approve)
 
