@@ -25,6 +25,195 @@ Before you start, make sure you have the following installed and configured on y
 
 ## 🛠️ Setup Instructions
 
+This guide provides setup instructions for both Linux/macOS (bash/zsh) and Windows (PowerShell). Each platform has two options: a safe version that asks for confirmation before executing commands, and a "YOLO" version that auto-approves all actions.
+
+### Windows (PowerShell)
+
+For Windows users, a PowerShell script is available that mirrors the bash functionality.
+
+1. **Download or create the PowerShell functions file.**
+   
+   Save the following as `copilot_functions.ps1` in a location of your choice (e.g., `C:\Users\YourName\Documents\PowerShell\`):
+
+   <details>
+   <summary>Click to expand copilot_functions.ps1</summary>
+
+   ```powershell
+   # PowerShell equivalents for copilot_here and copilot_yolo bash functions.
+   # To use these functions, save this file as "copilot_functions.ps1"
+   # and add the following line to your PowerShell profile script:
+   # . C:\path\to\your\copilot_functions.ps1
+   # You can find your profile by typing `$PROFILE` in PowerShell.
+
+   # A private helper function to contain the shared logic for running the Copilot CLI in Docker.
+   function Invoke-CopilotCli {
+       param (
+           [string[]]$Prompt,
+           [switch]$YoloMode
+       )
+
+       # --- SECURITY CHECK ---
+       # 1. Ensure the 'gh' CLI is authenticated and has the 'copilot' scope.
+       Write-Host "Verifying GitHub CLI authentication..."
+       $authStatus = gh auth status 2>$null
+       if (-not ($authStatus | Select-String -Quiet "'copilot'")) {
+           Write-Host "❌ Error: Your gh token is missing the required 'copilot' scope." -ForegroundColor Red
+           Write-Host "Please run 'gh auth refresh -h github.com -s copilot' to add it."
+           return
+       }
+
+       # 2. Warn if the token has highly privileged scopes.
+       $privilegedScopesPattern = "'(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)'"
+       if ($authStatus | Select-String -Quiet $privilegedScopesPattern) {
+           Write-Host "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, write:public_key)." -ForegroundColor Yellow
+           $confirmation = Read-Host "Are you sure you want to proceed with this token? [y/N]"
+           if ($confirmation.ToLower() -ne 'y' -and $confirmation.ToLower() -ne 'yes') {
+               Write-Host "Operation cancelled by user."
+               return
+           }
+       }
+       Write-Host "✅ Security checks passed."
+
+       # --- END SECURITY CHECK ---
+
+       # Define the Docker image name
+       $imageName = "ghcr.io/gordonbeeming/copilot_here:latest"
+
+       # Pull the latest version of the image, showing a spinner for feedback.
+       Write-Host -NoNewline "Checking for the latest version of copilot_here... "
+       
+       # Run docker pull as a background job to show a spinner
+       $pullJob = Start-Job -ScriptBlock { param($img) docker pull $img } -ArgumentList $imageName
+       $spinner = '|', '/', '-', '\'
+       $i = 0
+       while ($pullJob.State -eq 'Running') {
+           Write-Host -NoNewline "$($spinner[$i])`b"
+           $i = ($i + 1) % 4
+           Start-Sleep -Milliseconds 100
+       }
+
+       # Wait for the job to finish and check its status
+       Wait-Job $pullJob | Out-Null
+       $pullOutput = Receive-Job $pullJob # Capture any output/errors from the job
+       
+       if ($pullJob.State -eq 'Completed') {
+           Write-Host "✅"
+       } 
+       else {
+           Write-Host "❌" -ForegroundColor Red
+           Write-Host "Error: Failed to pull the Docker image. Please check your Docker setup and network." -ForegroundColor Red
+           if (-not [string]::IsNullOrEmpty($pullOutput)) {
+               Write-Host "Docker output:`n$pullOutput"
+           }
+           Remove-Job $pullJob
+           return
+       }
+       # Clean up the completed job
+       Remove-Job $pullJob
+
+       # Define path for the persistent Copilot config on the host machine.
+       $copilotConfigPath = Join-Path $env:USERPROFILE ".config\copilot-cli-docker"
+       if (-not (Test-Path $copilotConfigPath)) {
+           New-Item -Path $copilotConfigPath -ItemType Directory -Force | Out-Null
+       }
+
+       # Use the 'gh' CLI to reliably get the current auth token.
+       $token = gh auth token 2>$null
+       if ([string]::IsNullOrEmpty($token)) {
+           Write-Host "⚠️  Could not retrieve token using 'gh auth token'. Please ensure you are logged in." -ForegroundColor Yellow
+       }
+
+       # Base Docker command arguments.
+       # Note: PUID and PGID are not needed on Windows Docker Desktop
+       $dockerBaseArgs = @(
+           "--rm", "-it",
+           "-v", "$((Get-Location).Path):/work",
+           "-v", "$($copilotConfigPath):/home/appuser/.copilot",
+           "-e", "GITHUB_TOKEN=$token",
+           $imageName
+       )
+
+       # Build the command to run inside the container
+       $copilotCommand = @("copilot")
+
+       if ($Prompt.Length -eq 0) {
+           $copilotCommand += "--banner"
+       } else {
+           # Join all arguments into a single string for the prompt
+           $copilotCommand += "-p", ($Prompt -join ' ')
+       }
+
+       if ($YoloMode.IsPresent) {
+           $copilotCommand += "--allow-all-tools"
+       }
+
+       $finalDockerArgs = $dockerBaseArgs + $copilotCommand
+       
+       # Execute the command
+       docker run $finalDockerArgs
+   }
+
+   # The main function for safe, interactive use of Copilot CLI.
+   function Copilot-Here {
+       [CmdletBinding()]
+       param (
+           # The prompt to send to GitHub Copilot CLI.
+           [Parameter(ValueFromRemainingArguments=$true)]
+           [string[]]$Prompt
+       )
+
+       Invoke-CopilotCli -Prompt $Prompt
+   }
+
+   # The "You Only Live Once" version that automatically approves tool usage.
+   function Copilot-Yolo {
+       [CmdletBinding()]
+       param (
+           # The prompt to send to GitHub Copilot CLI.
+           [Parameter(ValueFromRemainingArguments=$true)]
+           [string[]]$Prompt
+       )
+
+       Invoke-CopilotCli -Prompt $Prompt -YoloMode
+   }
+
+   # Set aliases for convenience to match the bash versions
+   Set-Alias -Name copilot_here -Value Copilot-Here
+   Set-Alias -Name copilot_yolo -Value Copilot-Yolo
+   ```
+   </details>
+
+2. **Add it to your PowerShell profile.**
+   
+   Open your PowerShell profile for editing (create it if it doesn't exist):
+   ```powershell
+   notepad $PROFILE
+   ```
+   
+   Add this line to load the functions (adjust the path to where you saved the file):
+   ```powershell
+   . C:\Users\YourName\Documents\PowerShell\copilot_functions.ps1
+   ```
+
+3. **Reload your PowerShell profile:**
+   ```powershell
+   . $PROFILE
+   ```
+
+4. **Usage on Windows:**
+   ```powershell
+   # Interactive mode
+   copilot_here
+
+   # Non-interactive mode
+   copilot_here "suggest a git command to view the last 5 commits"
+
+   # Auto-approve mode
+   copilot_yolo "write a C# function that takes a string and returns it in reverse"
+   ```
+
+### Linux/macOS (Bash/Zsh)
+
 This guide provides two options for your shell function. Option 1 is recommended as the safe default, while Option 2 offers convenience at the cost of security. You can add both to your profile with different names.
 
 ### Option 1: The Safe Version (Recommended)
