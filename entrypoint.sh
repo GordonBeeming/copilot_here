@@ -9,6 +9,13 @@ GROUP_ID=${PGID:-1000}
 groupadd --gid $GROUP_ID appuser_group >/dev/null 2>&1 || true
 useradd --uid $USER_ID --gid $GROUP_ID --shell /bin/bash --create-home appuser >/dev/null 2>&1 || true
 
+# Verify the user was created successfully
+if ! id appuser >/dev/null 2>&1; then
+    echo "Warning: Failed to create appuser, running as root" >&2
+    mkdir -p /home/appuser/.copilot
+    exec "$@"
+fi
+
 # Set up the .copilot directory and ensure ownership of the entire home dir.
 mkdir -p /home/appuser/.copilot
 chown -R $USER_ID:$GROUP_ID /home/appuser
