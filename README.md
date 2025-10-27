@@ -42,6 +42,7 @@ All functions support switching between Docker image variants using flags:
 
 ### Additional Options
 
+- **`-h` or `--help`** - Show usage help and examples (Bash/Zsh) or `-h` / `-Help` (PowerShell)
 - **`--no-cleanup`** - Skip cleanup of unused Docker images (Bash/Zsh) or `-NoCleanup` (PowerShell)
 - **`--no-pull`** - Skip pulling the latest image (Bash/Zsh) or `-NoPull` (PowerShell)
 
@@ -208,6 +209,42 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
+         -h|--help)
+           cat << 'EOF'
+copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+
+USAGE:
+  copilot_here [OPTIONS] [PROMPT]
+
+OPTIONS:
+  -d, --dotnet              Use .NET image variant
+  -dp, --dotnet-playwright  Use .NET + Playwright image variant
+  --no-cleanup              Skip cleanup of unused Docker images
+  --no-pull                 Skip pulling the latest image
+  -h, --help                Show this help message
+
+EXAMPLES:
+  # Interactive mode
+  copilot_here
+  
+  # Ask a question
+  copilot_here "how do I list files in bash?"
+  
+  # Use .NET image
+  copilot_here -d "build this .NET project"
+  
+  # Fast mode (skip cleanup and pull)
+  copilot_here --no-cleanup --no-pull "quick question"
+
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+
+VERSION: 2025-01-09
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+EOF
+           return 0
+           ;;
          -d|--dotnet)
            image_tag="dotnet"
            shift
@@ -244,6 +281,46 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
+         -h|--help)
+           cat << 'EOF'
+copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
+
+USAGE:
+  copilot_yolo [OPTIONS] [PROMPT]
+
+OPTIONS:
+  -d, --dotnet              Use .NET image variant
+  -dp, --dotnet-playwright  Use .NET + Playwright image variant
+  --no-cleanup              Skip cleanup of unused Docker images
+  --no-pull                 Skip pulling the latest image
+  -h, --help                Show this help message
+
+EXAMPLES:
+  # Interactive mode (auto-approves all)
+  copilot_yolo
+  
+  # Execute without confirmation
+  copilot_yolo "run the tests and fix failures"
+  
+  # Use .NET + Playwright image
+  copilot_yolo -dp "write playwright tests"
+  
+  # Fast mode (skip cleanup)
+  copilot_yolo --no-cleanup "generate README"
+
+WARNING:
+  YOLO mode automatically approves ALL tool usage without confirmation.
+  Use with caution and only in trusted environments.
+
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+
+VERSION: 2025-01-09
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+EOF
+           return 0
+           ;;
          -d|--dotnet)
            image_tag="dotnet"
            shift
@@ -445,6 +522,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    function Copilot-Here {
        [CmdletBinding()]
        param (
+           [switch]$h,
+           [switch]$Help,
            [switch]$d,
            [switch]$Dotnet,
            [switch]$dp,
@@ -454,6 +533,43 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       if ($h -or $Help) {
+           Write-Host @"
+copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+
+USAGE:
+  copilot_here [OPTIONS] [PROMPT]
+
+OPTIONS:
+  -d, -Dotnet              Use .NET image variant
+  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -NoCleanup               Skip cleanup of unused Docker images
+  -NoPull                  Skip pulling the latest image
+  -h, -Help                Show this help message
+
+EXAMPLES:
+  # Interactive mode
+  copilot_here
+  
+  # Ask a question
+  copilot_here "how do I list files in PowerShell?"
+  
+  # Use .NET image
+  copilot_here -d "build this .NET project"
+  
+  # Fast mode (skip cleanup and pull)
+  copilot_here -NoCleanup -NoPull "quick question"
+
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+
+VERSION: 2025-01-09
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+"@
+           return
+       }
 
        $imageTag = "latest"
        if ($d -or $Dotnet) {
@@ -469,6 +585,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    function Copilot-Yolo {
        [CmdletBinding()]
        param (
+           [switch]$h,
+           [switch]$Help,
            [switch]$d,
            [switch]$Dotnet,
            [switch]$dp,
@@ -478,6 +596,47 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       if ($h -or $Help) {
+           Write-Host @"
+copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
+
+USAGE:
+  copilot_yolo [OPTIONS] [PROMPT]
+
+OPTIONS:
+  -d, -Dotnet              Use .NET image variant
+  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -NoCleanup               Skip cleanup of unused Docker images
+  -NoPull                  Skip pulling the latest image
+  -h, -Help                Show this help message
+
+EXAMPLES:
+  # Interactive mode (auto-approves all)
+  copilot_yolo
+  
+  # Execute without confirmation
+  copilot_yolo "run the tests and fix failures"
+  
+  # Use .NET + Playwright image
+  copilot_yolo -dp "write playwright tests"
+  
+  # Fast mode (skip cleanup)
+  copilot_yolo -NoCleanup "generate README"
+
+WARNING:
+  YOLO mode automatically approves ALL tool usage without confirmation.
+  Use with caution and only in trusted environments.
+
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+
+VERSION: 2025-01-09
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+"@
+           return
+       }
 
        $imageTag = "latest"
        if ($d -or $Dotnet) {
@@ -550,6 +709,17 @@ copilot_here --dotnet-playwright
 # Windows
 copilot_here -dp
 copilot_here -DotnetPlaywright
+```
+
+**Get help:**
+```bash
+# Linux/macOS
+copilot_here --help
+copilot_yolo --help
+
+# Windows
+copilot_here -Help
+copilot_yolo -Help
 ```
 
 ### Non-Interactive Mode
