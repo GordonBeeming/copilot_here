@@ -169,27 +169,76 @@ function Copilot-Here {
         [switch]$DotnetPlaywright,
         [switch]$NoCleanup,
         [switch]$NoPull,
+        [switch]$UpdateScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
 
+    if ($UpdateScripts) {
+        Write-Host "📦 Updating copilot_here scripts from GitHub..."
+        
+        # Check for standalone file
+        $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+        if (Test-Path $standalonePath) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+            Write-Host "✅ Scripts updated successfully!"
+            Write-Host "🔄 Reload: . $standalonePath"
+            return
+        }
+        
+        # Inline installation - update profile
+        if (-not (Test-Path $PROFILE)) {
+            Write-Host "❌ PowerShell profile not found: $PROFILE"
+            return
+        }
+        
+        # Download
+        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+        } catch {
+            Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+            return
+        }
+        
+        # Backup
+        $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+        Copy-Item $PROFILE $backupPath
+        Write-Host "✅ Created backup: $backupPath"
+        
+        # Replace
+        $profileContent = Get-Content $PROFILE -Raw
+        if ($profileContent -match '# copilot_here PowerShell functions') {
+            $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
+            Set-Content $PROFILE $newProfile
+            Write-Host "✅ Scripts updated!"
+        } else {
+            Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
+            Write-Host "✅ Scripts added!"
+        }
+        
+        Remove-Item $tempScript
+        Write-Host "🔄 Reload: . `$PROFILE"
+        return
+    }
+
     if ($h -or $Help) {
         Write-Host @"
-ilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
-GE:
-opilot_here [OPTIONS] [COPILOT_ARGS]
+USAGE:
+  copilot_here [OPTIONS] [COPILOT_ARGS]
 
-IONS:
-d, -Dotnet              Use .NET image variant
-dp, -DotnetPlaywright   Use .NET + Playwright image variant
-NoCleanup               Skip cleanup of unused Docker images
-NoPull                  Skip pulling the latest image
-UpdateScripts           Update scripts from GitHub repository
-h, -Help                Show this help message
+OPTIONS:
+  -d, -Dotnet              Use .NET image variant
+  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -NoCleanup               Skip cleanup of unused Docker images
+  -NoPull                  Skip pulling the latest image
+  -UpdateScripts           Update scripts from GitHub repository
+  -h, -Help                Show this help message
 
-ILOT_ARGS:
-ll standard GitHub Copilot CLI arguments are supported:
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
  -p, --prompt <text>     Execute a prompt directly
  --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
  --continue              Resume most recent session
@@ -200,32 +249,32 @@ ll standard GitHub Copilot CLI arguments are supported:
  --deny-tool <tools>     Deny specific tools
  ... and more (run "copilot -h" for full list)
 
-MPLES:
- Interactive mode
-opilot_here
+EXAMPLES:
+  # Interactive mode
+  copilot_here
+  
+  # Ask a question
+  copilot_here -p "how do I list files in PowerShell?"
+  
+  # Use specific AI model
+  copilot_here --model gpt-5 -p "explain this code"
+  
+  # Resume previous session
+  copilot_here --continue
+  
+  # Use .NET image
+  copilot_here -d -p "build this .NET project"
+  
+  # Fast mode (skip cleanup and pull)
+  copilot_here -NoCleanup -NoPull -p "quick question"
 
- Ask a question
-opilot_here -p "how do I list files in PowerShell?"
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
- Use specific AI model
-opilot_here --model gpt-5 -p "explain this code"
-
- Resume previous session
-opilot_here --continue
-
- Use .NET image
-opilot_here -d -p "build this .NET project"
-
- Fast mode (skip cleanup and pull)
-opilot_here -NoCleanup -NoPull -p "quick question"
-
-ES:
-opilot_here  - Safe mode (asks for confirmation before executing)
-opilot_yolo  - YOLO mode (auto-approves all tool usage)
-
-SION: 2025-10-27.2
-OSITORY: https://github.com/GordonBeeming/copilot_here
-
+VERSION: 2025-10-27.2
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+"@
         return
     }
 
@@ -251,27 +300,76 @@ function Copilot-Yolo {
         [switch]$DotnetPlaywright,
         [switch]$NoCleanup,
         [switch]$NoPull,
+        [switch]$UpdateScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
 
+    if ($UpdateScripts) {
+        Write-Host "📦 Updating copilot_here scripts from GitHub..."
+        
+        # Check for standalone file
+        $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+        if (Test-Path $standalonePath) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+            Write-Host "✅ Scripts updated successfully!"
+            Write-Host "🔄 Reload: . $standalonePath"
+            return
+        }
+        
+        # Inline installation - update profile
+        if (-not (Test-Path $PROFILE)) {
+            Write-Host "❌ PowerShell profile not found: $PROFILE"
+            return
+        }
+        
+        # Download
+        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+        } catch {
+            Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+            return
+        }
+        
+        # Backup
+        $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+        Copy-Item $PROFILE $backupPath
+        Write-Host "✅ Created backup: $backupPath"
+        
+        # Replace
+        $profileContent = Get-Content $PROFILE -Raw
+        if ($profileContent -match '# copilot_here PowerShell functions') {
+            $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
+            Set-Content $PROFILE $newProfile
+            Write-Host "✅ Scripts updated!"
+        } else {
+            Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
+            Write-Host "✅ Scripts added!"
+        }
+        
+        Remove-Item $tempScript
+        Write-Host "🔄 Reload: . `$PROFILE"
+        return
+    }
+
     if ($h -or $Help) {
         Write-Host @"
-ilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
+copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
-GE:
-opilot_yolo [OPTIONS] [COPILOT_ARGS]
+USAGE:
+  copilot_yolo [OPTIONS] [COPILOT_ARGS]
 
-IONS:
-d, -Dotnet              Use .NET image variant
-dp, -DotnetPlaywright   Use .NET + Playwright image variant
-NoCleanup               Skip cleanup of unused Docker images
-NoPull                  Skip pulling the latest image
-UpdateScripts           Update scripts from GitHub repository
-h, -Help                Show this help message
+OPTIONS:
+  -d, -Dotnet              Use .NET image variant
+  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -NoCleanup               Skip cleanup of unused Docker images
+  -NoPull                  Skip pulling the latest image
+  -UpdateScripts           Update scripts from GitHub repository
+  -h, -Help                Show this help message
 
-ILOT_ARGS:
-ll standard GitHub Copilot CLI arguments are supported:
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
  -p, --prompt <text>     Execute a prompt directly
  --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
  --continue              Resume most recent session
@@ -282,36 +380,36 @@ ll standard GitHub Copilot CLI arguments are supported:
  --deny-tool <tools>     Deny specific tools
  ... and more (run "copilot -h" for full list)
 
-MPLES:
- Interactive mode (auto-approves all)
-opilot_yolo
+EXAMPLES:
+  # Interactive mode (auto-approves all)
+  copilot_yolo
+  
+  # Execute without confirmation
+  copilot_yolo -p "run the tests and fix failures"
+  
+  # Use specific model
+  copilot_yolo --model gpt-5 -p "optimize this code"
+  
+  # Resume session
+  copilot_yolo --continue
+  
+  # Use .NET + Playwright image
+  copilot_yolo -dp -p "write playwright tests"
+  
+  # Fast mode (skip cleanup)
+  copilot_yolo -NoCleanup -p "generate README"
 
- Execute without confirmation
-opilot_yolo -p "run the tests and fix failures"
+WARNING:
+  YOLO mode automatically approves ALL tool usage without confirmation.
+  Use with caution and only in trusted environments.
 
- Use specific model
-opilot_yolo --model gpt-5 -p "optimize this code"
+MODES:
+  copilot_here  - Safe mode (asks for confirmation before executing)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
- Resume session
-opilot_yolo --continue
-
- Use .NET + Playwright image
-opilot_yolo -dp -p "write playwright tests"
-
- Fast mode (skip cleanup)
-opilot_yolo -NoCleanup -p "generate README"
-
-NING:
-OLO mode automatically approves ALL tool usage without confirmation.
-se with caution and only in trusted environments.
-
-ES:
-opilot_here  - Safe mode (asks for confirmation before executing)
-opilot_yolo  - YOLO mode (auto-approves all tool usage)
-
-SION: 2025-10-27.2
-OSITORY: https://github.com/GordonBeeming/copilot_here
-
+VERSION: 2025-10-27.2
+REPOSITORY: https://github.com/GordonBeeming/copilot_here
+"@
         return
     }
 
@@ -327,3 +425,6 @@ OSITORY: https://github.com/GordonBeeming/copilot_here
 
 Set-Alias -Name copilot_here -Value Copilot-Here
 Set-Alias -Name copilot_yolo -Value Copilot-Yolo
+notepad $PROFILE
+. C:\Users\YourName\Documents\PowerShell\copilot_here.ps1
+. $PROFILE

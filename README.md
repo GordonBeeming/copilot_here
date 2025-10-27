@@ -62,6 +62,7 @@ Download and source the script in your shell profile:
 curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
 
 # Add to your shell profile (~/.zshrc or ~/.bashrc)
+echo '' >> ~/.zshrc  # Add newline first
 echo 'source ~/.copilot_here.sh' >> ~/.zshrc  # or ~/.bashrc for bash
 
 # Reload your shell
@@ -304,6 +305,62 @@ EOF
            skip_pull="true"
            shift
            ;;
+         --update-scripts)
+           echo "📦 Updating copilot_here scripts from GitHub..."
+           
+           # Check if using standalone file installation
+           if [ -f ~/.copilot_here.sh ]; then
+             echo "✅ Detected standalone installation at ~/.copilot_here.sh"
+             curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
+             echo "✅ Scripts updated successfully!"
+             echo "🔄 Reload your shell to use the updated version"
+             return 0
+           fi
+           
+           # Inline installation - update shell config
+           local config_file=""
+           if [ -n "$ZSH_VERSION" ]; then
+             config_file="${ZDOTDIR:-$HOME}/.zshrc"
+           elif [ -n "$BASH_VERSION" ]; then
+             config_file="$HOME/.bashrc"
+           else
+             echo "❌ Unsupported shell. Please update manually."
+             return 1
+           fi
+           
+           if [ ! -f "$config_file" ]; then
+             echo "❌ Shell config not found: $config_file"
+             return 1
+           fi
+           
+           # Download latest
+           local temp_script=$(mktemp)
+           if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+             echo "❌ Failed to download script"
+             rm -f "$temp_script"
+             return 1
+           fi
+           
+           # Backup
+           cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+           echo "✅ Created backup"
+           
+           # Replace script
+           if grep -q "# copilot_here shell functions" "$config_file"; then
+             awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
+             cat "$temp_script" >> "${config_file}.tmp"
+             mv "${config_file}.tmp" "$config_file"
+             echo "✅ Scripts updated!"
+           else
+             echo "" >> "$config_file"
+             cat "$temp_script" >> "$config_file"
+             echo "✅ Scripts added!"
+           fi
+           
+           rm -f "$temp_script"
+           echo "🔄 Reload: source $config_file"
+           return 0
+           ;;
          *)
            args+=("$1")
            shift
@@ -398,6 +455,62 @@ EOF
          --no-pull)
            skip_pull="true"
            shift
+           ;;
+         --update-scripts)
+           echo "📦 Updating copilot_here scripts from GitHub..."
+           
+           # Check if using standalone file installation
+           if [ -f ~/.copilot_here.sh ]; then
+             echo "✅ Detected standalone installation at ~/.copilot_here.sh"
+             curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
+             echo "✅ Scripts updated successfully!"
+             echo "🔄 Reload your shell to use the updated version"
+             return 0
+           fi
+           
+           # Inline installation - update shell config
+           local config_file=""
+           if [ -n "$ZSH_VERSION" ]; then
+             config_file="${ZDOTDIR:-$HOME}/.zshrc"
+           elif [ -n "$BASH_VERSION" ]; then
+             config_file="$HOME/.bashrc"
+           else
+             echo "❌ Unsupported shell. Please update manually."
+             return 1
+           fi
+           
+           if [ ! -f "$config_file" ]; then
+             echo "❌ Shell config not found: $config_file"
+             return 1
+           fi
+           
+           # Download latest
+           local temp_script=$(mktemp)
+           if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+             echo "❌ Failed to download script"
+             rm -f "$temp_script"
+             return 1
+           fi
+           
+           # Backup
+           cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+           echo "✅ Created backup"
+           
+           # Replace script
+           if grep -q "# copilot_here shell functions" "$config_file"; then
+             awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
+             cat "$temp_script" >> "${config_file}.tmp"
+             mv "${config_file}.tmp" "$config_file"
+             echo "✅ Scripts updated!"
+           else
+             echo "" >> "$config_file"
+             cat "$temp_script" >> "$config_file"
+             echo "✅ Scripts added!"
+           fi
+           
+           rm -f "$temp_script"
+           echo "🔄 Reload: source $config_file"
+           return 0
            ;;
          *)
            args+=("$1")
@@ -616,9 +729,58 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            [switch]$DotnetPlaywright,
            [switch]$NoCleanup,
            [switch]$NoPull,
+           [switch]$UpdateScripts,
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       if ($UpdateScripts) {
+           Write-Host "📦 Updating copilot_here scripts from GitHub..."
+           
+           # Check for standalone file
+           $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+           if (Test-Path $standalonePath) {
+               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+               Write-Host "✅ Scripts updated successfully!"
+               Write-Host "🔄 Reload: . $standalonePath"
+               return
+           }
+           
+           # Inline installation - update profile
+           if (-not (Test-Path $PROFILE)) {
+               Write-Host "❌ PowerShell profile not found: $PROFILE"
+               return
+           }
+           
+           # Download
+           $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+           try {
+               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+           } catch {
+               Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+               return
+           }
+           
+           # Backup
+           $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+           Copy-Item $PROFILE $backupPath
+           Write-Host "✅ Created backup: $backupPath"
+           
+           # Replace
+           $profileContent = Get-Content $PROFILE -Raw
+           if ($profileContent -match '# copilot_here PowerShell functions') {
+               $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
+               Set-Content $PROFILE $newProfile
+               Write-Host "✅ Scripts updated!"
+           } else {
+               Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
+               Write-Host "✅ Scripts added!"
+           }
+           
+           Remove-Item $tempScript
+           Write-Host "🔄 Reload: . `$PROFILE"
+           return
+       }
 
        if ($h -or $Help) {
            Write-Host @"
@@ -698,9 +860,58 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            [switch]$DotnetPlaywright,
            [switch]$NoCleanup,
            [switch]$NoPull,
+           [switch]$UpdateScripts,
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       if ($UpdateScripts) {
+           Write-Host "📦 Updating copilot_here scripts from GitHub..."
+           
+           # Check for standalone file
+           $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+           if (Test-Path $standalonePath) {
+               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+               Write-Host "✅ Scripts updated successfully!"
+               Write-Host "🔄 Reload: . $standalonePath"
+               return
+           }
+           
+           # Inline installation - update profile
+           if (-not (Test-Path $PROFILE)) {
+               Write-Host "❌ PowerShell profile not found: $PROFILE"
+               return
+           }
+           
+           # Download
+           $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+           try {
+               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+           } catch {
+               Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+               return
+           }
+           
+           # Backup
+           $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+           Copy-Item $PROFILE $backupPath
+           Write-Host "✅ Created backup: $backupPath"
+           
+           # Replace
+           $profileContent = Get-Content $PROFILE -Raw
+           if ($profileContent -match '# copilot_here PowerShell functions') {
+               $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
+               Set-Content $PROFILE $newProfile
+               Write-Host "✅ Scripts updated!"
+           } else {
+               Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
+               Write-Host "✅ Scripts added!"
+           }
+           
+           Remove-Item $tempScript
+           Write-Host "🔄 Reload: . `$PROFILE"
+           return
+       }
 
        if ($h -or $Help) {
            Write-Host @"
