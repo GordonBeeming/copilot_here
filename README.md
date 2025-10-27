@@ -25,27 +25,30 @@ Before you start, make sure you have the following installed and configured on y
 
 ## 🛠️ Setup Instructions
 
-Choose your platform and preferred mode. You can install both modes side-by-side with different command names (e.g., `copilot_here` for safe mode and `copilot_yolo` for auto-approve mode).
+Choose your platform below. The scripts include both **Safe Mode** (asks for confirmation) and **YOLO Mode** (auto-approves) functions. You can use either or both depending on your needs.
 
-### Understanding the Two Modes
+### Execution Modes
 
-**Safe Mode (Recommended)** - Always asks for confirmation before executing commands. Use this for general development work where you want control over what gets executed.
+**Safe Mode (`copilot_here`)** - Always asks for confirmation before executing commands. Recommended for general development work where you want control over what gets executed.
 
-**YOLO Mode (Auto-Approve)** - Automatically approves all tool usage without confirmation. Convenient for trusted workflows but use with caution as it can execute commands without prompting.
+**YOLO Mode (`copilot_yolo`)** - Automatically approves all tool usage without confirmation. Convenient for trusted workflows but use with caution as it can execute commands without prompting.
 
-> ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens. The YOLO mode adds the `--allow-all-tools` flag which bypasses execution confirmation.
+### Image Variants
+
+All functions support switching between Docker image variants using flags:
+- **No flag** - Base image (Node.js, Git, basic tools)
+- **`-d` or `--dotnet`** - .NET image (includes .NET 8 & 9 SDKs)
+- **`-dp` or `--dotnet-playwright`** - .NET + Playwright image (includes browser automation)
+
+> ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens.
 
 ---
 
-### Option 1: Safe Mode (Recommended)
+### For Linux/macOS (Bash/Zsh)
 
-This mode asks for confirmation before executing any commands, giving you full control.
+**Add the functions to your shell profile.**
 
-#### For Linux/macOS (Bash/Zsh)
-
-1. **Add the function to your shell profile.**
-   
-   Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) and add:
+Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) and add:
 
    <details>
    <summary>Click to expand bash/zsh code</summary>
@@ -145,7 +148,7 @@ This mode asks for confirmation before executing any commands, giving you full c
      docker run "${docker_args[@]}" "${copilot_args[@]}"
    }
 
-   # Main function with image variant support
+   # Safe Mode: Asks for confirmation before executing
    copilot_here() {
      local image_tag="latest"
      local args=()
@@ -170,16 +173,44 @@ This mode asks for confirmation before executing any commands, giving you full c
      
      __copilot_run "$image_tag" "false" "${args[@]}"
    }
+
+   # YOLO Mode: Auto-approves all tool usage
+   copilot_yolo() {
+     local image_tag="latest"
+     local args=()
+     
+     # Parse arguments for image variant flags
+     while [[ $# -gt 0 ]]; do
+       case "$1" in
+         -d|--dotnet)
+           image_tag="dotnet"
+           shift
+           ;;
+         -dp|--dotnet-playwright)
+           image_tag="dotnet-playwright"
+           shift
+           ;;
+         *)
+           args+=("$1")
+           shift
+           ;;
+       esac
+     done
+     
+     __copilot_run "$image_tag" "true" "${args[@]}"
+   }
    ```
    </details>
 
-2. **Reload your shell** (e.g., `source ~/.zshrc`).
+**Reload your shell** (e.g., `source ~/.zshrc`).
 
-#### For Windows (PowerShell)
+---
 
-1. **Create the PowerShell function file.**
-   
-   Save the following as `copilot_here.ps1` in a location of your choice (e.g., `C:\Users\YourName\Documents\PowerShell\`):
+### For Windows (PowerShell)
+
+**Create the PowerShell functions.**
+
+1. Save the following as `copilot_here.ps1` in a location of your choice (e.g., `C:\Users\YourName\Documents\PowerShell\`):
 
    <details>
    <summary>Click to expand PowerShell code</summary>
@@ -286,7 +317,7 @@ This mode asks for confirmation before executing any commands, giving you full c
        docker run $finalDockerArgs
    }
 
-   # Main function with image variant support
+   # Safe Mode: Asks for confirmation before executing
    function Copilot-Here {
        [CmdletBinding()]
        param (
@@ -308,88 +339,7 @@ This mode asks for confirmation before executing any commands, giving you full c
        Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -Arguments $Prompt
    }
 
-   Set-Alias -Name copilot_here -Value Copilot-Here
-   ```
-   </details>
-
-2. **Add it to your PowerShell profile.**
-   
-   Open your PowerShell profile for editing:
-   ```powershell
-   notepad $PROFILE
-   ```
-   
-   Add this line (adjust the path to where you saved the file):
-   ```powershell
-   . C:\Users\YourName\Documents\PowerShell\copilot_here.ps1
-   ```
-
-3. **Reload your PowerShell profile:**
-   ```powershell
-   . $PROFILE
-   ```
-
----
-
-### Option 2: YOLO Mode (Auto-Approve)
-
-This mode automatically approves all tool usage. Use with caution!
-
-#### For Linux/macOS (Bash/Zsh)
-
-1. **Add the function to your shell profile.**
-   
-   You can add this alongside the safe version with a different name like `copilot_yolo`:
-
-   <details>
-   <summary>Click to expand bash/zsh code</summary>
-
-   ```bash
-   # Note: This assumes you've already added the helper functions from Option 1
-   # (__copilot_security_check, __copilot_pull_image, __copilot_run)
-   
-   copilot_yolo() {
-     local image_tag="latest"
-     local args=()
-     
-     # Parse arguments for image variant flags
-     while [[ $# -gt 0 ]]; do
-       case "$1" in
-         -d|--dotnet)
-           image_tag="dotnet"
-           shift
-           ;;
-         -dp|--dotnet-playwright)
-           image_tag="dotnet-playwright"
-           shift
-           ;;
-         *)
-           args+=("$1")
-           shift
-           ;;
-       esac
-     done
-     
-     __copilot_run "$image_tag" "true" "${args[@]}"
-   }
-   ```
-   </details>
-
-2. **Reload your shell** (e.g., `source ~/.zshrc`).
-
-#### For Windows (PowerShell)
-
-1. **Create the PowerShell function file.**
-   
-   Save the following as `copilot_yolo.ps1` (or add to your existing file):
-
-   <details>
-   <summary>Click to expand PowerShell code</summary>
-
-   ```powershell
-   # Note: This assumes you've already added the helper functions from Option 1
-   # (Test-CopilotSecurityCheck, Get-CopilotImage, Invoke-CopilotRun)
-   
+   # YOLO Mode: Auto-approves all tool usage
    function Copilot-Yolo {
        [CmdletBinding()]
        param (
@@ -411,16 +361,29 @@ This mode automatically approves all tool usage. Use with caution!
        Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -Arguments $Prompt
    }
 
+   Set-Alias -Name copilot_here -Value Copilot-Here
    Set-Alias -Name copilot_yolo -Value Copilot-Yolo
    ```
    </details>
 
-2. **Add it to your PowerShell profile** (same process as Option 1).
+2. **Add it to your PowerShell profile.**
+   
+   Open your PowerShell profile for editing:
+   ```powershell
+   notepad $PROFILE
+   ```
+   
+   Add this line (adjust the path to where you saved the file):
+   ```powershell
+   . C:\Users\YourName\Documents\PowerShell\copilot_here.ps1
+   ```
 
 3. **Reload your PowerShell profile:**
    ```powershell
    . $PROFILE
    ```
+
+---
 
 ## Usage
 
