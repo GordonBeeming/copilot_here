@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-27.5
+# Version: 2025-10-27.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -177,12 +177,36 @@ function Copilot-Here {
     if ($UpdateScripts) {
         Write-Host "📦 Updating copilot_here scripts from GitHub..."
         
-        # Check for standalone file
+        # Get current version
+        $currentVersion = ""
         $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
         if (Test-Path $standalonePath) {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+            $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+        } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+            $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+        }
+        
+        # Check for standalone file
+        if (Test-Path $standalonePath) {
+            # Download to temp first to check version
+            $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+            try {
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+            } catch {
+                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+                return
+            }
+            
+            $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+            
+            if ($currentVersion -and $newVersion) {
+            }                   Write-Host "
+            
+            Move-Item $tempScript $standalonePath -Force
             Write-Host "✅ Scripts updated successfully!"
-            Write-Host "🔄 Reload: . $standalonePath"
+            Write-Host "🔄 Reloading..."
+            . $standalonePath
+            Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
         
@@ -199,6 +223,12 @@ function Copilot-Here {
         } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
+        }
+        
+        $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+        
+        if ($currentVersion -and $newVersion) {
+            Write-Host "📌 Version: $currentVersion → $newVersion"
         }
         
         # Backup
@@ -218,7 +248,9 @@ function Copilot-Here {
         }
         
         Remove-Item $tempScript
-        Write-Host "🔄 Reload: . `$PROFILE"
+        Write-Host "🔄 Reloading..."
+        . $PROFILE
+        Write-Host "✨ Update complete! You're now on version $newVersion"
         return
     }
 
@@ -272,7 +304,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -308,12 +340,36 @@ function Copilot-Yolo {
     if ($UpdateScripts) {
         Write-Host "📦 Updating copilot_here scripts from GitHub..."
         
-        # Check for standalone file
+        # Get current version
+        $currentVersion = ""
         $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
         if (Test-Path $standalonePath) {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+            $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+        } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+            $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+        }
+        
+        # Check for standalone file
+        if (Test-Path $standalonePath) {
+            # Download to temp first to check version
+            $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+            try {
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+            } catch {
+                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+                return
+            }
+            
+            $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+            
+            if ($currentVersion -and $newVersion) {
+            }                   Write-Host "
+            
+            Move-Item $tempScript $standalonePath -Force
             Write-Host "✅ Scripts updated successfully!"
-            Write-Host "🔄 Reload: . $standalonePath"
+            Write-Host "🔄 Reloading..."
+            . $standalonePath
+            Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
         
@@ -330,6 +386,12 @@ function Copilot-Yolo {
         } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
+        }
+        
+        $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+        
+        if ($currentVersion -and $newVersion) {
+            Write-Host "📌 Version: $currentVersion → $newVersion"
         }
         
         # Backup
@@ -349,7 +411,9 @@ function Copilot-Yolo {
         }
         
         Remove-Item $tempScript
-        Write-Host "🔄 Reload: . `$PROFILE"
+        Write-Host "🔄 Reloading..."
+        . $PROFILE
+        Write-Host "✨ Update complete! You're now on version $newVersion"
         return
     }
 
@@ -407,7 +471,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return

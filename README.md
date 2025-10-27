@@ -84,7 +84,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-27.5
+   # Version: 2025-10-27.6
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -289,7 +289,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -319,12 +319,37 @@ EOF
          --update-scripts)
            echo "📦 Updating copilot_here scripts from GitHub..."
            
+           # Get current version
+           local current_version=""
+           if [ -f ~/.copilot_here.sh ]; then
+             current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+           elif type copilot_here >/dev/null 2>&1; then
+             current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+           fi
+           
            # Check if using standalone file installation
            if [ -f ~/.copilot_here.sh ]; then
              echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-             curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
+             
+             # Download to temp first to check version
+             local temp_script=$(mktemp)
+             if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+               echo "❌ Failed to download script"
+               rm -f "$temp_script"
+               return 1
+             fi
+             
+             local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+             
+             if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+               echo "📌 Version: $current_version → $new_version"
+             fi
+             
+             mv "$temp_script" ~/.copilot_here.sh
              echo "✅ Scripts updated successfully!"
-             echo "🔄 Reload your shell to use the updated version"
+             echo "🔄 Reloading..."
+             source ~/.copilot_here.sh
+             echo "✨ Update complete! You're now on version $new_version"
              return 0
            fi
            
@@ -352,6 +377,12 @@ EOF
              return 1
            fi
            
+           local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+           
+           if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+             echo "📌 Version: $current_version → $new_version"
+           fi
+           
            # Backup
            cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
            echo "✅ Created backup"
@@ -369,7 +400,9 @@ EOF
            fi
            
            rm -f "$temp_script"
-           echo "🔄 Reload: source $config_file"
+           echo "🔄 Reloading..."
+           source "$config_file"
+           echo "✨ Update complete! You're now on version $new_version"
            return 0
            ;;
          *)
@@ -449,7 +482,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -479,12 +512,37 @@ EOF
          --update-scripts)
            echo "📦 Updating copilot_here scripts from GitHub..."
            
+           # Get current version
+           local current_version=""
+           if [ -f ~/.copilot_here.sh ]; then
+             current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+           elif type copilot_here >/dev/null 2>&1; then
+             current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+           fi
+           
            # Check if using standalone file installation
            if [ -f ~/.copilot_here.sh ]; then
              echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-             curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
+             
+             # Download to temp first to check version
+             local temp_script=$(mktemp)
+             if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+               echo "❌ Failed to download script"
+               rm -f "$temp_script"
+               return 1
+             fi
+             
+             local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+             
+             if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+               echo "📌 Version: $current_version → $new_version"
+             fi
+             
+             mv "$temp_script" ~/.copilot_here.sh
              echo "✅ Scripts updated successfully!"
-             echo "🔄 Reload your shell to use the updated version"
+             echo "🔄 Reloading..."
+             source ~/.copilot_here.sh
+             echo "✨ Update complete! You're now on version $new_version"
              return 0
            fi
            
@@ -512,6 +570,12 @@ EOF
              return 1
            fi
            
+           local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+           
+           if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+             echo "📌 Version: $current_version → $new_version"
+           fi
+           
            # Backup
            cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
            echo "✅ Created backup"
@@ -529,7 +593,9 @@ EOF
            fi
            
            rm -f "$temp_script"
-           echo "🔄 Reload: source $config_file"
+           echo "🔄 Reloading..."
+           source "$config_file"
+           echo "✨ Update complete! You're now on version $new_version"
            return 0
            ;;
          *)
@@ -581,7 +647,7 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-27.5
+   # Version: 2025-10-27.6
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -759,12 +825,36 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        if ($UpdateScripts) {
            Write-Host "📦 Updating copilot_here scripts from GitHub..."
            
-           # Check for standalone file
+           # Get current version
+           $currentVersion = ""
            $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
            if (Test-Path $standalonePath) {
-               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+               $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+           } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+               $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+           }
+           
+           # Check for standalone file
+           if (Test-Path $standalonePath) {
+               # Download to temp first to check version
+               $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+               try {
+                   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+               } catch {
+                   Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+                   return
+               }
+               
+               $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+               
+               if ($currentVersion -and $newVersion) {
+               }                   Write-Host "
+               
+               Move-Item $tempScript $standalonePath -Force
                Write-Host "✅ Scripts updated successfully!"
-               Write-Host "🔄 Reload: . $standalonePath"
+               Write-Host "🔄 Reloading..."
+               . $standalonePath
+               Write-Host "✨ Update complete! You're now on version $newVersion"
                return
            }
            
@@ -781,6 +871,12 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            } catch {
                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
                return
+           }
+           
+           $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+           
+           if ($currentVersion -and $newVersion) {
+               Write-Host "📌 Version: $currentVersion → $newVersion"
            }
            
            # Backup
@@ -800,7 +896,9 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            }
            
            Remove-Item $tempScript
-           Write-Host "🔄 Reload: . `$PROFILE"
+           Write-Host "🔄 Reloading..."
+           . $PROFILE
+           Write-Host "✨ Update complete! You're now on version $newVersion"
            return
        }
 
@@ -854,7 +952,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -890,12 +988,36 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
        if ($UpdateScripts) {
            Write-Host "📦 Updating copilot_here scripts from GitHub..."
            
-           # Check for standalone file
+           # Get current version
+           $currentVersion = ""
            $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
            if (Test-Path $standalonePath) {
-               Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $standalonePath
+               $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+           } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+               $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+           }
+           
+           # Check for standalone file
+           if (Test-Path $standalonePath) {
+               # Download to temp first to check version
+               $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+               try {
+                   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+               } catch {
+                   Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+                   return
+               }
+               
+               $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+               
+               if ($currentVersion -and $newVersion) {
+               }                   Write-Host "
+               
+               Move-Item $tempScript $standalonePath -Force
                Write-Host "✅ Scripts updated successfully!"
-               Write-Host "🔄 Reload: . $standalonePath"
+               Write-Host "🔄 Reloading..."
+               . $standalonePath
+               Write-Host "✨ Update complete! You're now on version $newVersion"
                return
            }
            
@@ -912,6 +1034,12 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            } catch {
                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
                return
+           }
+           
+           $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+           
+           if ($currentVersion -and $newVersion) {
+               Write-Host "📌 Version: $currentVersion → $newVersion"
            }
            
            # Backup
@@ -931,7 +1059,9 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            }
            
            Remove-Item $tempScript
-           Write-Host "🔄 Reload: . `$PROFILE"
+           Write-Host "🔄 Reloading..."
+           . $PROFILE
+           Write-Host "✨ Update complete! You're now on version $newVersion"
            return
        }
 
@@ -989,7 +1119,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.5
+VERSION: 2025-10-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
