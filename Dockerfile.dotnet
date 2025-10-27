@@ -6,10 +6,11 @@ FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 # Switch to root to install packages
 USER root
 
-# Install .NET SDK prerequisites
+# Install .NET SDK prerequisites and ICU libraries
 RUN apt-get update && apt-get install -y \
   wget \
   ca-certificates \
+  libicu-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Install .NET 8 SDK
