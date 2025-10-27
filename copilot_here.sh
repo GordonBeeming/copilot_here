@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.2
+# Version: 2025-10-27.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -201,7 +201,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
         return 0
@@ -352,7 +352,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
         return 0

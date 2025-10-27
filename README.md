@@ -61,9 +61,11 @@ Download and source the script in your shell profile:
 # Download the script
 curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
 
-# Add to your shell profile (~/.zshrc or ~/.bashrc)
-echo '' >> ~/.zshrc  # Add newline first
-echo 'source ~/.copilot_here.sh' >> ~/.zshrc  # or ~/.bashrc for bash
+# Add to your shell profile (~/.zshrc or ~/.bashrc) - only if not already there
+if ! grep -q "source ~/.copilot_here.sh" ~/.zshrc 2>/dev/null; then
+  echo '' >> ~/.zshrc
+  echo 'source ~/.copilot_here.sh' >> ~/.zshrc
+fi
 
 # Reload your shell
 source ~/.zshrc  # or source ~/.bashrc
@@ -82,7 +84,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-27.2
+   # Version: 2025-10-27.3
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -284,7 +286,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -435,7 +437,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -539,8 +541,10 @@ Download and source the script in your PowerShell profile:
 $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $scriptPath
 
-# Add to your PowerShell profile
-Add-Content $PROFILE "`n. $scriptPath"
+# Add to your PowerShell profile - only if not already there
+if (-not (Select-String -Path $PROFILE -Pattern "copilot_here.ps1" -Quiet -ErrorAction SilentlyContinue)) {
+    Add-Content $PROFILE "`n. $scriptPath"
+}
 
 # Reload your profile
 . $PROFILE
@@ -559,7 +563,7 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-27.2
+   # Version: 2025-10-27.3
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -832,7 +836,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -967,7 +971,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.2
+VERSION: 2025-10-27.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
