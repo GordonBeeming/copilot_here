@@ -82,6 +82,14 @@ Extends the Playwright image with:
 3. Use it for temporary files
 4. Clean up when done
 
+### Files to Never Commit
+
+The following files should NEVER be committed to the repository:
+- **`blog.md`** - Personal blog post copy, not part of the repository
+  - This file is in `.gitignore`
+  - Used for drafting blog posts about the project
+  - Keep it local only
+
 ## File Organization Standards
 
 ### Documentation Structure
