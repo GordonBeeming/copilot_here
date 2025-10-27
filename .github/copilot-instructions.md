@@ -3,6 +3,32 @@
 ## Project Overview
 This is a secure, portable Docker environment for running the GitHub Copilot CLI. It provides sandboxed execution with automatic authentication, token validation, and multiple specialized image variants for different development scenarios.
 
+## Script Versioning
+
+**IMPORTANT**: Shell function scripts (Bash/Zsh and PowerShell) in the README must have version headers updated when modified.
+
+### Version Format
+- **Primary version**: Use current date in format `YYYY-MM-DD` (e.g., `2025-10-27`)
+- **Same-day updates**: If the version date already matches today's date, append `.1`, `.2`, `.3`, etc.
+  - Example: `2025-10-27` → `2025-10-27.1` → `2025-10-27.2`
+
+### Where to Update Versions
+When modifying shell functions in README.md, update ALL version references:
+1. Bash/Zsh script header comment: `# Version: YYYY-MM-DD`
+2. PowerShell script header comment: `# Version: YYYY-MM-DD`
+3. Bash copilot_here help text: `VERSION: YYYY-MM-DD`
+4. Bash copilot_yolo help text: `VERSION: YYYY-MM-DD`
+5. PowerShell Copilot-Here help text: `VERSION: YYYY-MM-DD`
+6. PowerShell Copilot-Yolo help text: `VERSION: YYYY-MM-DD`
+
+### When to Update Version
+- Any modification to shell function code
+- Adding new features or options
+- Bug fixes in the scripts
+- Changes to help text or documentation within scripts
+
+**Current version**: 2025-10-27
+
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
 - **Runtime**: Node.js 20
