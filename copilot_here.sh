@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.8
+# Version: 2025-10-27.9
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -205,7 +205,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.8
+VERSION: 2025-10-27.9
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -247,10 +247,17 @@ EOF
         if [ -f ~/.copilot_here.sh ]; then
           echo "✅ Detected standalone installation at ~/.copilot_here.sh"
           
+          # Check if it's a symlink
+          local target_file=~/.copilot_here.sh
+          if [ -L ~/.copilot_here.sh ]; then
+            target_file=$(readlink -f ~/.copilot_here.sh)
+            echo "🔗 Symlink detected, updating target: $target_file"
+          fi
+          
           # Download to temp first to check version
           local temp_script=$(mktemp)
           if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-            echo "❌ Failed to download script"
+             Failed to download script"echo "
             rm -f "$temp_script"
             return 1
           fi
@@ -261,7 +268,8 @@ EOF
             echo "📌 Version: $current_version → $new_version"
           fi
           
-          mv "$temp_script" ~/.copilot_here.sh
+          # Update the actual file (following symlinks)
+          mv "$temp_script" "$target_file"
           echo "✅ Scripts updated successfully!"
           echo "🔄 Reloading..."
           source ~/.copilot_here.sh
@@ -400,7 +408,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.8
+VERSION: 2025-10-27.9
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -442,10 +450,17 @@ EOF
         if [ -f ~/.copilot_here.sh ]; then
           echo "✅ Detected standalone installation at ~/.copilot_here.sh"
           
+          # Check if it's a symlink
+          local target_file=~/.copilot_here.sh
+          if [ -L ~/.copilot_here.sh ]; then
+            target_file=$(readlink -f ~/.copilot_here.sh)
+            echo "🔗 Symlink detected, updating target: $target_file"
+          fi
+          
           # Download to temp first to check version
           local temp_script=$(mktemp)
           if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-            echo "❌ Failed to download script"
+             Failed to download script"echo "
             rm -f "$temp_script"
             return 1
           fi
@@ -456,7 +471,8 @@ EOF
             echo "📌 Version: $current_version → $new_version"
           fi
           
-          mv "$temp_script" ~/.copilot_here.sh
+          # Update the actual file (following symlinks)
+          mv "$temp_script" "$target_file"
           echo "✅ Scripts updated successfully!"
           echo "🔄 Reloading..."
           source ~/.copilot_here.sh

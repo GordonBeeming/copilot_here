@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-27.8
+# Version: 2025-10-27.9
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -189,6 +189,14 @@ function Copilot-Here {
         
         # Check for standalone file
         if (Test-Path $standalonePath) {
+            # Check if it's a symlink (junction/symbolic link)
+            $targetFile = $standalonePath
+            $item = Get-Item $standalonePath -Force
+            if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+                $targetFile = $item.Target
+                Write-Host "🔗 Symlink detected, updating target: $targetFile"
+            }
+            
             # Download to temp first to check version
             $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
             try {
@@ -201,27 +209,17 @@ function Copilot-Here {
             $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
             
             if ($currentVersion -and $newVersion) {
-            }                   Write-Host "
+                Write-Host "📌 Version: $currentVersion → $newVersion"
+            }
             
-            Move-Item $tempScript $standalonePath -Force
+            # Update the actual file (following symlinks)
+            Move-Item $tempScript $targetFile -Force
             Write-Host "✅ Scripts updated successfully!"
             Write-Host "🔄 Reloading..."
             . $standalonePath
             Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
-        
-        # Inline installation - update profile
-        if (-not (Test-Path $PROFILE)) {
-            Write-Host "❌ PowerShell profile not found: $PROFILE"
-            return
-        }
-        
-        # Download
-        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-        } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
         }
@@ -306,7 +304,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.8
+VERSION: 2025-10-27.9
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -353,6 +351,14 @@ function Copilot-Yolo {
         
         # Check for standalone file
         if (Test-Path $standalonePath) {
+            # Check if it's a symlink (junction/symbolic link)
+            $targetFile = $standalonePath
+            $item = Get-Item $standalonePath -Force
+            if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+                $targetFile = $item.Target
+                Write-Host "🔗 Symlink detected, updating target: $targetFile"
+            }
+            
             # Download to temp first to check version
             $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
             try {
@@ -365,27 +371,17 @@ function Copilot-Yolo {
             $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
             
             if ($currentVersion -and $newVersion) {
-            }                   Write-Host "
+                Write-Host "📌 Version: $currentVersion → $newVersion"
+            }
             
-            Move-Item $tempScript $standalonePath -Force
+            # Update the actual file (following symlinks)
+            Move-Item $tempScript $targetFile -Force
             Write-Host "✅ Scripts updated successfully!"
             Write-Host "🔄 Reloading..."
             . $standalonePath
             Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
-        
-        # Inline installation - update profile
-        if (-not (Test-Path $PROFILE)) {
-            Write-Host "❌ PowerShell profile not found: $PROFILE"
-            return
-        }
-        
-        # Download
-        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-        } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
         }
@@ -475,7 +471,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.8
+VERSION: 2025-10-27.9
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
