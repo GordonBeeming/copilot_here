@@ -59,6 +59,10 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    <summary>Click to expand bash/zsh code</summary>
 
    ```bash
+   # copilot_here shell functions
+   # Version: 2025-01-09
+   # Repository: https://github.com/GordonBeeming/copilot_here
+   
    # Helper function for security checks (shared by all variants)
    __copilot_security_check() {
      if ! gh auth status 2>/dev/null | grep "Token scopes:" | grep -q "'copilot'"; then
@@ -282,6 +286,10 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    <summary>Click to expand PowerShell code</summary>
 
    ```powershell
+   # copilot_here PowerShell functions
+   # Version: 2025-01-09
+   # Repository: https://github.com/GordonBeeming/copilot_here
+   
    # Helper function for security checks (shared by all variants)
    function Test-CopilotSecurityCheck {
        Write-Host "Verifying GitHub CLI authentication..."
