@@ -40,6 +40,11 @@ All functions support switching between Docker image variants using flags:
 - **`-d` or `--dotnet`** - .NET image (includes .NET 8 & 9 SDKs)
 - **`-dp` or `--dotnet-playwright`** - .NET + Playwright image (includes browser automation)
 
+### Additional Options
+
+- **`--no-cleanup`** - Skip cleanup of unused Docker images (Bash/Zsh) or `-NoCleanup` (PowerShell)
+- **`--no-pull`** - Skip pulling the latest image (Bash/Zsh) or `-NoPull` (PowerShell)
+
 > ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens.
 
 ---
@@ -76,10 +81,34 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
      return 0
    }
 
+   # Helper function to cleanup unused copilot_here images
+   __copilot_cleanup_images() {
+     local keep_image="$1"
+     echo "🧹 Cleaning up unused copilot_here images..."
+     
+     # Get all copilot_here images with the project label
+     local images_to_remove=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}" | grep -v "^${keep_image}$" || true)
+     
+     if [ -z "$images_to_remove" ]; then
+       echo "  ✓ No unused images to clean up"
+       return 0
+     fi
+     
+     local count=0
+     while IFS= read -r image; do
+       if [ -n "$image" ]; then
+         echo "  🗑️  Removing: $image"
+         docker rmi "$image" > /dev/null 2>&1 && ((count++)) || echo "  ⚠️  Failed to remove: $image"
+       fi
+     done <<< "$images_to_remove"
+     
+     echo "  ✓ Cleaned up $count image(s)"
+   }
+
    # Helper function to pull image with spinner (shared by all variants)
    __copilot_pull_image() {
      local image_name="$1"
-     printf "Checking for the latest version of copilot_here... "
+     printf "📥 Pulling latest image: ${image_name}... "
      
      (docker pull "$image_name" > /dev/null 2>&1) &
      local pull_pid=$!
@@ -109,12 +138,29 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    __copilot_run() {
      local image_tag="$1"
      local allow_all_tools="$2"
-     shift 2
+     local skip_cleanup="$3"
+     local skip_pull="$4"
+     shift 4
      
      __copilot_security_check || return 1
      
      local image_name="ghcr.io/gordonbeeming/copilot_here:${image_tag}"
-     __copilot_pull_image "$image_name" || return 1
+     
+     echo "🚀 Using image: ${image_name}"
+     
+     # Pull latest image unless skipped
+     if [ "$skip_pull" != "true" ]; then
+       __copilot_pull_image "$image_name" || return 1
+     else
+       echo "⏭️  Skipping image pull"
+     fi
+     
+     # Cleanup old images unless skipped
+     if [ "$skip_cleanup" != "true" ]; then
+       __copilot_cleanup_images "$image_name"
+     else
+       echo "⏭️  Skipping image cleanup"
+     fi
 
      local copilot_config_path="$HOME/.config/copilot-cli-docker"
      mkdir -p "$copilot_config_path"
@@ -151,9 +197,11 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
    # Safe Mode: Asks for confirmation before executing
    copilot_here() {
      local image_tag="latest"
+     local skip_cleanup="false"
+     local skip_pull="false"
      local args=()
      
-     # Parse arguments for image variant flags
+     # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
          -d|--dotnet)
@@ -164,6 +212,14 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            image_tag="dotnet-playwright"
            shift
            ;;
+         --no-cleanup)
+           skip_cleanup="true"
+           shift
+           ;;
+         --no-pull)
+           skip_pull="true"
+           shift
+           ;;
          *)
            args+=("$1")
            shift
@@ -171,15 +227,17 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
        esac
      done
      
-     __copilot_run "$image_tag" "false" "${args[@]}"
+     __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" "${args[@]}"
    }
 
    # YOLO Mode: Auto-approves all tool usage
    copilot_yolo() {
      local image_tag="latest"
+     local skip_cleanup="false"
+     local skip_pull="false"
      local args=()
      
-     # Parse arguments for image variant flags
+     # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
          -d|--dotnet)
@@ -190,6 +248,14 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            image_tag="dotnet-playwright"
            shift
            ;;
+         --no-cleanup)
+           skip_cleanup="true"
+           shift
+           ;;
+         --no-pull)
+           skip_pull="true"
+           shift
+           ;;
          *)
            args+=("$1")
            shift
@@ -197,7 +263,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
        esac
      done
      
-     __copilot_run "$image_tag" "true" "${args[@]}"
+     __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" "${args[@]}"
    }
    ```
    </details>
@@ -239,11 +305,44 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
        return $true
    }
 
+   # Helper function to cleanup unused copilot_here images
+   function Remove-UnusedCopilotImages {
+       param([string]$KeepImage)
+       
+       Write-Host "🧹 Cleaning up unused copilot_here images..."
+       
+       # Get all copilot_here images with the project label
+       $allImages = docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}" 2>$null
+       if (-not $allImages) {
+           Write-Host "  ✓ No unused images to clean up"
+           return
+       }
+       
+       $imagesToRemove = $allImages | Where-Object { $_ -ne $KeepImage }
+       if (-not $imagesToRemove) {
+           Write-Host "  ✓ No unused images to clean up"
+           return
+       }
+       
+       $count = 0
+       foreach ($image in $imagesToRemove) {
+           Write-Host "  🗑️  Removing: $image"
+           $result = docker rmi $image 2>$null
+           if ($LASTEXITCODE -eq 0) {
+               $count++
+           } else {
+               Write-Host "  ⚠️  Failed to remove: $image"
+           }
+       }
+       
+       Write-Host "  ✓ Cleaned up $count image(s)"
+   }
+
    # Helper function to pull image with spinner (shared by all variants)
    function Get-CopilotImage {
        param([string]$ImageName)
        
-       Write-Host -NoNewline "Checking for the latest version of copilot_here... "
+       Write-Host -NoNewline "📥 Pulling latest image: ${ImageName}... "
        $pullJob = Start-Job -ScriptBlock { param($img) docker pull $img } -ArgumentList $ImageName
        $spinner = '|', '/', '-', '\'
        $i = 0
@@ -276,13 +375,30 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
        param(
            [string]$ImageTag,
            [bool]$AllowAllTools,
+           [bool]$SkipCleanup,
+           [bool]$SkipPull,
            [string[]]$Arguments
        )
        
        if (-not (Test-CopilotSecurityCheck)) { return }
        
        $imageName = "ghcr.io/gordonbeeming/copilot_here:$ImageTag"
-       if (-not (Get-CopilotImage -ImageName $imageName)) { return }
+       
+       Write-Host "🚀 Using image: ${imageName}"
+       
+       # Pull latest image unless skipped
+       if (-not $SkipPull) {
+           if (-not (Get-CopilotImage -ImageName $imageName)) { return }
+       } else {
+           Write-Host "⏭️  Skipping image pull"
+       }
+       
+       # Cleanup old images unless skipped
+       if (-not $SkipCleanup) {
+           Remove-UnusedCopilotImages -KeepImage $imageName
+       } else {
+           Write-Host "⏭️  Skipping image cleanup"
+       }
 
        $copilotConfigPath = Join-Path $env:USERPROFILE ".config\copilot-cli-docker"
        if (-not (Test-Path $copilotConfigPath)) {
@@ -325,6 +441,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            [switch]$Dotnet,
            [switch]$dp,
            [switch]$DotnetPlaywright,
+           [switch]$NoCleanup,
+           [switch]$NoPull,
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
@@ -336,7 +454,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            $imageTag = "dotnet-playwright"
        }
        
-       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -Arguments $Prompt
+       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -Arguments $Prompt
    }
 
    # YOLO Mode: Auto-approves all tool usage
@@ -347,6 +465,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            [switch]$Dotnet,
            [switch]$dp,
            [switch]$DotnetPlaywright,
+           [switch]$NoCleanup,
+           [switch]$NoPull,
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
@@ -358,7 +478,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
            $imageTag = "dotnet-playwright"
        }
        
-       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -Arguments $Prompt
+       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -Arguments $Prompt
    }
 
    Set-Alias -Name copilot_here -Value Copilot-Here
@@ -442,6 +562,9 @@ copilot_here --dotnet "explain this C# code"
 # Linux/macOS - .NET + Playwright image
 copilot_here -dp "run playwright tests for this app"
 
+# Linux/macOS - Skip cleanup and pull for faster startup
+copilot_here --no-cleanup --no-pull "quick question about this code"
+
 # Windows - Base image
 copilot_here "suggest a git command to view the last 5 commits"
 
@@ -451,6 +574,9 @@ copilot_here -Dotnet "explain this C# code"
 
 # Windows - .NET + Playwright image
 copilot_here -dp "run playwright tests for this app"
+
+# Windows - Skip cleanup and pull for faster startup
+copilot_here -NoCleanup -NoPull "quick question about this code"
 ```
 
 **YOLO Mode** (auto-approves execution):
@@ -467,6 +593,9 @@ copilot_yolo --dotnet "add unit tests for this controller"
 # Linux/macOS - .NET + Playwright image
 copilot_yolo -dp "write playwright tests for the login page"
 
+# Linux/macOS - Skip cleanup for faster execution
+copilot_yolo --no-cleanup "generate a README for this project"
+
 # Windows - Base image
 copilot_yolo "write a function that reverses a string"
 
@@ -476,6 +605,9 @@ copilot_yolo -Dotnet "add unit tests for this controller"
 
 # Windows - .NET + Playwright image
 copilot_yolo -dp "write playwright tests for the login page"
+
+# Windows - Skip cleanup for faster execution
+copilot_yolo -NoCleanup "generate a README for this project"
 ```
 
 
