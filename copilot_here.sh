@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.6
+# Version: 2025-10-27.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -125,9 +125,9 @@ __copilot_run() {
 
   local copilot_args=("copilot")
   
-  # Add --allow-all-tools if in YOLO mode
+  # Add --allow-all-tools and --allow-all-paths if in YOLO mode
   if [ "$allow_all_tools" = "true" ]; then
-    copilot_args+=("--allow-all-tools")
+    copilot_args+=("--allow-all-tools" "--allow-all-paths")
   fi
   
   # If no arguments provided, start interactive mode with banner
@@ -202,9 +202,9 @@ EXAMPLES:
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.6
+VERSION: 2025-10-27.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -390,14 +390,15 @@ EXAMPLES:
   copilot_yolo --no-cleanup -p "generate README"
 
 WARNING:
-  YOLO mode automatically approves ALL tool usage without confirmation.
+  YOLO mode automatically approves ALL tool usage without confirmation AND
+  disables file path verification (--allow-all-tools + --allow-all-paths).
   Use with caution and only in trusted environments.
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage)
+  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.6
+VERSION: 2025-10-27.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
