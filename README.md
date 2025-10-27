@@ -45,6 +45,7 @@ All functions support switching between Docker image variants using flags:
 - **`-h` or `--help`** - Show usage help and examples (Bash/Zsh) or `-h` / `-Help` (PowerShell)
 - **`--no-cleanup`** - Skip cleanup of unused Docker images (Bash/Zsh) or `-NoCleanup` (PowerShell)
 - **`--no-pull`** - Skip pulling the latest image (Bash/Zsh) or `-NoPull` (PowerShell)
+  --update-scripts          Update scripts from GitHub repository
 
 > ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens.
 
@@ -52,16 +53,35 @@ All functions support switching between Docker image variants using flags:
 
 ### For Linux/macOS (Bash/Zsh)
 
-**Add the functions to your shell profile.**
+**Quick Install (Recommended):**
 
-Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) and add:
+Download and source the script in your shell profile:
+
+```bash
+# Download the script
+curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
+
+# Add to your shell profile (~/.zshrc or ~/.bashrc)
+echo 'source ~/.copilot_here.sh' >> ~/.zshrc  # or ~/.bashrc for bash
+
+# Reload your shell
+source ~/.zshrc  # or source ~/.bashrc
+```
+
+To update later, just run: `copilot_here --update-scripts`
+
+---
+
+**Manual Install (Alternative):**
+
+Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    <details>
    <summary>Click to expand bash/zsh code</summary>
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-27.1
+   # Version: 2025-10-27.2
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -225,6 +245,7 @@ OPTIONS:
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
+  --update-scripts          Update scripts from GitHub repository
   -h, --help                Show this help message
 
 COPILOT_ARGS:
@@ -262,7 +283,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.1
+VERSION: 2025-10-27.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -315,6 +336,7 @@ OPTIONS:
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
+  --update-scripts          Update scripts from GitHub repository
   -h, --help                Show this help message
 
 COPILOT_ARGS:
@@ -356,7 +378,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.1
+VERSION: 2025-10-27.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -395,7 +417,27 @@ EOF
 
 ### For Windows (PowerShell)
 
-**Create the PowerShell functions.**
+**Quick Install (Recommended):**
+
+Download and source the script in your PowerShell profile:
+
+```powershell
+# Download the script
+$scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $scriptPath
+
+# Add to your PowerShell profile
+Add-Content $PROFILE "`n. $scriptPath"
+
+# Reload your profile
+. $PROFILE
+```
+
+To update later, just run: `Copilot-Here -UpdateScripts`
+
+---
+
+**Manual Install (Alternative):**
 
 1. Save the following as `copilot_here.ps1` in a location of your choice (e.g., `C:\Users\YourName\Documents\PowerShell\`):
 
@@ -404,7 +446,7 @@ EOF
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-27.1
+   # Version: 2025-10-27.2
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -590,6 +632,7 @@ OPTIONS:
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
+  -UpdateScripts           Update scripts from GitHub repository
   -h, -Help                Show this help message
 
 COPILOT_ARGS:
@@ -627,7 +670,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.1
+VERSION: 2025-10-27.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -671,6 +714,7 @@ OPTIONS:
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
+  -UpdateScripts           Update scripts from GitHub repository
   -h, -Help                Show this help message
 
 COPILOT_ARGS:
@@ -712,7 +756,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.1
+VERSION: 2025-10-27.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
