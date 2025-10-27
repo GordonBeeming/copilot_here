@@ -61,7 +61,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-27
+   # Version: 2025-10-27.1
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -186,14 +186,18 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
      )
 
      local copilot_args=("copilot")
+     
+     # Add --allow-all-tools if in YOLO mode
+     if [ "$allow_all_tools" = "true" ]; then
+       copilot_args+=("--allow-all-tools")
+     fi
+     
+     # If no arguments provided, start interactive mode with banner
      if [ $# -eq 0 ]; then
        copilot_args+=("--banner")
      else
-       copilot_args+=("-p" "$*")
-     fi
-     
-     if [ "$allow_all_tools" = "true" ]; then
-       copilot_args+=("--allow-all-tools")
+       # Pass all arguments directly to copilot for maximum flexibility
+       copilot_args+=("$@")
      fi
 
      docker run "${docker_args[@]}" "${copilot_args[@]}"
@@ -214,7 +218,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`, or `~/.config/fis
 copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
-  copilot_here [OPTIONS] [PROMPT]
+  copilot_here [OPTIONS] [COPILOT_ARGS]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
@@ -223,24 +227,42 @@ OPTIONS:
   --no-pull                 Skip pulling the latest image
   -h, --help                Show this help message
 
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
+    -p, --prompt <text>     Execute a prompt directly
+    --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
+    --continue              Resume most recent session
+    --resume [sessionId]    Resume from a previous session
+    --log-level <level>     Set log level (none, error, warning, info, debug)
+    --add-dir <directory>   Add directory to allowed list
+    --allow-tool <tools>    Allow specific tools
+    --deny-tool <tools>     Deny specific tools
+    ... and more (run "copilot -h" for full list)
+
 EXAMPLES:
   # Interactive mode
   copilot_here
   
-  # Ask a question
-  copilot_here "how do I list files in bash?"
+  # Ask a question (short syntax)
+  copilot_here -p "how do I list files in bash?"
   
-  # Use .NET image
-  copilot_here -d "build this .NET project"
+  # Use specific AI model
+  copilot_here --model gpt-5 -p "explain this code"
+  
+  # Resume previous session
+  copilot_here --continue
+  
+  # Use .NET image with custom log level
+  copilot_here -d --log-level debug -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  copilot_here --no-cleanup --no-pull "quick question"
+  copilot_here --no-cleanup --no-pull -p "quick question"
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27
+VERSION: 2025-10-27.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -286,7 +308,7 @@ EOF
 copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
-  copilot_yolo [OPTIONS] [PROMPT]
+  copilot_yolo [OPTIONS] [COPILOT_ARGS]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
@@ -295,18 +317,36 @@ OPTIONS:
   --no-pull                 Skip pulling the latest image
   -h, --help                Show this help message
 
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
+    -p, --prompt <text>     Execute a prompt directly
+    --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
+    --continue              Resume most recent session
+    --resume [sessionId]    Resume from a previous session
+    --log-level <level>     Set log level (none, error, warning, info, debug)
+    --add-dir <directory>   Add directory to allowed list
+    --allow-tool <tools>    Allow specific tools
+    --deny-tool <tools>     Deny specific tools
+    ... and more (run "copilot -h" for full list)
+
 EXAMPLES:
   # Interactive mode (auto-approves all)
   copilot_yolo
   
   # Execute without confirmation
-  copilot_yolo "run the tests and fix failures"
+  copilot_yolo -p "run the tests and fix failures"
+  
+  # Use specific model
+  copilot_yolo --model gpt-5 -p "optimize this code"
+  
+  # Resume session
+  copilot_yolo --continue
   
   # Use .NET + Playwright image
-  copilot_yolo -dp "write playwright tests"
+  copilot_yolo -dp -p "write playwright tests"
   
   # Fast mode (skip cleanup)
-  copilot_yolo --no-cleanup "generate README"
+  copilot_yolo --no-cleanup -p "generate README"
 
 WARNING:
   YOLO mode automatically approves ALL tool usage without confirmation.
@@ -316,7 +356,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27
+VERSION: 2025-10-27.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
            return 0
@@ -364,7 +404,7 @@ EOF
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-27
+   # Version: 2025-10-27.1
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -504,14 +544,18 @@ EOF
        )
 
        $copilotCommand = @("copilot")
+       
+       # Add --allow-all-tools if in YOLO mode
+       if ($AllowAllTools) {
+           $copilotCommand += "--allow-all-tools"
+       }
+       
+       # If no arguments provided, start interactive mode with banner
        if ($Arguments.Length -eq 0) {
            $copilotCommand += "--banner"
        } else {
-           $copilotCommand += "-p", ($Arguments -join ' ')
-       }
-       
-       if ($AllowAllTools) {
-           $copilotCommand += "--allow-all-tools"
+           # Pass all arguments directly to copilot for maximum flexibility
+           $copilotCommand += $Arguments
        }
 
        $finalDockerArgs = $dockerBaseArgs + $copilotCommand
@@ -539,7 +583,7 @@ EOF
 copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
-  copilot_here [OPTIONS] [PROMPT]
+  copilot_here [OPTIONS] [COPILOT_ARGS]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
@@ -548,24 +592,42 @@ OPTIONS:
   -NoPull                  Skip pulling the latest image
   -h, -Help                Show this help message
 
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
+    -p, --prompt <text>     Execute a prompt directly
+    --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
+    --continue              Resume most recent session
+    --resume [sessionId]    Resume from a previous session
+    --log-level <level>     Set log level (none, error, warning, info, debug)
+    --add-dir <directory>   Add directory to allowed list
+    --allow-tool <tools>    Allow specific tools
+    --deny-tool <tools>     Deny specific tools
+    ... and more (run "copilot -h" for full list)
+
 EXAMPLES:
   # Interactive mode
   copilot_here
   
   # Ask a question
-  copilot_here "how do I list files in PowerShell?"
+  copilot_here -p "how do I list files in PowerShell?"
+  
+  # Use specific AI model
+  copilot_here --model gpt-5 -p "explain this code"
+  
+  # Resume previous session
+  copilot_here --continue
   
   # Use .NET image
-  copilot_here -d "build this .NET project"
+  copilot_here -d -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  copilot_here -NoCleanup -NoPull "quick question"
+  copilot_here -NoCleanup -NoPull -p "quick question"
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27
+VERSION: 2025-10-27.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -602,7 +664,7 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
 copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
-  copilot_yolo [OPTIONS] [PROMPT]
+  copilot_yolo [OPTIONS] [COPILOT_ARGS]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
@@ -611,18 +673,36 @@ OPTIONS:
   -NoPull                  Skip pulling the latest image
   -h, -Help                Show this help message
 
+COPILOT_ARGS:
+  All standard GitHub Copilot CLI arguments are supported:
+    -p, --prompt <text>     Execute a prompt directly
+    --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
+    --continue              Resume most recent session
+    --resume [sessionId]    Resume from a previous session
+    --log-level <level>     Set log level (none, error, warning, info, debug)
+    --add-dir <directory>   Add directory to allowed list
+    --allow-tool <tools>    Allow specific tools
+    --deny-tool <tools>     Deny specific tools
+    ... and more (run "copilot -h" for full list)
+
 EXAMPLES:
   # Interactive mode (auto-approves all)
   copilot_yolo
   
   # Execute without confirmation
-  copilot_yolo "run the tests and fix failures"
+  copilot_yolo -p "run the tests and fix failures"
+  
+  # Use specific model
+  copilot_yolo --model gpt-5 -p "optimize this code"
+  
+  # Resume session
+  copilot_yolo --continue
   
   # Use .NET + Playwright image
-  copilot_yolo -dp "write playwright tests"
+  copilot_yolo -dp -p "write playwright tests"
   
   # Fast mode (skip cleanup)
-  copilot_yolo -NoCleanup "generate README"
+  copilot_yolo -NoCleanup -p "generate README"
 
 WARNING:
   YOLO mode automatically approves ALL tool usage without confirmation.
@@ -632,7 +712,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27
+VERSION: 2025-10-27.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
