@@ -84,7 +84,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-27.3
+   # Version: 2025-10-27.4
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -236,8 +236,11 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
-         -h|--help)
-           cat << 'EOF'
+        -h|--help)
+          cat << 'EOF'
+================================================================================
+COPILOT_HERE WRAPPER - HELP
+================================================================================
 copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
@@ -261,7 +264,7 @@ COPILOT_ARGS:
     --add-dir <directory>   Add directory to allowed list
     --allow-tool <tools>    Allow specific tools
     --deny-tool <tools>     Deny specific tools
-    ... and more (run "copilot -h" for full list)
+    ... and more (see GitHub Copilot CLI help below)
 
 EXAMPLES:
   # Interactive mode
@@ -286,11 +289,17 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.3
+VERSION: 2025-10-27.4
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
+
+================================================================================
+GITHUB COPILOT CLI - NATIVE HELP
+================================================================================
 EOF
-           return 0
-           ;;
+          # Run copilot --help to show native help
+          __copilot_run "$image_tag" "false" "true" "true" "--help"
+          return 0
+          ;;
          -d|--dotnet)
            image_tag="dotnet"
            shift
@@ -383,8 +392,11 @@ EOF
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
        case "$1" in
-         -h|--help)
-           cat << 'EOF'
+        -h|--help)
+          cat << 'EOF'
+================================================================================
+COPILOT_YOLO WRAPPER - HELP
+================================================================================
 copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
@@ -408,7 +420,7 @@ COPILOT_ARGS:
     --add-dir <directory>   Add directory to allowed list
     --allow-tool <tools>    Allow specific tools
     --deny-tool <tools>     Deny specific tools
-    ... and more (run "copilot -h" for full list)
+    ... and more (see GitHub Copilot CLI help below)
 
 EXAMPLES:
   # Interactive mode (auto-approves all)
@@ -437,11 +449,17 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.3
+VERSION: 2025-10-27.4
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
+
+================================================================================
+GITHUB COPILOT CLI - NATIVE HELP
+================================================================================
 EOF
-           return 0
-           ;;
+          # Run copilot --help to show native help
+          __copilot_run "$image_tag" "true" "true" "true" "--help"
+          return 0
+          ;;
          -d|--dotnet)
            image_tag="dotnet"
            shift
@@ -563,7 +581,7 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-27.3
+   # Version: 2025-10-27.4
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -836,7 +854,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.3
+VERSION: 2025-10-27.4
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -971,7 +989,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.3
+VERSION: 2025-10-27.4
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
