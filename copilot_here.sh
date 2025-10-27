@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.7
+# Version: 2025-10-27.8
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -167,6 +167,7 @@ OPTIONS:
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
+  --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
 
 COPILOT_ARGS:
@@ -204,7 +205,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.7
+VERSION: 2025-10-27.8
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -231,7 +232,7 @@ EOF
         skip_pull="true"
         shift
         ;;
-      --update-scripts)
+      --update-scripts|--upgrade-scripts)
         echo "📦 Updating copilot_here scripts from GitHub..."
         
         # Get current version
@@ -356,6 +357,7 @@ OPTIONS:
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
+  --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
 
 COPILOT_ARGS:
@@ -398,7 +400,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.7
+VERSION: 2025-10-27.8
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -425,7 +427,7 @@ EOF
         skip_pull="true"
         shift
         ;;
-      --update-scripts)
+      --update-scripts|--upgrade-scripts)
         echo "📦 Updating copilot_here scripts from GitHub..."
         
         # Get current version

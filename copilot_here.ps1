@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-27.7
+# Version: 2025-10-27.8
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -170,11 +170,12 @@ function Copilot-Here {
         [switch]$NoCleanup,
         [switch]$NoPull,
         [switch]$UpdateScripts,
+        [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
 
-    if ($UpdateScripts) {
+    if ($UpdateScripts -or $UpgradeScripts) {
         Write-Host "📦 Updating copilot_here scripts from GitHub..."
         
         # Get current version
@@ -267,6 +268,7 @@ OPTIONS:
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
+  -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
 
 COPILOT_ARGS:
@@ -304,7 +306,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.7
+VERSION: 2025-10-27.8
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -337,7 +339,7 @@ function Copilot-Yolo {
         [string[]]$Prompt
     )
 
-    if ($UpdateScripts) {
+    if ($UpdateScripts -or $UpgradeScripts) {
         Write-Host "📦 Updating copilot_here scripts from GitHub..."
         
         # Get current version
@@ -430,6 +432,7 @@ OPTIONS:
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
+  -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
 
 COPILOT_ARGS:
@@ -472,7 +475,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.7
+VERSION: 2025-10-27.8
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
