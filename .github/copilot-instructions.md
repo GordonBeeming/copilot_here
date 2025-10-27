@@ -27,7 +27,21 @@ When modifying shell functions in README.md, update ALL version references:
 - Bug fixes in the scripts
 - Changes to help text or documentation within scripts
 
-**Current version**: 2025-10-27
+### Script File Synchronization
+**CRITICAL**: When updating the shell scripts, you must update BOTH locations:
+1. **Standalone script files**: `copilot_here.sh` and `copilot_here.ps1` (auto-install method)
+2. **README manual installation sections**: The code blocks users copy/paste for manual setup
+
+After making changes to README:
+```bash
+# Regenerate standalone files from README
+awk '/^   ```bash$/,/^   ```$/ {if (!/^   ```/) print}' README.md | sed 's/^   //' > copilot_here.sh
+awk '/^   ```powershell$/,/^   ```$/ {if (!/^   ```/) print}' README.md | sed 's/^   //' > copilot_here.ps1
+```
+
+Both locations must stay in sync so auto-install and manual install get the same functionality.
+
+**Current version**: 2025-10-27.6
 
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
@@ -89,6 +103,8 @@ The following files should NEVER be committed to the repository:
   - This file is in `.gitignore`
   - Used for drafting blog posts about the project
   - Keep it local only
+  - Can be updated with project information but changes stay on local machine
+  - When publishing blog post, copy content to actual blog platform
 
 ## File Organization Standards
 
