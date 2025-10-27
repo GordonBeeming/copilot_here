@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.4
+# Version: 2025-10-27.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -204,7 +204,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.4
+VERSION: 2025-10-27.5
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -231,66 +231,99 @@ EOF
         skip_pull="true"
         shift
         ;;
-      --update-scripts)
-        echo "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Check if using standalone file installation
-        if [ -f ~/.copilot_here.sh ]; then
-          echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-          curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
-          echo "✅ Scripts updated successfully!"
-          echo "🔄 Reload your shell to use the updated version"
-          return 0
-        fi
-        
-        # Inline installation - update shell config
-        local config_file=""
-        if [ -n "$ZSH_VERSION" ]; then
-          config_file="${ZDOTDIR:-$HOME}/.zshrc"
-        elif [ -n "$BASH_VERSION" ]; then
-          config_file="$HOME/.bashrc"
-        else
-          echo "❌ Unsupported shell. Please update manually."
-          return 1
-        fi
-        
-        if [ ! -f "$config_file" ]; then
-          echo "❌ Shell config not found: $config_file"
-          return 1
-        fi
-        
-        # Download latest
-        local temp_script=$(mktemp)
-        if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-          echo "❌ Failed to download script"
-          rm -f "$temp_script"
-          return 1
-        fi
-        
-        # Backup
-        cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "✅ Created backup"
-        
-        # Replace script
-        if grep -q "# copilot_here shell functions" "$config_file"; then
-          awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
-          cat "$temp_script" >> "${config_file}.tmp"
-          mv "${config_file}.tmp" "$config_file"
-          echo "✅ Scripts updated!"
-        else
-          echo "" >> "$config_file"
-          cat "$temp_script" >> "$config_file"
-          echo "✅ Scripts added!"
-        fi
-        
-        rm -f "$temp_script"
-        echo "🔄 Reload: source $config_file"
-        return 0
-        ;;
+     --update-scripts)
+       echo "📦 Updating copilot_here scripts from GitHub..."
+       
+       # Get current version
+       local current_version=""
+       if [ -f ~/.copilot_here.sh ]; then
+         current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+       elif type copilot_here >/dev/null 2>&1; then
+         current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+       fi
+       
+       # Check if using standalone file installation
+       if [ -f ~/.copilot_here.sh ]; then
+         echo "✅ Detected standalone installation at ~/.copilot_here.sh"
+         
+         # Download to temp first to check version
+         local temp_script=$(mktemp)
+         if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+           echo "❌ Failed to download script"
+           rm -f "$temp_script"
+           return 1
+         fi
+         
+         local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+         
+         if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+           echo "📌 Version: $current_version → $new_version"
+         fi
+         
+         mv "$temp_script" ~/.copilot_here.sh
+         echo "✅ Scripts updated successfully!"
+         echo "🔄 Reloading..."
+         source ~/.copilot_here.sh
+         echo "✨ Update complete! You're now on version $new_version"
+         return 0
+       fi
+       
+       # Inline installation - update shell config
+       local config_file=""
+       if [ -n "$ZSH_VERSION" ]; then
+         config_file="${ZDOTDIR:-$HOME}/.zshrc"
+       elif [ -n "$BASH_VERSION" ]; then
+         config_file="$HOME/.bashrc"
+       else
+         echo "❌ Unsupported shell. Please update manually."
+         return 1
+       fi
+       
+       if [ ! -f "$config_file" ]; then
+         echo "❌ Shell config not found: $config_file"
+         return 1
+       fi
+       
+       # Download latest
+       local temp_script=$(mktemp)
+       if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+         echo "❌ Failed to download script"
+         rm -f "$temp_script"
+         return 1
+       fi
+       
+       local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+       
+       if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+         echo "📌 Version: $current_version → $new_version"
+       fi
+       
+       # Backup
+       cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+       echo "✅ Created backup"
+       
+       # Replace script
+       if grep -q "# copilot_here shell functions" "$config_file"; then
+         awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
+         cat "$temp_script" >> "${config_file}.tmp"
+         mv "${config_file}.tmp" "$config_file"
+         echo "✅ Scripts updated!"
+       else
+         echo "" >> "$config_file"
+         cat "$temp_script" >> "$config_file"
+         echo "✅ Scripts added!"
+       fi
+       
+       rm -f "$temp_script"
+       echo "🔄 Reloading..."
+       source "$config_file"
+       echo "✨ Update complete! You're now on version $new_version"
+       return 0
+       ;;
       *)
-        args+=("$1")
-        shift
-        ;;
+       args+=("$1")
+       shift
+       ;;
     esac
   done
   
@@ -364,7 +397,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.4
+VERSION: 2025-10-27.5
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -391,66 +424,99 @@ EOF
         skip_pull="true"
         shift
         ;;
-      --update-scripts)
-        echo "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Check if using standalone file installation
-        if [ -f ~/.copilot_here.sh ]; then
-          echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-          curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o ~/.copilot_here.sh
-          echo "✅ Scripts updated successfully!"
-          echo "🔄 Reload your shell to use the updated version"
-          return 0
-        fi
-        
-        # Inline installation - update shell config
-        local config_file=""
-        if [ -n "$ZSH_VERSION" ]; then
-          config_file="${ZDOTDIR:-$HOME}/.zshrc"
-        elif [ -n "$BASH_VERSION" ]; then
-          config_file="$HOME/.bashrc"
-        else
-          echo "❌ Unsupported shell. Please update manually."
-          return 1
-        fi
-        
-        if [ ! -f "$config_file" ]; then
-          echo "❌ Shell config not found: $config_file"
-          return 1
-        fi
-        
-        # Download latest
-        local temp_script=$(mktemp)
-        if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-          echo "❌ Failed to download script"
-          rm -f "$temp_script"
-          return 1
-        fi
-        
-        # Backup
-        cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "✅ Created backup"
-        
-        # Replace script
-        if grep -q "# copilot_here shell functions" "$config_file"; then
-          awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
-          cat "$temp_script" >> "${config_file}.tmp"
-          mv "${config_file}.tmp" "$config_file"
-          echo "✅ Scripts updated!"
-        else
-          echo "" >> "$config_file"
-          cat "$temp_script" >> "$config_file"
-          echo "✅ Scripts added!"
-        fi
-        
-        rm -f "$temp_script"
-        echo "🔄 Reload: source $config_file"
-        return 0
-        ;;
+     --update-scripts)
+       echo "📦 Updating copilot_here scripts from GitHub..."
+       
+       # Get current version
+       local current_version=""
+       if [ -f ~/.copilot_here.sh ]; then
+         current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+       elif type copilot_here >/dev/null 2>&1; then
+         current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+       fi
+       
+       # Check if using standalone file installation
+       if [ -f ~/.copilot_here.sh ]; then
+         echo "✅ Detected standalone installation at ~/.copilot_here.sh"
+         
+         # Download to temp first to check version
+         local temp_script=$(mktemp)
+         if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+           echo "❌ Failed to download script"
+           rm -f "$temp_script"
+           return 1
+         fi
+         
+         local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+         
+         if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+           echo "📌 Version: $current_version → $new_version"
+         fi
+         
+         mv "$temp_script" ~/.copilot_here.sh
+         echo "✅ Scripts updated successfully!"
+         echo "🔄 Reloading..."
+         source ~/.copilot_here.sh
+         echo "✨ Update complete! You're now on version $new_version"
+         return 0
+       fi
+       
+       # Inline installation - update shell config
+       local config_file=""
+       if [ -n "$ZSH_VERSION" ]; then
+         config_file="${ZDOTDIR:-$HOME}/.zshrc"
+       elif [ -n "$BASH_VERSION" ]; then
+         config_file="$HOME/.bashrc"
+       else
+         echo "❌ Unsupported shell. Please update manually."
+         return 1
+       fi
+       
+       if [ ! -f "$config_file" ]; then
+         echo "❌ Shell config not found: $config_file"
+         return 1
+       fi
+       
+       # Download latest
+       local temp_script=$(mktemp)
+       if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+         echo "❌ Failed to download script"
+         rm -f "$temp_script"
+         return 1
+       fi
+       
+       local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+       
+       if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+         echo "📌 Version: $current_version → $new_version"
+       fi
+       
+       # Backup
+       cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+       echo "✅ Created backup"
+       
+       # Replace script
+       if grep -q "# copilot_here shell functions" "$config_file"; then
+         awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
+         cat "$temp_script" >> "${config_file}.tmp"
+         mv "${config_file}.tmp" "$config_file"
+         echo "✅ Scripts updated!"
+       else
+         echo "" >> "$config_file"
+         cat "$temp_script" >> "$config_file"
+         echo "✅ Scripts added!"
+       fi
+       
+       rm -f "$temp_script"
+       echo "🔄 Reloading..."
+       source "$config_file"
+       echo "✨ Update complete! You're now on version $new_version"
+       return 0
+       ;;
+       ;;
       *)
         args+=("$1")
-        shift
-        ;;
+       ;;
     esac
   done
   

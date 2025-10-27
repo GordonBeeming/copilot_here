@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-27.4
+# Version: 2025-10-27.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -272,7 +272,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.4
+VERSION: 2025-10-27.5
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -407,7 +407,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage)
 
-VERSION: 2025-10-27.4
+VERSION: 2025-10-27.5
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
