@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-10-27.9
+# Version: 2025-10-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -27,25 +27,41 @@ __copilot_security_check() {
 # Helper function to cleanup unused copilot_here images
 __copilot_cleanup_images() {
   local keep_image="$1"
-  echo "🧹 Cleaning up unused copilot_here images..."
+  echo "🧹 Cleaning up old copilot_here images (older than 7 days)..."
   
-  # Get all copilot_here images with the project label
-  local images_to_remove=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}" | grep -v "^${keep_image}$" || true)
+  # Get cutoff timestamp (7 days ago)
+  local cutoff_date=$(date -d '7 days ago' +%s 2>/dev/null || date -v-7d +%s 2>/dev/null)
   
-  if [ -z "$images_to_remove" ]; then
-    echo "  ✓ No unused images to clean up"
+  # Get all copilot_here images with the project label, excluding <none> tags
+  local all_images=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" | grep -v ":<none>" || true)
+  
+  if [ -z "$all_images" ]; then
+    echo "  ✓ No images to clean up"
     return 0
   fi
   
   local count=0
-  while IFS= read -r image; do
-    if [ -n "$image" ]; then
-      echo "  🗑️  Removing: $image"
-      docker rmi "$image" > /dev/null 2>&1 && ((count++)) || echo "  ⚠️  Failed to remove: $image"
+  while IFS='|' read -r image created_at; do
+    if [ -n "$image" ] && [ "$image" != "$keep_image" ]; then
+      # Parse creation date (format: "2025-01-28 12:34:56 +0000 UTC")
+      local image_date=$(date -d "$created_at" +%s 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z %Z" "$created_at" +%s 2>/dev/null)
+      
+      if [ -n "$image_date" ] && [ "$image_date" -lt "$cutoff_date" ]; then
+        echo "  🗑️  Removing old image: $image (created: ${created_at})"
+        if docker rmi "$image" > /dev/null 2>&1; then
+          ((count++))
+        else
+          echo "  ⚠️  Failed to remove: $image (may be in use)"
+        fi
+      fi
     fi
-  done <<< "$images_to_remove"
+  done <<< "$all_images"
   
-  echo "  ✓ Cleaned up $count image(s)"
+  if [ "$count" -eq 0 ]; then
+    echo "  ✓ No old images to clean up"
+  else
+    echo "  ✓ Cleaned up $count old image(s)"
+  fi
 }
 
 # Helper function to pull image with spinner (shared by all variants)
@@ -205,7 +221,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.9
+VERSION: 2025-10-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -408,7 +424,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.9
+VERSION: 2025-10-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================

@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-27.9
+# Version: 2025-10-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -29,33 +29,55 @@ function Test-CopilotSecurityCheck {
 function Remove-UnusedCopilotImages {
     param([string]$KeepImage)
     
-    Write-Host "🧹 Cleaning up unused copilot_here images..."
+    Write-Host "🧹 Cleaning up old copilot_here images (older than 7 days)..."
     
-    # Get all copilot_here images with the project label
-    $allImages = docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}" 2>$null
+    # Get cutoff timestamp (7 days ago)
+    $cutoffDate = (Get-Date).AddDays(-7)
+    
+    # Get all copilot_here images with the project label, excluding <none> tags
+    $allImages = docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" 2>$null
     if (-not $allImages) {
-        Write-Host "  ✓ No unused images to clean up"
+        Write-Host "  ✓ No images to clean up"
         return
     }
     
-    $imagesToRemove = $allImages | Where-Object { $_ -ne $KeepImage }
-    if (-not $imagesToRemove) {
-        Write-Host "  ✓ No unused images to clean up"
+    $imagesToProcess = $allImages | Where-Object { $_ -notmatch ':<none>' }
+    if (-not $imagesToProcess) {
+        Write-Host "  ✓ No images to clean up"
         return
     }
     
     $count = 0
-    foreach ($image in $imagesToRemove) {
-        Write-Host "  🗑️  Removing: $image"
-        $result = docker rmi $image 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $count++
-        } else {
-            Write-Host "  ⚠️  Failed to remove: $image"
+    foreach ($imageInfo in $imagesToProcess) {
+        $parts = $imageInfo -split '\|'
+        $image = $parts[0]
+        $createdAt = $parts[1]
+        
+        if ($image -ne $KeepImage) {
+            # Parse creation date (format: "2025-01-28 12:34:56 +0000 UTC")
+            try {
+                $imageDate = [DateTime]::Parse($createdAt.Substring(0, 19))
+                
+                if ($imageDate -lt $cutoffDate) {
+                    Write-Host "  🗑️  Removing old image: $image (created: $createdAt)"
+                    $result = docker rmi $image 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        $count++
+                    } else {
+                        Write-Host "  ⚠️  Failed to remove: $image (may be in use)"
+                    }
+                }
+            } catch {
+                # Skip if date parsing fails
+            }
         }
     }
     
-    Write-Host "  ✓ Cleaned up $count image(s)"
+    if ($count -eq 0) {
+        Write-Host "  ✓ No old images to clean up"
+    } else {
+        Write-Host "  ✓ Cleaned up $count old image(s)"
+    }
 }
 
 # Helper function to pull image with spinner (shared by all variants)
@@ -304,7 +326,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.9
+VERSION: 2025-10-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -471,7 +493,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-27.9
+VERSION: 2025-10-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
