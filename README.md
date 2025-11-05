@@ -85,7 +85,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-11-05.1
+   # Version: 2025-11-05.2
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function to detect emoji support
@@ -439,7 +439,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      mount_display+=("📁 $current_dir")
      
      # Process config mounts
-     local seen_paths=()
+     # Initialize seen_paths with current directory to avoid duplicates
+     local seen_paths=("$current_dir")
      for mount in "${config_mounts[@]}"; do
        local mount_path="${mount%:*}"
        local mount_mode="${mount##*:}"
@@ -1172,7 +1173,7 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-11-05.1
+   # Version: 2025-11-05.2
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function to detect emoji support (PowerShell typically supports it)
@@ -1542,7 +1543,8 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        # Track all mounted paths for display and --add-dir
        $allMountPaths = @()
        $mountDisplay = @()
-       $seenPaths = @{}
+       # Initialize seenPaths with current directory to avoid duplicates
+       $seenPaths = @{$currentDir = "mounted"}
        
        # Add current working directory to display
        $mountDisplay += "📁 $currentDir"

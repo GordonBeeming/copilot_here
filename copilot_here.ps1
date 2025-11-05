@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-05.1
+# Version: 2025-11-05.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support (PowerShell typically supports it)
@@ -369,7 +369,8 @@ function Invoke-CopilotRun {
     # Track all mounted paths for display and --add-dir
     $allMountPaths = @()
     $mountDisplay = @()
-    $seenPaths = @{}
+    # Initialize seenPaths with current directory to avoid duplicates
+    $seenPaths = @{$currentDir = "mounted"}
     
     # Add current working directory to display
     $mountDisplay += "📁 $currentDir"

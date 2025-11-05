@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.1
+# Version: 2025-11-05.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -353,7 +353,8 @@ __copilot_run() {
   mount_display+=("📁 $current_dir")
   
   # Process config mounts
-  local seen_paths=()
+  # Initialize seen_paths with current directory to avoid duplicates
+  local seen_paths=("$current_dir")
   for mount in "${config_mounts[@]}"; do
     local mount_path="${mount%:*}"
     local mount_mode="${mount##*:}"
