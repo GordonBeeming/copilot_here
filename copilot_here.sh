@@ -530,6 +530,10 @@ MOUNT MANAGEMENT:
   --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
   --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
   --remove-mount <path>     Remove mount from configs
+  
+  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
+ copilot_here --save-mount ~/notes:rw
+ copilot_here --save-mount-global ~/data:rw
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -810,6 +814,10 @@ MOUNT MANAGEMENT:
   --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
   --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
   --remove-mount <path>     Remove mount from configs
+  
+  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
+ copilot_yolo --save-mount ~/notes:rw
+ copilot_yolo --save-mount-global ~/data:rw
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
