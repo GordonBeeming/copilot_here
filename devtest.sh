@@ -1,6 +1,21 @@
 #!/bin/bash
 # devtest.sh - Quick script to test copilot_here changes locally
-# Usage: ./devtest.sh
+# Usage: source ./devtest.sh  OR  . ./devtest.sh
+#
+# This script must be sourced (not executed) to reload functions in current shell
+
+# Check if being sourced or executed
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    echo "⚠️  This script should be sourced, not executed!"
+    echo ""
+    echo "Run one of these instead:"
+    echo "  source ./devtest.sh"
+    echo "  . ./devtest.sh"
+    echo ""
+    echo "Or use this one-liner:"
+    echo "  ./devtest.sh && source ~/.copilot_here.sh"
+    exit 1
+fi
 
 set -e
 
@@ -59,13 +74,10 @@ else
 fi
 echo ""
 
-# Source the new version into the actual shell (bash or zsh)
-echo "🔄 Loading new version into current $SHELL_TYPE shell..."
-if [ "$SHELL_TYPE" = "zsh" ]; then
-    zsh -c "source '$TARGET_FILE' && echo '✅ Functions loaded successfully in zsh!' && copilot_here --help | head -15"
-else
-    bash -c "source '$TARGET_FILE' && echo '✅ Functions loaded successfully in bash!' && copilot_here --help | head -15"
-fi
+# Source the new version into current shell
+echo "🔄 Loading new version into current shell..."
+source "$TARGET_FILE"
+echo "✅ Functions loaded successfully!"
 echo ""
 
 # Show version
@@ -73,21 +85,26 @@ VERSION=$(sed -n '2s/# Version: //p' "$TARGET_FILE" 2>/dev/null || echo "unknown
 echo "📌 Version: $VERSION"
 echo ""
 
-# Show available functions
-echo "✨ Available functions:"
-echo "   • copilot_here  - Safe mode (asks for confirmation)"
-echo "   • copilot_yolo  - YOLO mode (auto-approves everything)"
+# Test that functions work
+echo "🧪 Testing functions..."
+if command -v copilot_here >/dev/null 2>&1; then
+    echo "   ✓ copilot_here is available"
+else
+    echo "   ✗ copilot_here not found" >&2
+fi
+if command -v copilot_yolo >/dev/null 2>&1; then
+    echo "   ✓ copilot_yolo is available"
+else
+    echo "   ✗ copilot_yolo not found" >&2
+fi
 echo ""
 
-echo "✅ Dev test complete!"
+echo "✅ Dev test complete! Functions are now loaded in your current shell."
 echo ""
-echo "💡 To use in your current terminal, run:"
-echo "   source ~/.copilot_here.sh"
-echo ""
-echo "💡 Quick tests you can run (after sourcing):"
+echo "💡 Quick tests you can run now:"
 echo "   copilot_here --help"
 echo "   copilot_here --list-mounts"
-echo "   copilot_here --mount /tmp -p 'test'"
+echo "   copilot_yolo -d --help"
 echo ""
 echo "🔄 To reload in future $SHELL_TYPE terminals, run:"
 echo "   source $CONFIG_FILE"
