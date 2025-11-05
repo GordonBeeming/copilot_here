@@ -127,10 +127,18 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        echo "⚠️  Warning: Path does not exist: $resolved_path" >&2
      fi
      
-     # Security warning for sensitive paths
+     # Security warning for sensitive paths - require confirmation
      case "$resolved_path" in
        /|/etc|/etc/*|~/.ssh|~/.ssh/*|/root|/root/*)
          echo "⚠️  Warning: Mounting sensitive system path: $resolved_path" >&2
+         printf "Are you sure you want to mount this sensitive path? [y/N]: " >&2
+         read confirmation
+         local lower_confirmation
+         lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
+         if [[ "$lower_confirmation" != "y" && "$lower_confirmation" != "yes" ]]; then
+           echo "Operation cancelled by user." >&2
+           return 1
+         fi
          ;;
      esac
      
@@ -408,6 +416,9 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        fi
        
        local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       if [ $? -ne 0 ]; then
+         continue  # Skip this mount if user cancelled
+       fi
        
        # Skip if already seen (dedup)
        if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
@@ -440,6 +451,9 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      # Process CLI read-only mounts
      for mount_path in "${cli_mounts_ro[@]}"; do
        local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       if [ $? -ne 0 ]; then
+         continue  # Skip this mount if user cancelled
+       fi
        
        # Skip if already seen
        if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
@@ -460,6 +474,9 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      # Process CLI read-write mounts
      for mount_path in "${cli_mounts_rw[@]}"; do
        local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       if [ $? -ne 0 ]; then
+         continue  # Skip this mount if user cancelled
+       fi
        
        # Skip if already seen (CLI overrides config)
        local override=false
@@ -505,13 +522,13 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      # Add --allow-all-tools and --allow-all-paths if in YOLO mode
      if [ "$allow_all_tools" = "true" ]; then
        copilot_args+=("--allow-all-tools" "--allow-all-paths")
-     else
-       # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+       # In YOLO mode, also add current dir and mounts to avoid any prompts
        copilot_args+=("--add-dir" "$current_dir")
        for mount_path in "${all_mount_paths[@]}"; do
          copilot_args+=("--add-dir" "$mount_path")
        done
      fi
+     # In Safe Mode, don't auto-add directories - let Copilot CLI ask for permission
      
      # If no arguments provided, start interactive mode with banner
      if [ $# -eq 0 ]; then
@@ -1157,11 +1174,16 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            Write-Host "⚠️  Warning: Path does not exist: $resolvedPath" -ForegroundColor Yellow
        }
        
-       # Security warning for sensitive paths
+       # Security warning for sensitive paths - require confirmation
        $sensitivePatterns = @('^C:/$', '^C:/Windows', '^C:/Program Files', '/.ssh', '/AppData/Roaming')
        foreach ($pattern in $sensitivePatterns) {
            if ($resolvedPath -match $pattern) {
                Write-Host "⚠️  Warning: Mounting sensitive system path: $resolvedPath" -ForegroundColor Yellow
+               $confirmation = Read-Host "Are you sure you want to mount this sensitive path? [y/N]"
+               if ($confirmation.ToLower() -ne 'y' -and $confirmation.ToLower() -ne 'yes') {
+                   Write-Host "Operation cancelled by user." -ForegroundColor Yellow
+                   return $null
+               }
                break
            }
        }
@@ -1466,6 +1488,9 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            }
            
            $resolvedPath = Resolve-MountPath $mountPath
+           if ($null -eq $resolvedPath) {
+               continue  # Skip this mount if user cancelled
+           }
            
            # Skip if already seen (dedup)
            if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -1489,6 +1514,9 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        # Process CLI read-only mounts
        foreach ($mountPath in $MountsRO) {
            $resolvedPath = Resolve-MountPath $mountPath
+           if ($null -eq $resolvedPath) {
+               continue  # Skip this mount if user cancelled
+           }
            
            # Skip if already seen
            if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -1506,6 +1534,9 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        # Process CLI read-write mounts
        foreach ($mountPath in $MountsRW) {
            $resolvedPath = Resolve-MountPath $mountPath
+           if ($null -eq $resolvedPath) {
+               continue  # Skip this mount if user cancelled
+           }
            
            # Update to rw if already mounted as ro
            if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -1542,13 +1573,13 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        # Add --allow-all-tools and --allow-all-paths if in YOLO mode
        if ($AllowAllTools) {
            $copilotCommand += "--allow-all-tools", "--allow-all-paths"
-       } else {
-           # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+           # In YOLO mode, also add current dir and mounts to avoid any prompts
            $copilotCommand += "--add-dir", $currentDir
            foreach ($mountPath in $allMountPaths) {
                $copilotCommand += "--add-dir", $mountPath
            }
        }
+       # In Safe Mode, don't auto-add directories - let Copilot CLI ask for permission
        
        # If no arguments provided, start interactive mode with banner
        if ($Arguments.Length -eq 0) {

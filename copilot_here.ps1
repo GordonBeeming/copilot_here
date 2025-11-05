@@ -45,11 +45,16 @@ function Resolve-MountPath {
         Write-Host "⚠️  Warning: Path does not exist: $resolvedPath" -ForegroundColor Yellow
     }
     
-    # Security warning for sensitive paths
+    # Security warning for sensitive paths - require confirmation
     $sensitivePatterns = @('^C:/$', '^C:/Windows', '^C:/Program Files', '/.ssh', '/AppData/Roaming')
     foreach ($pattern in $sensitivePatterns) {
         if ($resolvedPath -match $pattern) {
             Write-Host "⚠️  Warning: Mounting sensitive system path: $resolvedPath" -ForegroundColor Yellow
+            $confirmation = Read-Host "Are you sure you want to mount this sensitive path? [y/N]"
+            if ($confirmation.ToLower() -ne 'y' -and $confirmation.ToLower() -ne 'yes') {
+                Write-Host "Operation cancelled by user." -ForegroundColor Yellow
+                return $null
+            }
             break
         }
     }
@@ -354,6 +359,9 @@ function Invoke-CopilotRun {
         }
         
         $resolvedPath = Resolve-MountPath $mountPath
+        if ($null -eq $resolvedPath) {
+            continue  # Skip this mount if user cancelled
+        }
         
         # Skip if already seen (dedup)
         if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -377,6 +385,9 @@ function Invoke-CopilotRun {
     # Process CLI read-only mounts
     foreach ($mountPath in $MountsRO) {
         $resolvedPath = Resolve-MountPath $mountPath
+        if ($null -eq $resolvedPath) {
+            continue  # Skip this mount if user cancelled
+        }
         
         # Skip if already seen
         if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -394,6 +405,9 @@ function Invoke-CopilotRun {
     # Process CLI read-write mounts
     foreach ($mountPath in $MountsRW) {
         $resolvedPath = Resolve-MountPath $mountPath
+        if ($null -eq $resolvedPath) {
+            continue  # Skip this mount if user cancelled
+        }
         
         # Update to rw if already mounted as ro
         if ($seenPaths.ContainsKey($resolvedPath)) {
@@ -430,13 +444,13 @@ function Invoke-CopilotRun {
     # Add --allow-all-tools and --allow-all-paths if in YOLO mode
     if ($AllowAllTools) {
         $copilotCommand += "--allow-all-tools", "--allow-all-paths"
-    } else {
-        # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+        # In YOLO mode, also add current dir and mounts to avoid any prompts
         $copilotCommand += "--add-dir", $currentDir
         foreach ($mountPath in $allMountPaths) {
             $copilotCommand += "--add-dir", $mountPath
         }
     }
+    # In Safe Mode, don't auto-add directories - let Copilot CLI ask for permission
     
     # If no arguments provided, start interactive mode with banner
     if ($Arguments.Length -eq 0) {

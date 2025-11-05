@@ -55,11 +55,13 @@ Priority: CLI > Local > Global (most defined wins)
 **Rationale:** Convenience while maintaining visibility of permissions
 
 ### 5. Security Warnings
-**Decision:** Warn for sensitive paths
-- Warn when mounting `/`, `/etc`, `~/.ssh`, `/root`
-- Do not block, just warn
+**Decision:** Warn for sensitive paths with required confirmation
+- Warn when mounting `/`, `/etc`, `~/.ssh`, `/root` (Linux/macOS)
+- Warn when mounting `C:/`, `C:/Windows`, `C:/Program Files` (Windows)
+- Require user confirmation (y/N) to proceed
+- Cancel mount if user declines
 
-**Rationale:** Inform users of risks without preventing valid use cases
+**Rationale:** Interactive confirmation ensures users acknowledge security risks, similar to GitHub token scope warnings
 
 ### 6. Path Persistence
 **Decision:** Multi-level config system

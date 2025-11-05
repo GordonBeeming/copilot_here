@@ -41,10 +41,18 @@ __copilot_resolve_mount_path() {
     echo "⚠️  Warning: Path does not exist: $resolved_path" >&2
   fi
   
-  # Security warning for sensitive paths
+  # Security warning for sensitive paths - require confirmation
   case "$resolved_path" in
     /|/etc|/etc/*|~/.ssh|~/.ssh/*|/root|/root/*)
       echo "⚠️  Warning: Mounting sensitive system path: $resolved_path" >&2
+      printf "Are you sure you want to mount this sensitive path? [y/N]: " >&2
+      read confirmation
+      local lower_confirmation
+      lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
+      if [[ "$lower_confirmation" != "y" && "$lower_confirmation" != "yes" ]]; then
+        echo "Operation cancelled by user." >&2
+        return 1
+      fi
       ;;
   esac
   
@@ -322,6 +330,9 @@ __copilot_run() {
     fi
     
     local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
     
     # Skip if already seen (dedup)
     if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
@@ -354,6 +365,9 @@ __copilot_run() {
   # Process CLI read-only mounts
   for mount_path in "${cli_mounts_ro[@]}"; do
     local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
     
     # Skip if already seen
     if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
@@ -374,6 +388,9 @@ __copilot_run() {
   # Process CLI read-write mounts
   for mount_path in "${cli_mounts_rw[@]}"; do
     local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
     
     # Skip if already seen (CLI overrides config)
     local override=false
@@ -419,13 +436,13 @@ __copilot_run() {
   # Add --allow-all-tools and --allow-all-paths if in YOLO mode
   if [ "$allow_all_tools" = "true" ]; then
     copilot_args+=("--allow-all-tools" "--allow-all-paths")
-  else
-    # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+    # In YOLO mode, also add current dir and mounts to avoid any prompts
     copilot_args+=("--add-dir" "$current_dir")
     for mount_path in "${all_mount_paths[@]}"; do
       copilot_args+=("--add-dir" "$mount_path")
     done
   fi
+  # In Safe Mode, don't auto-add directories - let Copilot CLI ask for permission
   
   # If no arguments provided, start interactive mode with banner
   if [ $# -eq 0 ]; then
