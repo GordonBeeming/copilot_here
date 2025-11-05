@@ -17,7 +17,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     exit 1
 fi
 
-set -e
+# Don't use 'set -e' when sourcing - it will crash the shell on any error!
 
 echo "🔧 Developer Test Script"
 echo "════════════════════════════════════════════════════════════"
@@ -45,21 +45,27 @@ echo ""
 # Check if script exists
 if [ ! -f "copilot_here.sh" ]; then
     echo "❌ Error: copilot_here.sh not found in current directory"
-    exit 1
+    return 1
 fi
 
 # Backup current version if it exists
 TARGET_FILE="$HOME/.copilot_here.sh"
 if [ -f "$TARGET_FILE" ]; then
     BACKUP_FILE="${TARGET_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-    cp "$TARGET_FILE" "$BACKUP_FILE"
+    if ! cp "$TARGET_FILE" "$BACKUP_FILE"; then
+        echo "❌ Error: Failed to backup existing script"
+        return 1
+    fi
     echo "💾 Backed up existing script to:"
     echo "   $BACKUP_FILE"
     echo ""
 fi
 
 # Copy new version
-cp copilot_here.sh "$TARGET_FILE"
+if ! cp copilot_here.sh "$TARGET_FILE"; then
+    echo "❌ Error: Failed to copy script to $TARGET_FILE"
+    return 1
+fi
 echo "✅ Copied copilot_here.sh to:"
 echo "   $TARGET_FILE"
 echo ""
@@ -76,7 +82,10 @@ echo ""
 
 # Source the new version into current shell
 echo "🔄 Loading new version into current shell..."
-source "$TARGET_FILE"
+if ! source "$TARGET_FILE"; then
+    echo "❌ Error: Failed to source $TARGET_FILE"
+    return 1
+fi
 echo "✅ Functions loaded successfully!"
 echo ""
 
