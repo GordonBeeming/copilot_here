@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.5
+# Version: 2025-11-05.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -357,10 +357,19 @@ __copilot_run() {
   fi
 
   local current_dir="$(pwd)"
+  
+  # Determine container path for current directory - map to container home if needed
+  local container_work_dir="$current_dir"
+  if [[ "$current_dir" == "$HOME"* ]]; then
+    # Path is under user's home directory - map to container's home
+    local relative_path="${current_dir#$HOME}"
+    container_work_dir="/home/appuser${relative_path}"
+  fi
+  
   local docker_args=(
     --rm -it
-    -v "$current_dir:$current_dir"
-    -w "$current_dir"
+    -v "$current_dir:$container_work_dir"
+    -w "$container_work_dir"
     -v "$copilot_config_path":/home/appuser/.copilot
     -e PUID=$(id -u)
     -e PGID=$(id -g)
@@ -381,7 +390,7 @@ __copilot_run() {
   local mount_display=()
   
   # Add current working directory to display
-  mount_display+=("📁 $current_dir")
+  mount_display+=("📁 $container_work_dir")
   
   # Process global config mounts
   # Initialize seen_paths with current directory to avoid duplicates
@@ -556,7 +565,7 @@ __copilot_run() {
   if [ "$allow_all_tools" = "true" ]; then
     copilot_args+=("--allow-all-tools" "--allow-all-paths")
     # In YOLO mode, also add current dir and mounts to avoid any prompts
-    copilot_args+=("--add-dir" "$current_dir")
+    copilot_args+=("--add-dir" "$container_work_dir")
     for mount_path in "${all_mount_paths[@]}"; do
       copilot_args+=("--add-dir" "$mount_path")
     done

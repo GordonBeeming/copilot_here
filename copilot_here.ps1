@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-05.3
+# Version: 2025-11-05.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support (PowerShell typically supports it)
@@ -387,10 +387,15 @@ function Invoke-CopilotRun {
     }
 
     $currentDir = (Get-Location).Path.Replace('\', '/')
+    
+    # Determine container path for current directory - always map to container home
+    # Windows paths (C:/, etc.) get mapped to /home/appuser/... for consistency
+    $containerWorkDir = "/home/appuser/work"
+    
     $dockerBaseArgs = @(
         "--rm", "-it",
-        "-v", "$($currentDir):$($currentDir)",
-        "-w", $currentDir,
+        "-v", "$($currentDir):$($containerWorkDir)",
+        "-w", $containerWorkDir,
         "-v", "$($copilotConfigPath.Replace('\', '/')):/home/appuser/.copilot",
         "-e", "GITHUB_TOKEN=$token"
     )
@@ -410,7 +415,7 @@ function Invoke-CopilotRun {
     $seenPaths = @{$currentDir = "mounted"}
     
     # Add current working directory to display
-    $mountDisplay += "📁 $currentDir"
+    $mountDisplay += "📁 $containerWorkDir"
     
     # Process config mounts
     foreach ($mount in $configMounts) {
@@ -510,7 +515,7 @@ function Invoke-CopilotRun {
     if ($AllowAllTools) {
         $copilotCommand += "--allow-all-tools", "--allow-all-paths"
         # In YOLO mode, also add current dir and mounts to avoid any prompts
-        $copilotCommand += "--add-dir", $currentDir
+        $copilotCommand += "--add-dir", $containerWorkDir
         foreach ($mountPath in $allMountPaths) {
             $copilotCommand += "--add-dir", $mountPath
         }
