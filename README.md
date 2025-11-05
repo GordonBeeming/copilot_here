@@ -505,12 +505,13 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      # Add --allow-all-tools and --allow-all-paths if in YOLO mode
      if [ "$allow_all_tools" = "true" ]; then
        copilot_args+=("--allow-all-tools" "--allow-all-paths")
+     else
+       # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+       copilot_args+=("--add-dir" "$current_dir")
+       for mount_path in "${all_mount_paths[@]}"; do
+         copilot_args+=("--add-dir" "$mount_path")
+       done
      fi
-     
-     # Auto-add mounted paths to --add-dir
-     for mount_path in "${all_mount_paths[@]}"; do
-       copilot_args+=("--add-dir" "$mount_path")
-     done
      
      # If no arguments provided, start interactive mode with banner
      if [ $# -eq 0 ]; then
@@ -1541,11 +1542,12 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        # Add --allow-all-tools and --allow-all-paths if in YOLO mode
        if ($AllowAllTools) {
            $copilotCommand += "--allow-all-tools", "--allow-all-paths"
-       }
-       
-       # Auto-add mounted paths to --add-dir
-       foreach ($mountPath in $allMountPaths) {
-           $copilotCommand += "--add-dir", $mountPath
+       } else {
+           # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+           $copilotCommand += "--add-dir", $currentDir
+           foreach ($mountPath in $allMountPaths) {
+               $copilotCommand += "--add-dir", $mountPath
+           }
        }
        
        # If no arguments provided, start interactive mode with banner

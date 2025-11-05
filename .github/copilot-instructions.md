@@ -41,7 +41,7 @@ awk '/^   ```powershell$/,/^   ```$/ {if (!/^   ```/) print}' README.md | sed 's
 
 Both locations must stay in sync so auto-install and manual install get the same functionality.
 
-**Current version**: 2025-10-27.6
+**Current version**: 2025-11-05.1
 
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
@@ -317,6 +317,7 @@ Co-authored-by: Other Contributor <other@example.com>"
 
    Co-authored-by: Name <email@example.com>"
    ```
+6. **DO NOT push to remote** - Only commit locally, never use `git push`
 
 ## Testing and Quality
 

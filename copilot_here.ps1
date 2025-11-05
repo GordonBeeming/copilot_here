@@ -430,11 +430,12 @@ function Invoke-CopilotRun {
     # Add --allow-all-tools and --allow-all-paths if in YOLO mode
     if ($AllowAllTools) {
         $copilotCommand += "--allow-all-tools", "--allow-all-paths"
-    }
-    
-    # Auto-add mounted paths to --add-dir
-    foreach ($mountPath in $allMountPaths) {
-        $copilotCommand += "--add-dir", $mountPath
+    } else {
+        # In Safe Mode, auto-add current directory and mounted paths to --add-dir
+        $copilotCommand += "--add-dir", $currentDir
+        foreach ($mountPath in $allMountPaths) {
+            $copilotCommand += "--add-dir", $mountPath
+        }
     }
     
     # If no arguments provided, start interactive mode with banner
