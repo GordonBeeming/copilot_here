@@ -114,7 +114,9 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      
      # Expand tilde
      if [[ "$path" == "~"* ]]; then
-       resolved_path="${HOME}${path:1}"
+       # Remove leading ~ and prepend HOME (works in both bash and zsh)
+       local path_without_tilde="${path#\~}"
+       resolved_path="${HOME}${path_without_tilde}"
      # Handle relative paths
      elif [[ "$path" != "/"* ]]; then
        local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
