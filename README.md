@@ -222,12 +222,12 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        fi
        
        config_file="$HOME/.config/copilot_here/mounts.conf"
-       mkdir -p "$HOME/.config/copilot_here"
+       /bin/mkdir -p "$HOME/.config/copilot_here"
      else
        # For local mounts, keep path as-is (relative is OK for project-specific)
        normalized_path="$path"
        config_file=".copilot_here/mounts.conf"
-       mkdir -p ".copilot_here"
+       /bin/mkdir -p ".copilot_here"
      fi
      
      # Check if already exists
@@ -398,7 +398,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      fi
 
      local copilot_config_path="$HOME/.config/copilot-cli-docker"
-     mkdir -p "$copilot_config_path"
+     /bin/mkdir -p "$copilot_config_path"
 
      local token=$(gh auth token 2>/dev/null)
      if [ -z "$token" ]; then
