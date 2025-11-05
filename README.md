@@ -96,13 +96,13 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
    # Helper function to load mounts from config file
    __copilot_load_mounts() {
      local config_file="$1"
-     local -n mounts_array=$2  # nameref to output array
+     local var_name="$2"
      
      if [ -f "$config_file" ]; then
        while IFS= read -r line || [ -n "$line" ]; do
          # Skip empty lines and comments
          [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-         mounts_array+=("$line")
+         eval "${var_name}+=(\"\$line\")"
        done < "$config_file"
      fi
    }
@@ -117,7 +117,10 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        resolved_path="${HOME}${path:1}"
      # Handle relative paths
      elif [[ "$path" != "/"* ]]; then
-       resolved_path="$(cd "$(dirname "$path")" 2>/dev/null && pwd)/$(basename "$path")" || echo "$path"
+       local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
+       local base_part=$(basename "$path" 2>/dev/null || echo "$path")
+       local abs_dir=$(cd "$dir_part" 2>/dev/null && pwd || echo "$PWD")
+       resolved_path="$abs_dir/$base_part"
      else
        resolved_path="$path"
      fi
@@ -343,12 +346,9 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      local allow_all_tools="$2"
      local skip_cleanup="$3"
      local skip_pull="$4"
-     shift 4
-     
-     # Extract mount arrays (passed by reference)
-     local -n cli_mounts_ro=$1
-     local -n cli_mounts_rw=$2
-     shift 2
+     local mounts_ro_name="$5"
+     local mounts_rw_name="$6"
+     shift 6
      
      __copilot_security_check || return 1
      
@@ -449,7 +449,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      done
      
      # Process CLI read-only mounts
-     for mount_path in "${cli_mounts_ro[@]}"; do
+     eval "local mounts_ro_array=(\"\${${mounts_ro_name}[@]}\")"
+     for mount_path in "${mounts_ro_array[@]}"; do
        local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
        if [ $? -ne 0 ]; then
          continue  # Skip this mount if user cancelled
@@ -472,7 +473,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      done
      
      # Process CLI read-write mounts
-     for mount_path in "${cli_mounts_rw[@]}"; do
+     eval "local mounts_rw_array=(\"\${${mounts_rw_name}[@]}\")"
+     for mount_path in "${mounts_rw_array[@]}"; do
        local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
        if [ $? -ne 0 ]; then
          continue  # Skip this mount if user cancelled
