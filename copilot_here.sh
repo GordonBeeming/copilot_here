@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.2
+# Version: 2025-11-05.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -11,13 +11,19 @@ __copilot_supports_emoji() {
 __copilot_load_mounts() {
   local config_file="$1"
   local var_name="$2"
+  local actual_file="$config_file"
   
-  if [ -f "$config_file" ]; then
+  # Follow symlink if config file is a symlink
+  if [ -L "$config_file" ]; then
+    actual_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+  fi
+  
+  if [ -f "$actual_file" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
       # Skip empty lines and comments
       [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
       eval "${var_name}+=(\"\$line\")"
-    done < "$config_file"
+    done < "$actual_file"
   fi
 }
 
@@ -143,12 +149,26 @@ __copilot_save_mount() {
     fi
     
     config_file="$HOME/.config/copilot_here/mounts.conf"
-    /bin/mkdir -p "$HOME/.config/copilot_here"
+    
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+      echo "🔗 Following symlink to: $config_file"
+    fi
+    
+    /bin/mkdir -p "$(dirname "$config_file")"
   else
     # For local mounts, keep path as-is (relative is OK for project-specific)
     normalized_path="$path"
     config_file=".copilot_here/mounts.conf"
-    /bin/mkdir -p ".copilot_here"
+    
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+      echo "🔗 Following symlink to: $config_file"
+    fi
+    
+    /bin/mkdir -p "$(dirname "$config_file")"
   fi
   
   # Check if already exists
@@ -176,6 +196,16 @@ __copilot_remove_mount() {
   local global_config="$HOME/.config/copilot_here/mounts.conf"
   local local_config=".copilot_here/mounts.conf"
   local removed=false
+  
+  # Check if global config is a symlink and follow it
+  if [ -L "$global_config" ]; then
+    global_config=$(readlink -f "$global_config" 2>/dev/null || readlink "$global_config")
+  fi
+  
+  # Check if local config is a symlink and follow it
+  if [ -L "$local_config" ]; then
+    local_config=$(readlink -f "$local_config" 2>/dev/null || readlink "$local_config")
+  fi
   
   # Try to remove from global config
   if [ -f "$global_config" ] && grep -qF "$path" "$global_config"; then

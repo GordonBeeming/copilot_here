@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-05.2
+# Version: 2025-11-05.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support (PowerShell typically supports it)
@@ -11,9 +11,22 @@ function Test-EmojiSupport {
 function Get-ConfigMounts {
     param([string]$ConfigFile)
     
-    $mounts = @()
+    $actualFile = $ConfigFile
+    
+    # Follow symlink if config file is a symlink
     if (Test-Path $ConfigFile) {
-        Get-Content $ConfigFile | ForEach-Object {
+        $item = Get-Item $ConfigFile -Force
+        if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+            $actualFile = $item.Target
+            if ($actualFile -is [Array]) {
+                $actualFile = $actualFile[0]
+            }
+        }
+    }
+    
+    $mounts = @()
+    if (Test-Path $actualFile) {
+        Get-Content $actualFile | ForEach-Object {
             $line = $_.Trim()
             # Skip empty lines and comments
             if ($line -and -not $line.StartsWith('#')) {
@@ -177,6 +190,30 @@ function Remove-MountFromConfig {
     $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('/', '\')
     $localConfig = ".copilot_here/mounts.conf"
     $removed = $false
+    
+    # Check if global config is a symlink and follow it
+    if (Test-Path $globalConfig) {
+        $item = Get-Item $globalConfig -Force
+        if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+            $target = $item.Target
+            if ($target -is [Array]) {
+                $target = $target[0]
+            }
+            $globalConfig = $target
+        }
+    }
+    
+    # Check if local config is a symlink and follow it
+    if (Test-Path $localConfig) {
+        $item = Get-Item $localConfig -Force
+        if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+            $target = $item.Target
+            if ($target -is [Array]) {
+                $target = $target[0]
+            }
+            $localConfig = $target
+        }
+    }
     
     # Try to remove from global config
     if ((Test-Path $globalConfig) -and (Select-String -Path $globalConfig -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
