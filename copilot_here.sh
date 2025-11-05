@@ -120,8 +120,13 @@ __copilot_save_mount() {
       # Keep tilde format for home directory
       normalized_path="$path"
     elif [[ "$path" == "/"* ]]; then
-      # Already absolute
-      normalized_path="$path"
+      # Already absolute - check if it's in home directory
+      if [[ "$path" == "$HOME"* ]]; then
+        # Convert to tilde format
+        normalized_path="~${path#$HOME}"
+      else
+        normalized_path="$path"
+      fi
     else
       # Relative path - convert to absolute
       local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
