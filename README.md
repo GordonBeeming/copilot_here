@@ -85,7 +85,7 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-10-28
+   # Version: 2025-11-05
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -215,9 +215,11 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        echo "⚠️  Could not retrieve token using 'gh auth token'. Please ensure you are logged in."
      fi
 
+     local current_dir="$(pwd)"
      local docker_args=(
        --rm -it
-       -v "$(pwd)":/work
+       -v "$current_dir:$current_dir"
+       -w "$current_dir"
        -v "$copilot_config_path":/home/appuser/.copilot
        -e PUID=$(id -u)
        -e PGID=$(id -g)
@@ -307,7 +309,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -510,7 +512,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -683,7 +685,7 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-10-28
+   # Version: 2025-11-05
    # Repository: https://github.com/GordonBeeming/copilot_here
    
    # Helper function for security checks (shared by all variants)
@@ -836,9 +838,11 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            Write-Host "⚠️  Could not retrieve token using 'gh auth token'." -ForegroundColor Yellow
        }
 
+       $currentDir = (Get-Location).Path
        $dockerBaseArgs = @(
            "--rm", "-it",
-           "-v", "$((Get-Location).Path):/work",
+           "-v", "$($currentDir):$($currentDir)",
+           "-w", $currentDir,
            "-v", "$($copilotConfigPath):/home/appuser/.copilot",
            "-e", "GITHUB_TOKEN=$token",
            $imageName
@@ -1010,7 +1014,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -1177,7 +1181,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return

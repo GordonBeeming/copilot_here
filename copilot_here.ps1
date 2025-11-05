@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-10-28
+# Version: 2025-11-05
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function for security checks (shared by all variants)
@@ -152,9 +152,11 @@ function Invoke-CopilotRun {
         Write-Host "⚠️  Could not retrieve token using 'gh auth token'." -ForegroundColor Yellow
     }
 
+    $currentDir = (Get-Location).Path
     $dockerBaseArgs = @(
         "--rm", "-it",
-        "-v", "$((Get-Location).Path):/work",
+        "-v", "$($currentDir):$($currentDir)",
+        "-w", $currentDir,
         "-v", "$($copilotConfigPath):/home/appuser/.copilot",
         "-e", "GITHUB_TOKEN=$token",
         $imageName
@@ -326,7 +328,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -493,7 +495,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-10-28
+VERSION: 2025-11-05
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
