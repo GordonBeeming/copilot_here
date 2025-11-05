@@ -133,35 +133,35 @@ Priority: CLI > Local > Global (most defined wins)
 ## Implementation Plan
 
 ### Phase 1: Core Mounting
-- [ ] Add `--mount` and `--mount-rw` flag parsing
-- [ ] Implement path resolution (relative, absolute, tilde expansion)
-- [ ] Add Docker volume arguments for extra mounts
-- [ ] Update both Bash/Zsh and PowerShell scripts
+- [x] Add `--mount` and `--mount-rw` flag parsing
+- [x] Implement path resolution (relative, absolute, tilde expansion)
+- [x] Add Docker volume arguments for extra mounts
+- [x] Update both Bash/Zsh and PowerShell scripts
 
 ### Phase 2: Config System
-- [ ] Create config file loader for global config
-- [ ] Create config file loader for local config
-- [ ] Implement priority merging (CLI > Local > Global)
-- [ ] Handle `:ro` and `:rw` suffixes in config files
+- [x] Create config file loader for global config
+- [x] Create config file loader for local config
+- [x] Implement priority merging (CLI > Local > Global)
+- [x] Handle `:ro` and `:rw` suffixes in config files
 
 ### Phase 3: Management Commands
-- [ ] Add `--save-mount` command (default to local)
-- [ ] Add `--save-mount-global` command
-- [ ] Add `--remove-mount` command
-- [ ] Add `--list-mounts` command with emoji detection
+- [x] Add `--save-mount` command (default to local)
+- [x] Add `--save-mount-global` command
+- [x] Add `--remove-mount` command
+- [x] Add `--list-mounts` command with emoji detection
 
 ### Phase 4: Display & UX
-- [ ] Add startup mount display with emojis/icons
-- [ ] Add security warnings for sensitive paths
-- [ ] Update `--help` with all new options and examples
-- [ ] Add auto-add mounted paths to Copilot's `--add-dir`
+- [x] Add startup mount display with emojis/icons
+- [x] Add security warnings for sensitive paths
+- [x] Update `--help` with all new options and examples
+- [x] Add auto-add mounted paths to Copilot's `--add-dir`
 
 ### Phase 5: Documentation
-- [ ] Update README with mount feature documentation
-- [ ] Add examples for common use cases
-- [ ] Document config file format and locations
-- [ ] Update version to `2025-11-05.1`
-- [ ] Sync standalone scripts from README
+- [x] Update README with mount feature documentation
+- [x] Add examples for common use cases
+- [x] Document config file format and locations
+- [x] Update version to `2025-11-05.1`
+- [x] Sync standalone scripts from README
 
 ## Files to Modify
 
@@ -183,6 +183,20 @@ Priority: CLI > Local > Global (most defined wins)
 
 ## Testing Checklist
 
+**Note:** Full testing requires Docker setup. Syntax and structure validated.
+
+- [x] Bash script syntax validated
+- [x] PowerShell script generated successfully
+- [x] All helper functions implemented
+- [x] Mount management commands added
+- [x] Config file loading implemented
+- [x] Path resolution logic added
+- [x] Security warnings implemented
+- [x] Display formatting with emoji detection
+- [x] Help text updated with mount examples
+- [x] Version updated to 2025-11-05.1
+
+**Manual Testing Required (with Docker):**
 - [ ] Test `--mount` with relative path (`../investigations`)
 - [ ] Test `--mount` with absolute path (`/data/research`)
 - [ ] Test `--mount` with tilde path (`~/notes`)
