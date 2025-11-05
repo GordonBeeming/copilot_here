@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.3
+# Version: 2025-11-05.4
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -370,10 +370,11 @@ __copilot_run() {
   # Load mounts from config files
   local global_config="$HOME/.config/copilot_here/mounts.conf"
   local local_config=".copilot_here/mounts.conf"
-  local config_mounts=()
+  local global_mounts=()
+  local local_mounts=()
   
-  __copilot_load_mounts "$global_config" config_mounts
-  __copilot_load_mounts "$local_config" config_mounts
+  __copilot_load_mounts "$global_config" global_mounts
+  __copilot_load_mounts "$local_config" local_mounts
   
   # Track all mounted paths for display and --add-dir
   local all_mount_paths=()
@@ -382,10 +383,10 @@ __copilot_run() {
   # Add current working directory to display
   mount_display+=("📁 $current_dir")
   
-  # Process config mounts
+  # Process global config mounts
   # Initialize seen_paths with current directory to avoid duplicates
   local seen_paths=("$current_dir")
-  for mount in "${config_mounts[@]}"; do
+  for mount in "${global_mounts[@]}"; do
     local mount_path="${mount%:*}"
     local mount_mode="${mount##*:}"
     
@@ -408,23 +409,44 @@ __copilot_run() {
     docker_args+=(-v "$resolved_path:$resolved_path:$mount_mode")
     all_mount_paths+=("$resolved_path")
     
-    # Determine source for display
-    local source_icon
+    # Global mount icon
     if __copilot_supports_emoji; then
-      if grep -qF "$mount" "$global_config" 2>/dev/null; then
-        source_icon="🌍"
-      else
-        source_icon="📍"
-      fi
+      mount_display+=("   🌍 $resolved_path ($mount_mode)")
     else
-      if grep -qF "$mount" "$global_config" 2>/dev/null; then
-        source_icon="G:"
-      else
-        source_icon="L:"
-      fi
+      mount_display+=("   G: $resolved_path ($mount_mode)")
+    fi
+  done
+  
+  # Process local config mounts
+  for mount in "${local_mounts[@]}"; do
+    local mount_path="${mount%:*}"
+    local mount_mode="${mount##*:}"
+    
+    # If no mode specified, default to ro
+    if [ "$mount_path" = "$mount_mode" ]; then
+      mount_mode="ro"
     fi
     
-    mount_display+=("   $source_icon $resolved_path ($mount_mode)")
+    local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
+    
+    # Skip if already seen (dedup)
+    if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
+      continue
+    fi
+    seen_paths+=("$resolved_path")
+    
+    docker_args+=(-v "$resolved_path:$resolved_path:$mount_mode")
+    all_mount_paths+=("$resolved_path")
+    
+    # Local mount icon
+    if __copilot_supports_emoji; then
+      mount_display+=("   📍 $resolved_path ($mount_mode)")
+    else
+      mount_display+=("   L: $resolved_path ($mount_mode)")
+    fi
   done
   
   # Process CLI read-only mounts
