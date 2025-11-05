@@ -85,8 +85,158 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
 
    ```bash
    # copilot_here shell functions
-   # Version: 2025-11-05
+   # Version: 2025-11-05.1
    # Repository: https://github.com/GordonBeeming/copilot_here
+   
+   # Helper function to detect emoji support
+   __copilot_supports_emoji() {
+     [[ "$LANG" == *"UTF-8"* ]] && [[ "$TERM" != "dumb" ]]
+   }
+   
+   # Helper function to load mounts from config file
+   __copilot_load_mounts() {
+     local config_file="$1"
+     local -n mounts_array=$2  # nameref to output array
+     
+     if [ -f "$config_file" ]; then
+       while IFS= read -r line || [ -n "$line" ]; do
+         # Skip empty lines and comments
+         [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+         mounts_array+=("$line")
+       done < "$config_file"
+     fi
+   }
+   
+   # Helper function to resolve and validate mount path
+   __copilot_resolve_mount_path() {
+     local path="$1"
+     local resolved_path
+     
+     # Expand tilde
+     if [[ "$path" == "~"* ]]; then
+       resolved_path="${HOME}${path:1}"
+     # Handle relative paths
+     elif [[ "$path" != "/"* ]]; then
+       resolved_path="$(cd "$(dirname "$path")" 2>/dev/null && pwd)/$(basename "$path")" || echo "$path"
+     else
+       resolved_path="$path"
+     fi
+     
+     # Warn if path doesn't exist
+     if [ ! -e "$resolved_path" ]; then
+       echo "⚠️  Warning: Path does not exist: $resolved_path" >&2
+     fi
+     
+     # Security warning for sensitive paths
+     case "$resolved_path" in
+       /|/etc|/etc/*|~/.ssh|~/.ssh/*|/root|/root/*)
+         echo "⚠️  Warning: Mounting sensitive system path: $resolved_path" >&2
+         ;;
+     esac
+     
+     echo "$resolved_path"
+   }
+   
+   # Helper function to display mounts list
+   __copilot_list_mounts() {
+     local global_config="$HOME/.config/copilot_here/mounts.conf"
+     local local_config=".copilot_here/mounts.conf"
+     
+     local global_mounts=()
+     local local_mounts=()
+     
+     __copilot_load_mounts "$global_config" global_mounts
+     __copilot_load_mounts "$local_config" local_mounts
+     
+     if [ ${#global_mounts[@]} -eq 0 ] && [ ${#local_mounts[@]} -eq 0 ]; then
+       echo "📂 No saved mounts configured"
+       echo ""
+       echo "Add mounts with:"
+       echo "  copilot_here --save-mount <path>         # Save to local config"
+       echo "  copilot_here --save-mount-global <path>  # Save to global config"
+       return 0
+     fi
+     
+     echo "📂 Saved mounts:"
+     
+     if __copilot_supports_emoji; then
+       for mount in "${global_mounts[@]}"; do
+         echo "  🌍 $mount"
+       done
+       for mount in "${local_mounts[@]}"; do
+         echo "  📍 $mount"
+       done
+     else
+       for mount in "${global_mounts[@]}"; do
+         echo "  G: $mount"
+       done
+       for mount in "${local_mounts[@]}"; do
+         echo "  L: $mount"
+       done
+     fi
+     
+     echo ""
+     echo "Config files:"
+     echo "  Global: $global_config"
+     echo "  Local:  $local_config"
+   }
+   
+   # Helper function to save mount to config
+   __copilot_save_mount() {
+     local path="$1"
+     local is_global="$2"
+     local config_file
+     
+     if [ "$is_global" = "true" ]; then
+       config_file="$HOME/.config/copilot_here/mounts.conf"
+       mkdir -p "$HOME/.config/copilot_here"
+     else
+       config_file=".copilot_here/mounts.conf"
+       mkdir -p ".copilot_here"
+     fi
+     
+     # Check if already exists
+     if [ -f "$config_file" ] && grep -qF "$path" "$config_file"; then
+       echo "⚠️  Mount already exists in config: $path"
+       return 1
+     fi
+     
+     echo "$path" >> "$config_file"
+     
+     if [ "$is_global" = "true" ]; then
+       echo "✅ Saved to global config: $path"
+     else
+       echo "✅ Saved to local config: $path"
+     fi
+     echo "   Config file: $config_file"
+   }
+   
+   # Helper function to remove mount from config
+   __copilot_remove_mount() {
+     local path="$1"
+     local global_config="$HOME/.config/copilot_here/mounts.conf"
+     local local_config=".copilot_here/mounts.conf"
+     local removed=false
+     
+     # Try to remove from global config
+     if [ -f "$global_config" ] && grep -qF "$path" "$global_config"; then
+       grep -vF "$path" "$global_config" > "$global_config.tmp" && mv "$global_config.tmp" "$global_config"
+       echo "✅ Removed from global config: $path"
+       removed=true
+     fi
+     
+     # Try to remove from local config
+     if [ -f "$local_config" ] && grep -qF "$path" "$local_config"; then
+       grep -vF "$path" "$local_config" > "$local_config.tmp" && mv "$local_config.tmp" "$local_config"
+       echo "✅ Removed from local config: $path"
+       removed=true
+     fi
+     
+     if [ "$removed" = "false" ]; then
+       echo "⚠️  Mount not found in any config: $path"
+       return 1
+     fi
+   }
    
    # Helper function for security checks (shared by all variants)
    __copilot_security_check() {
@@ -187,6 +337,11 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      local skip_pull="$4"
      shift 4
      
+     # Extract mount arrays (passed by reference)
+     local -n cli_mounts_ro=$1
+     local -n cli_mounts_rw=$2
+     shift 2
+     
      __copilot_security_check || return 1
      
      local image_name="ghcr.io/gordonbeeming/copilot_here:${image_tag}"
@@ -224,8 +379,126 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
        -e PUID=$(id -u)
        -e PGID=$(id -g)
        -e GITHUB_TOKEN="$token"
-       "$image_name"
      )
+
+     # Load mounts from config files
+     local global_config="$HOME/.config/copilot_here/mounts.conf"
+     local local_config=".copilot_here/mounts.conf"
+     local config_mounts=()
+     
+     __copilot_load_mounts "$global_config" config_mounts
+     __copilot_load_mounts "$local_config" config_mounts
+     
+     # Track all mounted paths for display and --add-dir
+     local all_mount_paths=()
+     local mount_display=()
+     
+     # Add current working directory to display
+     mount_display+=("📁 $current_dir")
+     
+     # Process config mounts
+     local seen_paths=()
+     for mount in "${config_mounts[@]}"; do
+       local mount_path="${mount%:*}"
+       local mount_mode="${mount##*:}"
+       
+       # If no mode specified, default to ro
+       if [ "$mount_path" = "$mount_mode" ]; then
+         mount_mode="ro"
+       fi
+       
+       local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       
+       # Skip if already seen (dedup)
+       if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
+         continue
+       fi
+       seen_paths+=("$resolved_path")
+       
+       docker_args+=(-v "$resolved_path:$resolved_path:$mount_mode")
+       all_mount_paths+=("$resolved_path")
+       
+       # Determine source for display
+       local source_icon
+       if __copilot_supports_emoji; then
+         if grep -qF "$mount" "$global_config" 2>/dev/null; then
+           source_icon="🌍"
+         else
+           source_icon="📍"
+         fi
+       else
+         if grep -qF "$mount" "$global_config" 2>/dev/null; then
+           source_icon="G:"
+         else
+           source_icon="L:"
+         fi
+       fi
+       
+       mount_display+=("   $source_icon $resolved_path ($mount_mode)")
+     done
+     
+     # Process CLI read-only mounts
+     for mount_path in "${cli_mounts_ro[@]}"; do
+       local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       
+       # Skip if already seen
+       if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
+         continue
+       fi
+       seen_paths+=("$resolved_path")
+       
+       docker_args+=(-v "$resolved_path:$resolved_path:ro")
+       all_mount_paths+=("$resolved_path")
+       
+       if __copilot_supports_emoji; then
+         mount_display+=("   🔧 $resolved_path (ro)")
+       else
+         mount_display+=("   CLI: $resolved_path (ro)")
+       fi
+     done
+     
+     # Process CLI read-write mounts
+     for mount_path in "${cli_mounts_rw[@]}"; do
+       local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+       
+       # Skip if already seen (CLI overrides config)
+       local override=false
+       for i in "${!seen_paths[@]}"; do
+         if [ "${seen_paths[$i]}" = "$resolved_path" ]; then
+           # Replace read-only with read-write
+           override=true
+           # Update docker args to rw
+           for j in "${!docker_args[@]}"; do
+             if [[ "${docker_args[$j]}" == "-v" ]] && [[ "${docker_args[$((j+1))]}" == "$resolved_path:$resolved_path:ro" ]]; then
+               docker_args[$((j+1))]="$resolved_path:$resolved_path:rw"
+             fi
+           done
+           break
+         fi
+       done
+       
+       if [ "$override" = "false" ]; then
+         seen_paths+=("$resolved_path")
+         docker_args+=(-v "$resolved_path:$resolved_path:rw")
+         all_mount_paths+=("$resolved_path")
+       fi
+       
+       if __copilot_supports_emoji; then
+         mount_display+=("   🔧 $resolved_path (rw)")
+       else
+         mount_display+=("   CLI: $resolved_path (rw)")
+       fi
+     done
+     
+     # Display mounts if there are extras
+     if [ ${#all_mount_paths[@]} -gt 0 ]; then
+       echo "📂 Mounts:"
+       for display in "${mount_display[@]}"; do
+         echo "$display"
+       done
+     fi
+     
+     docker_args+=("$image_name")
 
      local copilot_args=("copilot")
      
@@ -233,6 +506,11 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      if [ "$allow_all_tools" = "true" ]; then
        copilot_args+=("--allow-all-tools" "--allow-all-paths")
      fi
+     
+     # Auto-add mounted paths to --add-dir
+     for mount_path in "${all_mount_paths[@]}"; do
+       copilot_args+=("--add-dir" "$mount_path")
+     done
      
      # If no arguments provided, start interactive mode with banner
      if [ $# -eq 0 ]; then
@@ -251,6 +529,8 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      local skip_cleanup="false"
      local skip_pull="false"
      local args=()
+     local mounts_ro=()
+     local mounts_rw=()
      
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
@@ -264,15 +544,35 @@ copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
   copilot_here [OPTIONS] [COPILOT_ARGS]
+  copilot_here [MOUNT_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
+  --mount <path>            Mount additional directory (read-only)
+  --mount-rw <path>         Mount additional directory (read-write)
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+
+MOUNT MANAGEMENT:
+  --list-mounts             Show all configured mounts
+  --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
+  --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
+  --remove-mount <path>     Remove mount from configs
+
+MOUNT CONFIG:
+  Mounts can be configured in three ways (priority: CLI > Local > Global):
+    1. Global: ~/.config/copilot_here/mounts.conf
+    2. Local:  .copilot_here/mounts.conf
+    3. CLI:    --mount and --mount-rw flags
+  
+  Config file format (one path per line):
+    ~/investigations:ro
+    ~/notes:rw
+    /data/research
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -289,6 +589,15 @@ COPILOT_ARGS:
 EXAMPLES:
   # Interactive mode
   copilot_here
+  
+  # Mount additional directories
+  copilot_here --mount ../investigations -p "analyze these files"
+  copilot_here --mount-rw ~/notes --mount /data/research
+  
+  # Save mounts for reuse
+  copilot_here --save-mount ~/investigations
+  copilot_here --save-mount-global ~/common-data
+  copilot_here --list-mounts
   
   # Ask a question (short syntax)
   copilot_here -p "how do I list files in bash?"
@@ -309,7 +618,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05
+VERSION: 2025-11-05.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -317,8 +626,59 @@ GITHUB COPILOT CLI - NATIVE HELP
 ================================================================================
 EOF
           # Run copilot --help to show native help
-          __copilot_run "$image_tag" "false" "true" "true" "--help"
+          local empty_mounts_ro=()
+          local empty_mounts_rw=()
+          __copilot_run "$image_tag" "false" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
           return 0
+          ;;
+        --list-mounts)
+          __copilot_list_mounts
+          return 0
+          ;;
+        --save-mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --save-mount requires a path argument"
+            return 1
+          fi
+          __copilot_save_mount "$1" "false"
+          return 0
+          ;;
+        --save-mount-global)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --save-mount-global requires a path argument"
+            return 1
+          fi
+          __copilot_save_mount "$1" "true"
+          return 0
+          ;;
+        --remove-mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --remove-mount requires a path argument"
+            return 1
+          fi
+          __copilot_remove_mount "$1"
+          return 0
+          ;;
+        --mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --mount requires a path argument"
+            return 1
+          fi
+          mounts_ro+=("$1")
+          shift
+          ;;
+        --mount-rw)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --mount-rw requires a path argument"
+            return 1
+          fi
+          mounts_rw+=("$1")
+          shift
           ;;
          -d|--dotnet)
            image_tag="dotnet"
@@ -440,7 +800,7 @@ EOF
        esac
      done
      
-     __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" "${args[@]}"
+     __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
    }
 
    # YOLO Mode: Auto-approves all tool usage
@@ -449,6 +809,8 @@ EOF
      local skip_cleanup="false"
      local skip_pull="false"
      local args=()
+     local mounts_ro=()
+     local mounts_rw=()
      
      # Parse arguments for image variant and control flags
      while [[ $# -gt 0 ]]; do
@@ -462,15 +824,24 @@ copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
   copilot_yolo [OPTIONS] [COPILOT_ARGS]
+  copilot_yolo [MOUNT_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
+  --mount <path>            Mount additional directory (read-only)
+  --mount-rw <path>         Mount additional directory (read-write)
   --no-cleanup              Skip cleanup of unused Docker images
   --no-pull                 Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+
+MOUNT MANAGEMENT:
+  --list-mounts             Show all configured mounts
+  --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
+  --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
+  --remove-mount <path>     Remove mount from configs
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -490,6 +861,9 @@ EXAMPLES:
   
   # Execute without confirmation
   copilot_yolo -p "run the tests and fix failures"
+  
+  # Mount additional directories
+  copilot_yolo --mount ../data -p "analyze all data"
   
   # Use specific model
   copilot_yolo --model gpt-5 -p "optimize this code"
@@ -512,7 +886,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05
+VERSION: 2025-11-05.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -520,8 +894,59 @@ GITHUB COPILOT CLI - NATIVE HELP
 ================================================================================
 EOF
           # Run copilot --help to show native help
-          __copilot_run "$image_tag" "true" "true" "true" "--help"
+          local empty_mounts_ro=()
+          local empty_mounts_rw=()
+          __copilot_run "$image_tag" "true" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
           return 0
+          ;;
+        --list-mounts)
+          __copilot_list_mounts
+          return 0
+          ;;
+        --save-mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --save-mount requires a path argument"
+            return 1
+          fi
+          __copilot_save_mount "$1" "false"
+          return 0
+          ;;
+        --save-mount-global)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --save-mount-global requires a path argument"
+            return 1
+          fi
+          __copilot_save_mount "$1" "true"
+          return 0
+          ;;
+        --remove-mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --remove-mount requires a path argument"
+            return 1
+          fi
+          __copilot_remove_mount "$1"
+          return 0
+          ;;
+        --mount)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --mount requires a path argument"
+            return 1
+          fi
+          mounts_ro+=("$1")
+          shift
+          ;;
+        --mount-rw)
+          shift
+          if [ -z "$1" ]; then
+            echo "❌ Error: --mount-rw requires a path argument"
+            return 1
+          fi
+          mounts_rw+=("$1")
+          shift
           ;;
          -d|--dotnet)
            image_tag="dotnet"
@@ -643,7 +1068,7 @@ EOF
        esac
      done
      
-     __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" "${args[@]}"
+     __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
    }
    ```
    </details>
@@ -685,8 +1110,171 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 
    ```powershell
    # copilot_here PowerShell functions
-   # Version: 2025-11-05
+   # Version: 2025-11-05.1
    # Repository: https://github.com/GordonBeeming/copilot_here
+   
+   # Helper function to detect emoji support (PowerShell typically supports it)
+   function Test-EmojiSupport {
+       return $true  # PowerShell 5+ typically supports UTF-8/emojis
+   }
+   
+   # Helper function to load mounts from config file
+   function Get-ConfigMounts {
+       param([string]$ConfigFile)
+       
+       $mounts = @()
+       if (Test-Path $ConfigFile) {
+           Get-Content $ConfigFile | ForEach-Object {
+               $line = $_.Trim()
+               # Skip empty lines and comments
+               if ($line -and -not $line.StartsWith('#')) {
+                   $mounts += $line
+               }
+           }
+       }
+       return $mounts
+   }
+   
+   # Helper function to resolve and validate mount path
+   function Resolve-MountPath {
+       param([string]$Path)
+       
+       # Expand environment variables and user home
+       $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+       $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
+       
+       # Convert to absolute path if relative
+       if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
+           $resolvedPath = Join-Path (Get-Location) $resolvedPath
+       }
+       
+       # Normalize path separators for Docker (use forward slashes)
+       $resolvedPath = $resolvedPath.Replace('\', '/')
+       
+       # Warn if path doesn't exist
+       if (-not (Test-Path $resolvedPath.Replace('/', '\'))) {
+           Write-Host "⚠️  Warning: Path does not exist: $resolvedPath" -ForegroundColor Yellow
+       }
+       
+       # Security warning for sensitive paths
+       $sensitivePatterns = @('^C:/$', '^C:/Windows', '^C:/Program Files', '/.ssh', '/AppData/Roaming')
+       foreach ($pattern in $sensitivePatterns) {
+           if ($resolvedPath -match $pattern) {
+               Write-Host "⚠️  Warning: Mounting sensitive system path: $resolvedPath" -ForegroundColor Yellow
+               break
+           }
+       }
+       
+       return $resolvedPath
+   }
+   
+   # Helper function to display mounts list
+   function Show-ConfiguredMounts {
+       $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+       $localConfig = ".copilot_here/mounts.conf"
+       
+       $globalMounts = Get-ConfigMounts $globalConfig.Replace('/', '\')
+       $localMounts = Get-ConfigMounts $localConfig
+       
+       if ($globalMounts.Count -eq 0 -and $localMounts.Count -eq 0) {
+           Write-Host "📂 No saved mounts configured"
+           Write-Host ""
+           Write-Host "Add mounts with:"
+           Write-Host "  Copilot-Here -SaveMount <path>         # Save to local config"
+           Write-Host "  Copilot-Here -SaveMountGlobal <path>  # Save to global config"
+           return
+       }
+       
+       Write-Host "📂 Saved mounts:"
+       
+       $supportsEmoji = Test-EmojiSupport
+       
+       foreach ($mount in $globalMounts) {
+           if ($supportsEmoji) {
+               Write-Host "  🌍 $mount"
+           } else {
+               Write-Host "  G: $mount"
+           }
+       }
+       
+       foreach ($mount in $localMounts) {
+           if ($supportsEmoji) {
+               Write-Host "  📍 $mount"
+           } else {
+               Write-Host "  L: $mount"
+           }
+       }
+       
+       Write-Host ""
+       Write-Host "Config files:"
+       Write-Host "  Global: $globalConfig"
+       Write-Host "  Local:  $localConfig"
+   }
+   
+   # Helper function to save mount to config
+   function Save-MountToConfig {
+       param(
+           [string]$Path,
+           [bool]$IsGlobal
+       )
+       
+       if ($IsGlobal) {
+           $configFile = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+           $configDir = Split-Path $configFile.Replace('/', '\')
+           if (-not (Test-Path $configDir)) {
+               New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+           }
+       } else {
+           $configFile = ".copilot_here/mounts.conf"
+           if (-not (Test-Path ".copilot_here")) {
+               New-Item -ItemType Directory -Path ".copilot_here" -Force | Out-Null
+           }
+       }
+       
+       $configFilePath = $configFile.Replace('/', '\')
+       
+       # Check if already exists
+       if ((Test-Path $configFilePath) -and (Select-String -Path $configFilePath -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
+           Write-Host "⚠️  Mount already exists in config: $Path" -ForegroundColor Yellow
+           return
+       }
+       
+       Add-Content -Path $configFilePath -Value $Path
+       
+       if ($IsGlobal) {
+           Write-Host "✅ Saved to global config: $Path" -ForegroundColor Green
+       } else {
+           Write-Host "✅ Saved to local config: $Path" -ForegroundColor Green
+       }
+       Write-Host "   Config file: $configFile"
+   }
+   
+   # Helper function to remove mount from config
+   function Remove-MountFromConfig {
+       param([string]$Path)
+       
+       $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('/', '\')
+       $localConfig = ".copilot_here/mounts.conf"
+       $removed = $false
+       
+       # Try to remove from global config
+       if ((Test-Path $globalConfig) -and (Select-String -Path $globalConfig -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
+           (Get-Content $globalConfig) | Where-Object { $_ -ne $Path } | Set-Content $globalConfig
+           Write-Host "✅ Removed from global config: $Path" -ForegroundColor Green
+           $removed = $true
+       }
+       
+       # Try to remove from local config
+       if ((Test-Path $localConfig) -and (Select-String -Path $localConfig -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
+           (Get-Content $localConfig) | Where-Object { $_ -ne $Path } | Set-Content $localConfig
+           Write-Host "✅ Removed from local config: $Path" -ForegroundColor Green
+           $removed = $true
+       }
+       
+       if (-not $removed) {
+           Write-Host "⚠️  Mount not found in any config: $Path" -ForegroundColor Yellow
+       }
+   }
    
    # Helper function for security checks (shared by all variants)
    function Test-CopilotSecurityCheck {
@@ -805,6 +1393,8 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            [bool]$AllowAllTools,
            [bool]$SkipCleanup,
            [bool]$SkipPull,
+           [string[]]$MountsRO,
+           [string[]]$MountsRW,
            [string[]]$Arguments
        )
        
@@ -838,21 +1428,124 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            Write-Host "⚠️  Could not retrieve token using 'gh auth token'." -ForegroundColor Yellow
        }
 
-       $currentDir = (Get-Location).Path
+       $currentDir = (Get-Location).Path.Replace('\', '/')
        $dockerBaseArgs = @(
            "--rm", "-it",
            "-v", "$($currentDir):$($currentDir)",
            "-w", $currentDir,
-           "-v", "$($copilotConfigPath):/home/appuser/.copilot",
-           "-e", "GITHUB_TOKEN=$token",
-           $imageName
+           "-v", "$($copilotConfigPath.Replace('\', '/')):/home/appuser/.copilot",
+           "-e", "GITHUB_TOKEN=$token"
        )
+
+       # Load mounts from config files
+       $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+       $localConfig = ".copilot_here/mounts.conf"
+       
+       $configMounts = @()
+       $configMounts += Get-ConfigMounts $globalConfig.Replace('/', '\')
+       $configMounts += Get-ConfigMounts $localConfig
+       
+       # Track all mounted paths for display and --add-dir
+       $allMountPaths = @()
+       $mountDisplay = @()
+       $seenPaths = @{}
+       
+       # Add current working directory to display
+       $mountDisplay += "📁 $currentDir"
+       
+       # Process config mounts
+       foreach ($mount in $configMounts) {
+           $mountPath = $mount
+           $mountMode = "ro"
+           
+           if ($mount.Contains(':')) {
+               $parts = $mount -split ':'
+               $mountPath = $parts[0]
+               $mountMode = $parts[1]
+           }
+           
+           $resolvedPath = Resolve-MountPath $mountPath
+           
+           # Skip if already seen (dedup)
+           if ($seenPaths.ContainsKey($resolvedPath)) {
+               continue
+           }
+           $seenPaths[$resolvedPath] = $mountMode
+           
+           $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
+           $allMountPaths += $resolvedPath
+           
+           # Determine source for display
+           $sourceIcon = if (Test-EmojiSupport) {
+               if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "🌍" } else { "📍" }
+           } else {
+               if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "G:" } else { "L:" }
+           }
+           
+           $mountDisplay += "   $sourceIcon $resolvedPath ($mountMode)"
+       }
+       
+       # Process CLI read-only mounts
+       foreach ($mountPath in $MountsRO) {
+           $resolvedPath = Resolve-MountPath $mountPath
+           
+           # Skip if already seen
+           if ($seenPaths.ContainsKey($resolvedPath)) {
+               continue
+           }
+           $seenPaths[$resolvedPath] = "ro"
+           
+           $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):ro"
+           $allMountPaths += $resolvedPath
+           
+           $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
+           $mountDisplay += "   $icon $resolvedPath (ro)"
+       }
+       
+       # Process CLI read-write mounts
+       foreach ($mountPath in $MountsRW) {
+           $resolvedPath = Resolve-MountPath $mountPath
+           
+           # Update to rw if already mounted as ro
+           if ($seenPaths.ContainsKey($resolvedPath)) {
+               $seenPaths[$resolvedPath] = "rw"
+               # Find and update the docker arg
+               for ($i = 0; $i -lt $dockerBaseArgs.Count; $i++) {
+                   if ($dockerBaseArgs[$i] -eq "-v" -and $dockerBaseArgs[$i+1] -like "$resolvedPath*:ro") {
+                       $dockerBaseArgs[$i+1] = "$($resolvedPath):$($resolvedPath):rw"
+                       break
+                   }
+               }
+           } else {
+               $seenPaths[$resolvedPath] = "rw"
+               $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):rw"
+               $allMountPaths += $resolvedPath
+           }
+           
+           $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
+           $mountDisplay += "   $icon $resolvedPath (rw)"
+       }
+       
+       # Display mounts if there are extras
+       if ($allMountPaths.Count -gt 0) {
+           Write-Host "📂 Mounts:"
+           foreach ($display in $mountDisplay) {
+               Write-Host $display
+           }
+       }
+       
+       $dockerBaseArgs += $imageName
 
        $copilotCommand = @("copilot")
        
        # Add --allow-all-tools and --allow-all-paths if in YOLO mode
        if ($AllowAllTools) {
            $copilotCommand += "--allow-all-tools", "--allow-all-paths"
+       }
+       
+       # Auto-add mounted paths to --add-dir
+       foreach ($mountPath in $allMountPaths) {
+           $copilotCommand += "--add-dir", $mountPath
        }
        
        # If no arguments provided, start interactive mode with banner
@@ -877,6 +1570,12 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            [switch]$Dotnet,
            [switch]$dp,
            [switch]$DotnetPlaywright,
+           [string[]]$Mount,
+           [string[]]$MountRW,
+           [switch]$ListMounts,
+           [string]$SaveMount,
+           [string]$SaveMountGlobal,
+           [string]$RemoveMount,
            [switch]$NoCleanup,
            [switch]$NoPull,
            [switch]$UpdateScripts,
@@ -884,6 +1583,27 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       # Handle mount management commands
+       if ($ListMounts) {
+           Show-ConfiguredMounts
+           return
+       }
+       
+       if ($SaveMount) {
+           Save-MountToConfig -Path $SaveMount -IsGlobal $false
+           return
+       }
+       
+       if ($SaveMountGlobal) {
+           Save-MountToConfig -Path $SaveMountGlobal -IsGlobal $true
+           return
+       }
+       
+       if ($RemoveMount) {
+           Remove-MountFromConfig -Path $RemoveMount
+           return
+       }
 
        if ($UpdateScripts -or $UpgradeScripts) {
            Write-Host "📦 Updating copilot_here scripts from GitHub..."
@@ -968,16 +1688,36 @@ To update later, just run: `Copilot-Here -UpdateScripts`
 copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
-  copilot_here [OPTIONS] [COPILOT_ARGS]
+  Copilot-Here [OPTIONS] [COPILOT_ARGS]
+  Copilot-Here [MOUNT_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -Mount <path>            Mount additional directory (read-only)
+  -MountRW <path>          Mount additional directory (read-write)
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
+
+MOUNT MANAGEMENT:
+  -ListMounts              Show all configured mounts
+  -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
+  -SaveMountGlobal <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
+  -RemoveMount <path>      Remove mount from configs
+
+MOUNT CONFIG:
+  Mounts can be configured in three ways (priority: CLI > Local > Global):
+    1. Global: ~/.config/copilot_here/mounts.conf
+    2. Local:  .copilot_here/mounts.conf
+    3. CLI:    -Mount and -MountRW parameters
+  
+  Config file format (one path per line):
+    ~/investigations:ro
+    ~/notes:rw
+    /data/research
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -993,28 +1733,37 @@ COPILOT_ARGS:
 
 EXAMPLES:
   # Interactive mode
-  copilot_here
+  Copilot-Here
+  
+  # Mount additional directories
+  Copilot-Here -Mount ../investigations -p "analyze these files"
+  Copilot-Here -MountRW ~/notes -Mount /data/research
+  
+  # Save mounts for reuse
+  Copilot-Here -SaveMount ~/investigations
+  Copilot-Here -SaveMountGlobal ~/common-data
+  Copilot-Here -ListMounts
   
   # Ask a question
-  copilot_here -p "how do I list files in PowerShell?"
+  Copilot-Here -p "how do I list files in PowerShell?"
   
   # Use specific AI model
-  copilot_here --model gpt-5 -p "explain this code"
+  Copilot-Here --model gpt-5 -p "explain this code"
   
   # Resume previous session
-  copilot_here --continue
+  Copilot-Here --continue
   
   # Use .NET image
-  copilot_here -d -p "build this .NET project"
+  Copilot-Here -d -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  copilot_here -NoCleanup -NoPull -p "quick question"
+  Copilot-Here -NoCleanup -NoPull -p "quick question"
 
 MODES:
-  copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
+  Copilot-Here  - Safe mode (asks for confirmation before executing)
+  Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05
+VERSION: 2025-11-05.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -1027,7 +1776,11 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            $imageTag = "dotnet-playwright"
        }
        
-       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -Arguments $Prompt
+       # Initialize mount arrays if not provided
+       if (-not $Mount) { $Mount = @() }
+       if (-not $MountRW) { $MountRW = @() }
+       
+       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
    }
 
    # YOLO Mode: Auto-approves all tool usage
@@ -1040,12 +1793,40 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            [switch]$Dotnet,
            [switch]$dp,
            [switch]$DotnetPlaywright,
+           [string[]]$Mount,
+           [string[]]$MountRW,
+           [switch]$ListMounts,
+           [string]$SaveMount,
+           [string]$SaveMountGlobal,
+           [string]$RemoveMount,
            [switch]$NoCleanup,
            [switch]$NoPull,
            [switch]$UpdateScripts,
+           [switch]$UpgradeScripts,
            [Parameter(ValueFromRemainingArguments=$true)]
            [string[]]$Prompt
        )
+
+       # Handle mount management commands
+       if ($ListMounts) {
+           Show-ConfiguredMounts
+           return
+       }
+       
+       if ($SaveMount) {
+           Save-MountToConfig -Path $SaveMount -IsGlobal $false
+           return
+       }
+       
+       if ($SaveMountGlobal) {
+           Save-MountToConfig -Path $SaveMountGlobal -IsGlobal $true
+           return
+       }
+       
+       if ($RemoveMount) {
+           Remove-MountFromConfig -Path $RemoveMount
+           return
+       }
 
        if ($UpdateScripts -or $UpgradeScripts) {
            Write-Host "📦 Updating copilot_here scripts from GitHub..."
@@ -1130,16 +1911,25 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
 copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
-  copilot_yolo [OPTIONS] [COPILOT_ARGS]
+  Copilot-Yolo [OPTIONS] [COPILOT_ARGS]
+  Copilot-Yolo [MOUNT_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
+  -Mount <path>            Mount additional directory (read-only)
+  -MountRW <path>          Mount additional directory (read-write)
   -NoCleanup               Skip cleanup of unused Docker images
   -NoPull                  Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
+
+MOUNT MANAGEMENT:
+  -ListMounts              Show all configured mounts
+  -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
+  -SaveMountGlobal <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
+  -RemoveMount <path>      Remove mount from configs
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -1155,22 +1945,25 @@ COPILOT_ARGS:
 
 EXAMPLES:
   # Interactive mode (auto-approves all)
-  copilot_yolo
+  Copilot-Yolo
   
   # Execute without confirmation
-  copilot_yolo -p "run the tests and fix failures"
+  Copilot-Yolo -p "run the tests and fix failures"
+  
+  # Mount additional directories
+  Copilot-Yolo -Mount ../data -p "analyze all data"
   
   # Use specific model
-  copilot_yolo --model gpt-5 -p "optimize this code"
+  Copilot-Yolo --model gpt-5 -p "optimize this code"
   
   # Resume session
-  copilot_yolo --continue
+  Copilot-Yolo --continue
   
   # Use .NET + Playwright image
-  copilot_yolo -dp -p "write playwright tests"
+  Copilot-Yolo -dp -p "write playwright tests"
   
   # Fast mode (skip cleanup)
-  copilot_yolo -NoCleanup -p "generate README"
+  Copilot-Yolo -NoCleanup -p "generate README"
 
 WARNING:
   YOLO mode automatically approves ALL tool usage without confirmation AND
@@ -1178,10 +1971,10 @@ WARNING:
   Use with caution and only in trusted environments.
 
 MODES:
-  copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
+  Copilot-Here  - Safe mode (asks for confirmation before executing)
+  Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05
+VERSION: 2025-11-05.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
            return
@@ -1194,7 +1987,11 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
            $imageTag = "dotnet-playwright"
        }
        
-       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -Arguments $Prompt
+       # Initialize mount arrays if not provided
+       if (-not $Mount) { $Mount = @() }
+       if (-not $MountRW) { $MountRW = @() }
+       
+       Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
    }
 
    Set-Alias -Name copilot_here -Value Copilot-Here
