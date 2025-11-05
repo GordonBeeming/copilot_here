@@ -197,27 +197,54 @@ Open your shell's startup file (e.g., `~/.zshrc`, `~/.bashrc`) and add:
      local path="$1"
      local is_global="$2"
      local config_file
+     local normalized_path
      
+     # Normalize path to absolute or home-relative for global mounts
      if [ "$is_global" = "true" ]; then
+       # For global mounts, convert to absolute or ~/... format
+       if [[ "$path" == "~"* ]]; then
+         # Keep tilde format for home directory
+         normalized_path="$path"
+       elif [[ "$path" == "/"* ]]; then
+         # Already absolute
+         normalized_path="$path"
+       else
+         # Relative path - convert to absolute
+         local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
+         local base_part=$(basename "$path" 2>/dev/null || echo "$path")
+         local abs_dir=$(cd "$dir_part" 2>/dev/null && pwd || echo "$PWD")
+         normalized_path="$abs_dir/$base_part"
+         
+         # If it's in home directory, convert to tilde format
+         if [[ "$normalized_path" == "$HOME"* ]]; then
+           normalized_path="~${normalized_path#$HOME}"
+         fi
+       fi
+       
        config_file="$HOME/.config/copilot_here/mounts.conf"
        mkdir -p "$HOME/.config/copilot_here"
      else
+       # For local mounts, keep path as-is (relative is OK for project-specific)
+       normalized_path="$path"
        config_file=".copilot_here/mounts.conf"
        mkdir -p ".copilot_here"
      fi
      
      # Check if already exists
-     if [ -f "$config_file" ] && grep -qF "$path" "$config_file"; then
-       echo "⚠️  Mount already exists in config: $path"
+     if [ -f "$config_file" ] && grep -qF "$normalized_path" "$config_file"; then
+       echo "⚠️  Mount already exists in config: $normalized_path"
        return 1
      fi
      
-     echo "$path" >> "$config_file"
+     echo "$normalized_path" >> "$config_file"
      
      if [ "$is_global" = "true" ]; then
-       echo "✅ Saved to global config: $path"
+       echo "✅ Saved to global config: $normalized_path"
+       if [ "$normalized_path" != "$path" ]; then
+         echo "   (normalized from: $path)"
+       fi
      else
-       echo "✅ Saved to local config: $path"
+       echo "✅ Saved to local config: $normalized_path"
      fi
      echo "   Config file: $config_file"
    }
@@ -1243,13 +1270,37 @@ To update later, just run: `Copilot-Here -UpdateScripts`
            [bool]$IsGlobal
        )
        
+       $normalizedPath = $Path
+       
+       # Normalize path to absolute or ~/... format for global mounts
        if ($IsGlobal) {
+           # Expand environment variables and tilde
+           $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+           $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+           
+           # Convert to absolute if relative
+           if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
+               $expandedPath = Join-Path (Get-Location) $expandedPath
+               $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+           }
+           
+           # If in user profile, convert to tilde format
+           if ($expandedPath.StartsWith($env:USERPROFILE)) {
+               $normalizedPath = "~" + $expandedPath.Substring($env:USERPROFILE.Length)
+           } else {
+               $normalizedPath = $expandedPath
+           }
+           
+           # Normalize to forward slashes for consistency
+           $normalizedPath = $normalizedPath.Replace('\', '/')
+           
            $configFile = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
            $configDir = Split-Path $configFile.Replace('/', '\')
            if (-not (Test-Path $configDir)) {
                New-Item -ItemType Directory -Path $configDir -Force | Out-Null
            }
        } else {
+           # For local mounts, keep path as-is (relative is OK for project-specific)
            $configFile = ".copilot_here/mounts.conf"
            if (-not (Test-Path ".copilot_here")) {
                New-Item -ItemType Directory -Path ".copilot_here" -Force | Out-Null
@@ -1259,17 +1310,20 @@ To update later, just run: `Copilot-Here -UpdateScripts`
        $configFilePath = $configFile.Replace('/', '\')
        
        # Check if already exists
-       if ((Test-Path $configFilePath) -and (Select-String -Path $configFilePath -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
-           Write-Host "⚠️  Mount already exists in config: $Path" -ForegroundColor Yellow
+       if ((Test-Path $configFilePath) -and (Select-String -Path $configFilePath -Pattern "^$([regex]::Escape($normalizedPath))$" -Quiet)) {
+           Write-Host "⚠️  Mount already exists in config: $normalizedPath" -ForegroundColor Yellow
            return
        }
        
-       Add-Content -Path $configFilePath -Value $Path
+       Add-Content -Path $configFilePath -Value $normalizedPath
        
        if ($IsGlobal) {
-           Write-Host "✅ Saved to global config: $Path" -ForegroundColor Green
+           Write-Host "✅ Saved to global config: $normalizedPath" -ForegroundColor Green
+           if ($normalizedPath -ne $Path) {
+               Write-Host "   (normalized from: $Path)" -ForegroundColor Gray
+           }
        } else {
-           Write-Host "✅ Saved to local config: $Path" -ForegroundColor Green
+           Write-Host "✅ Saved to local config: $normalizedPath" -ForegroundColor Green
        }
        Write-Host "   Config file: $configFile"
    }

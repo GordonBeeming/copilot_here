@@ -112,13 +112,37 @@ function Save-MountToConfig {
         [bool]$IsGlobal
     )
     
+    $normalizedPath = $Path
+    
+    # Normalize path to absolute or ~/... format for global mounts
     if ($IsGlobal) {
+        # Expand environment variables and tilde
+        $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+        $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+        
+        # Convert to absolute if relative
+        if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
+            $expandedPath = Join-Path (Get-Location) $expandedPath
+            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+        }
+        
+        # If in user profile, convert to tilde format
+        if ($expandedPath.StartsWith($env:USERPROFILE)) {
+            $normalizedPath = "~" + $expandedPath.Substring($env:USERPROFILE.Length)
+        } else {
+            $normalizedPath = $expandedPath
+        }
+        
+        # Normalize to forward slashes for consistency
+        $normalizedPath = $normalizedPath.Replace('\', '/')
+        
         $configFile = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
         $configDir = Split-Path $configFile.Replace('/', '\')
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
         }
     } else {
+        # For local mounts, keep path as-is (relative is OK for project-specific)
         $configFile = ".copilot_here/mounts.conf"
         if (-not (Test-Path ".copilot_here")) {
             New-Item -ItemType Directory -Path ".copilot_here" -Force | Out-Null
@@ -128,17 +152,20 @@ function Save-MountToConfig {
     $configFilePath = $configFile.Replace('/', '\')
     
     # Check if already exists
-    if ((Test-Path $configFilePath) -and (Select-String -Path $configFilePath -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
-        Write-Host "⚠️  Mount already exists in config: $Path" -ForegroundColor Yellow
+    if ((Test-Path $configFilePath) -and (Select-String -Path $configFilePath -Pattern "^$([regex]::Escape($normalizedPath))$" -Quiet)) {
+        Write-Host "⚠️  Mount already exists in config: $normalizedPath" -ForegroundColor Yellow
         return
     }
     
-    Add-Content -Path $configFilePath -Value $Path
+    Add-Content -Path $configFilePath -Value $normalizedPath
     
     if ($IsGlobal) {
-        Write-Host "✅ Saved to global config: $Path" -ForegroundColor Green
+        Write-Host "✅ Saved to global config: $normalizedPath" -ForegroundColor Green
+        if ($normalizedPath -ne $Path) {
+            Write-Host "   (normalized from: $Path)" -ForegroundColor Gray
+        }
     } else {
-        Write-Host "✅ Saved to local config: $Path" -ForegroundColor Green
+        Write-Host "✅ Saved to local config: $normalizedPath" -ForegroundColor Green
     }
     Write-Host "   Config file: $configFile"
 }

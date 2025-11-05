@@ -111,27 +111,54 @@ __copilot_save_mount() {
   local path="$1"
   local is_global="$2"
   local config_file
+  local normalized_path
   
+  # Normalize path to absolute or home-relative for global mounts
   if [ "$is_global" = "true" ]; then
+    # For global mounts, convert to absolute or ~/... format
+    if [[ "$path" == "~"* ]]; then
+      # Keep tilde format for home directory
+      normalized_path="$path"
+    elif [[ "$path" == "/"* ]]; then
+      # Already absolute
+      normalized_path="$path"
+    else
+      # Relative path - convert to absolute
+      local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
+      local base_part=$(basename "$path" 2>/dev/null || echo "$path")
+      local abs_dir=$(cd "$dir_part" 2>/dev/null && pwd || echo "$PWD")
+      normalized_path="$abs_dir/$base_part"
+      
+      # If it's in home directory, convert to tilde format
+      if [[ "$normalized_path" == "$HOME"* ]]; then
+        normalized_path="~${normalized_path#$HOME}"
+      fi
+    fi
+    
     config_file="$HOME/.config/copilot_here/mounts.conf"
     mkdir -p "$HOME/.config/copilot_here"
   else
+    # For local mounts, keep path as-is (relative is OK for project-specific)
+    normalized_path="$path"
     config_file=".copilot_here/mounts.conf"
     mkdir -p ".copilot_here"
   fi
   
   # Check if already exists
-  if [ -f "$config_file" ] && grep -qF "$path" "$config_file"; then
-    echo "⚠️  Mount already exists in config: $path"
+  if [ -f "$config_file" ] && grep -qF "$normalized_path" "$config_file"; then
+    echo "⚠️  Mount already exists in config: $normalized_path"
     return 1
   fi
   
-  echo "$path" >> "$config_file"
+  echo "$normalized_path" >> "$config_file"
   
   if [ "$is_global" = "true" ]; then
-    echo "✅ Saved to global config: $path"
+    echo "✅ Saved to global config: $normalized_path"
+    if [ "$normalized_path" != "$path" ]; then
+      echo "   (normalized from: $path)"
+    fi
   else
-    echo "✅ Saved to local config: $path"
+    echo "✅ Saved to local config: $normalized_path"
   fi
   echo "   Config file: $config_file"
 }

@@ -4,12 +4,13 @@ FROM node:20-slim
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, and gosu for the entrypoint script.
+# Install git, curl, gpg, gosu, and zsh for the entrypoint script and testing.
 RUN apt-get update && apt-get install -y \
   curl \
   gpg \
   git \
   gosu \
+  zsh \
   && rm -rf /var/lib/apt/lists/*
 
 # ARG for the Copilot CLI version - passed from build process

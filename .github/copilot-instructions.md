@@ -169,12 +169,21 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 ## Code Style and Patterns
 
 ### Shell Scripts
-- Use bash for shell scripts
-- Include shebang: `#!/bin/bash`
+- **CRITICAL**: Scripts must be compatible with both bash AND zsh
+- Use bash for shell scripts (include shebang: `#!/bin/bash`)
+- Avoid bash-only features like `local -n` (namerefs)
+- Test in both bash and zsh before committing
 - Set error handling: `set -e`
 - Use meaningful variable names
 - Add comments for complex logic
 - Handle edge cases (missing variables, etc.)
+
+**Bash/Zsh Compatibility Rules:**
+- ✅ Use `eval` for dynamic variable access instead of namerefs
+- ✅ Split complex command substitutions into separate steps
+- ✅ Use POSIX-compatible syntax where possible
+- ❌ Avoid `local -n` (bash 4.3+ only)
+- ❌ Avoid bash-specific array features not in zsh
 
 ### Dockerfiles
 - Use official base images
