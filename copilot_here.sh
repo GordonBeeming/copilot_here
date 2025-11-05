@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.4
+# Version: 2025-11-05.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -406,14 +406,22 @@ __copilot_run() {
     fi
     seen_paths+=("$resolved_path")
     
-    docker_args+=(-v "$resolved_path:$resolved_path:$mount_mode")
-    all_mount_paths+=("$resolved_path")
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      # Path is under user's home directory - map to container's home
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
+    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
+    all_mount_paths+=("$container_path")
     
     # Global mount icon
     if __copilot_supports_emoji; then
-      mount_display+=("   🌍 $resolved_path ($mount_mode)")
+      mount_display+=("   🌍 $container_path ($mount_mode)")
     else
-      mount_display+=("   G: $resolved_path ($mount_mode)")
+      mount_display+=("   G: $container_path ($mount_mode)")
     fi
   done
   
@@ -438,14 +446,22 @@ __copilot_run() {
     fi
     seen_paths+=("$resolved_path")
     
-    docker_args+=(-v "$resolved_path:$resolved_path:$mount_mode")
-    all_mount_paths+=("$resolved_path")
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      # Path is under user's home directory - map to container's home
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
+    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
+    all_mount_paths+=("$container_path")
     
     # Local mount icon
     if __copilot_supports_emoji; then
-      mount_display+=("   📍 $resolved_path ($mount_mode)")
+      mount_display+=("   📍 $container_path ($mount_mode)")
     else
-      mount_display+=("   L: $resolved_path ($mount_mode)")
+      mount_display+=("   L: $container_path ($mount_mode)")
     fi
   done
   
@@ -463,13 +479,20 @@ __copilot_run() {
     fi
     seen_paths+=("$resolved_path")
     
-    docker_args+=(-v "$resolved_path:$resolved_path:ro")
-    all_mount_paths+=("$resolved_path")
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
+    docker_args+=(-v "$resolved_path:$container_path:ro")
+    all_mount_paths+=("$container_path")
     
     if __copilot_supports_emoji; then
-      mount_display+=("   🔧 $resolved_path (ro)")
+      mount_display+=("   🔧 $container_path (ro)")
     else
-      mount_display+=("   CLI: $resolved_path (ro)")
+      mount_display+=("   CLI: $container_path (ro)")
     fi
   done
   
@@ -481,16 +504,23 @@ __copilot_run() {
       continue  # Skip this mount if user cancelled
     fi
     
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
     # Skip if already seen (CLI overrides config)
     local override=false
     for i in "${!seen_paths[@]}"; do
       if [ "${seen_paths[$i]}" = "$resolved_path" ]; then
         # Replace read-only with read-write
         override=true
-        # Update docker args to rw
+        # Update docker args to rw (need to match on container_path)
         for j in "${!docker_args[@]}"; do
-          if [[ "${docker_args[$j]}" == "-v" ]] && [[ "${docker_args[$((j+1))]}" == "$resolved_path:$resolved_path:ro" ]]; then
-            docker_args[$((j+1))]="$resolved_path:$resolved_path:rw"
+          if [[ "${docker_args[$j]}" == "-v" ]] && [[ "${docker_args[$((j+1))]}" == "$resolved_path:$container_path:ro" ]]; then
+            docker_args[$((j+1))]="$resolved_path:$container_path:rw"
           fi
         done
         break
@@ -499,14 +529,14 @@ __copilot_run() {
     
     if [ "$override" = "false" ]; then
       seen_paths+=("$resolved_path")
-      docker_args+=(-v "$resolved_path:$resolved_path:rw")
-      all_mount_paths+=("$resolved_path")
+      docker_args+=(-v "$resolved_path:$container_path:rw")
+      all_mount_paths+=("$container_path")
     fi
     
     if __copilot_supports_emoji; then
-      mount_display+=("   🔧 $resolved_path (rw)")
+      mount_display+=("   🔧 $container_path (rw)")
     else
-      mount_display+=("   CLI: $resolved_path (rw)")
+      mount_display+=("   CLI: $container_path (rw)")
     fi
   done
   
