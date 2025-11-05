@@ -8,16 +8,19 @@ echo "🔧 Developer Test Script"
 echo "════════════════════════════════════════════════════════════"
 echo ""
 
-# Detect shell
-if [ -n "$ZSH_VERSION" ]; then
+# Detect the user's actual shell (not the script's shell)
+USER_SHELL=$(basename "$SHELL")
+if [ "$USER_SHELL" = "zsh" ]; then
     SHELL_TYPE="zsh"
     CONFIG_FILE="${ZDOTDIR:-$HOME}/.zshrc"
-elif [ -n "$BASH_VERSION" ]; then
+elif [ "$USER_SHELL" = "bash" ]; then
     SHELL_TYPE="bash"
     CONFIG_FILE="$HOME/.bashrc"
 else
-    echo "❌ Unsupported shell. Please use bash or zsh."
-    exit 1
+    echo "⚠️  Could not detect shell from \$SHELL ($SHELL)"
+    echo "   Defaulting to bash"
+    SHELL_TYPE="bash"
+    CONFIG_FILE="$HOME/.bashrc"
 fi
 
 echo "📋 Detected shell: $SHELL_TYPE"
@@ -56,10 +59,13 @@ else
 fi
 echo ""
 
-# Source the new version
-echo "🔄 Loading new version into current shell..."
-source "$TARGET_FILE"
-echo "✅ Functions loaded successfully!"
+# Source the new version into the actual shell (bash or zsh)
+echo "🔄 Loading new version into current $SHELL_TYPE shell..."
+if [ "$SHELL_TYPE" = "zsh" ]; then
+    zsh -c "source '$TARGET_FILE' && echo '✅ Functions loaded successfully in zsh!' && copilot_here --help | head -15"
+else
+    bash -c "source '$TARGET_FILE' && echo '✅ Functions loaded successfully in bash!' && copilot_here --help | head -15"
+fi
 echo ""
 
 # Show version
@@ -73,20 +79,16 @@ echo "   • copilot_here  - Safe mode (asks for confirmation)"
 echo "   • copilot_yolo  - YOLO mode (auto-approves everything)"
 echo ""
 
-# Test help
-echo "🧪 Testing --help..."
-echo "────────────────────────────────────────────────────────────"
-copilot_here --help | head -15
-echo "────────────────────────────────────────────────────────────"
-echo ""
-
 echo "✅ Dev test complete!"
 echo ""
-echo "💡 Quick tests you can run:"
+echo "💡 To use in your current terminal, run:"
+echo "   source ~/.copilot_here.sh"
+echo ""
+echo "💡 Quick tests you can run (after sourcing):"
 echo "   copilot_here --help"
 echo "   copilot_here --list-mounts"
 echo "   copilot_here --mount /tmp -p 'test'"
 echo ""
-echo "🔄 To reload in future terminals, run:"
+echo "🔄 To reload in future $SHELL_TYPE terminals, run:"
 echo "   source $CONFIG_FILE"
 echo ""
