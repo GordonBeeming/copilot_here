@@ -156,7 +156,7 @@ __copilot_save_mount() {
       echo "🔗 Following symlink to: $config_file"
     fi
     
-    /bin/mkdir -p "$(dirname "$config_file")"
+    /bin/mkdir -p "$(/usr/bin/dirname "$config_file")"
   else
     # For local mounts, keep path as-is (relative is OK for project-specific)
     normalized_path="$path"
@@ -168,7 +168,7 @@ __copilot_save_mount() {
       echo "🔗 Following symlink to: $config_file"
     fi
     
-    /bin/mkdir -p "$(dirname "$config_file")"
+    /bin/mkdir -p "$(/usr/bin/dirname "$config_file")"
   fi
   
   # Check if already exists
