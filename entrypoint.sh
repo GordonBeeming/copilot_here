@@ -18,7 +18,6 @@ fi
 
 # Set up the .copilot directory with correct ownership
 mkdir -p /home/appuser/.copilot
-chown $USER_ID:$GROUP_ID /home/appuser
 chown -R $USER_ID:$GROUP_ID /home/appuser/.copilot
 
 # Switch to the new user and execute the command passed to the script.
