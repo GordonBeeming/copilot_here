@@ -522,16 +522,29 @@ __copilot_run() {
     
     # Skip if already seen (CLI overrides config)
     local override=false
-    for i in "${!seen_paths[@]}"; do
-      if [ "${seen_paths[$i]}" = "$resolved_path" ]; then
+    for seen_path in "${seen_paths[@]}"; do
+      if [ "$seen_path" = "$resolved_path" ]; then
         # Replace read-only with read-write
         override=true
-        # Update docker args to rw (need to match on container_path)
-        for j in "${!docker_args[@]}"; do
-          if [[ "${docker_args[$j]}" == "-v" ]] && [[ "${docker_args[$((j+1))]}" == "$resolved_path:$container_path:ro" ]]; then
-            docker_args[$((j+1))]="$resolved_path:$container_path:rw"
+        # Update docker args to rw - rebuild array to avoid bash-specific array indexing
+        local new_docker_args=()
+        local skip_next=false
+        local prev_arg=""
+        for arg in "${docker_args[@]}"; do
+          if [ "$skip_next" = "true" ]; then
+            skip_next=false
+            continue
           fi
+          
+          if [ "$prev_arg" = "-v" ] && [ "$arg" = "$resolved_path:$container_path:ro" ]; then
+            # Replace this mount with rw version
+            new_docker_args+=("$resolved_path:$container_path:rw")
+          else
+            new_docker_args+=("$arg")
+          fi
+          prev_arg="$arg"
         done
+        docker_args=("${new_docker_args[@]}")
         break
       fi
     done

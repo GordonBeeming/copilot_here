@@ -170,8 +170,8 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 
 ### Shell Scripts
 - **CRITICAL**: Scripts must be compatible with both bash AND zsh
+- **NEVER use bash-specific syntax** - this is a recurring source of bugs
 - Use bash for shell scripts (include shebang: `#!/bin/bash`)
-- Avoid bash-only features like `local -n` (namerefs)
 - Test in both bash and zsh before committing
 - Set error handling: `set -e`
 - Use meaningful variable names
@@ -182,7 +182,12 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 - ✅ Use `eval` for dynamic variable access instead of namerefs
 - ✅ Split complex command substitutions into separate steps
 - ✅ Use POSIX-compatible syntax where possible
-- ❌ Avoid `local -n` (bash 4.3+ only)
+- ✅ Iterate arrays by value: `for item in "${array[@]}"`
+- ✅ Use manual index iteration: `i=0; while [ $i -lt ${#array[@]} ]; do ... i=$((i+1)); done`
+- ❌ **NEVER use `${!array[@]}`** (bash-specific array key expansion)
+- ❌ **NEVER use `${!varname}`** (bash-specific indirect expansion)  
+- ❌ Avoid `local -n` (bash 4.3+ only, namerefs)
+- ❌ Avoid `local -a` in eval (may cause issues)
 - ❌ Avoid bash-specific array features not in zsh
 
 ### Dockerfiles
