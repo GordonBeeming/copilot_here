@@ -239,12 +239,17 @@ __copilot_remove_mount() {
   if [ -f "$global_config" ]; then
     local temp_file="${global_config}.tmp"
     local found=false
+    local matched_line=""
     
     # Ensure temp file is empty
-    > "$temp_file"
+    /usr/bin/true > "$temp_file"
     
     while IFS= read -r line || [ -n "$line" ]; do
-      local line_path="$line"
+      # Skip empty lines
+      if [ -z "$line" ]; then
+        continue
+      fi
+      
       local line_without_suffix="${line%:*}"
       
       # Match either exact path, path with any suffix, or normalized path
@@ -252,18 +257,21 @@ __copilot_remove_mount() {
          [[ "$line_without_suffix" == "$normalized_path" ]] || \
          [[ "$line" == "$path" ]] || \
          [[ "$line_without_suffix" == "$path" ]]; then
-        found=true
-        echo "✅ Removed from global config: $line"
+        if [ "$found" = "false" ]; then
+          found=true
+          matched_line="$line"
+        fi
       else
         echo "$line" >> "$temp_file"
       fi
     done < "$global_config"
     
     if [ "$found" = "true" ]; then
-      mv "$temp_file" "$global_config"
+      /bin/mv "$temp_file" "$global_config"
+      echo "✅ Removed from global config: $matched_line"
       removed=true
     else
-      rm -f "$temp_file"
+      /bin/rm -f "$temp_file"
     fi
   fi
   
@@ -271,12 +279,17 @@ __copilot_remove_mount() {
   if [ -f "$local_config" ]; then
     local temp_file="${local_config}.tmp"
     local found=false
+    local matched_line=""
     
     # Ensure temp file is empty
-    > "$temp_file"
+    /usr/bin/true > "$temp_file"
     
     while IFS= read -r line || [ -n "$line" ]; do
-      local line_path="$line"
+      # Skip empty lines
+      if [ -z "$line" ]; then
+        continue
+      fi
+      
       local line_without_suffix="${line%:*}"
       
       # Match either exact path, path with any suffix, or normalized path
@@ -284,18 +297,21 @@ __copilot_remove_mount() {
          [[ "$line_without_suffix" == "$normalized_path" ]] || \
          [[ "$line" == "$path" ]] || \
          [[ "$line_without_suffix" == "$path" ]]; then
-        found=true
-        echo "✅ Removed from local config: $line"
+        if [ "$found" = "false" ]; then
+          found=true
+          matched_line="$line"
+        fi
       else
         echo "$line" >> "$temp_file"
       fi
     done < "$local_config"
     
     if [ "$found" = "true" ]; then
-      mv "$temp_file" "$local_config"
+      /bin/mv "$temp_file" "$local_config"
+      echo "✅ Removed from local config: $matched_line"
       removed=true
     else
-      rm -f "$temp_file"
+      /bin/rm -f "$temp_file"
     fi
   fi
   

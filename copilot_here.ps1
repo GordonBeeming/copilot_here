@@ -248,8 +248,14 @@ function Remove-MountFromConfig {
         $lines = Get-Content $globalConfig
         $newLines = @()
         $found = $false
+        $matchedLine = ""
         
         foreach ($line in $lines) {
+            # Skip empty lines
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+            
             $lineWithoutSuffix = $line -replace ':(.+)$', ''
             
             # Match either exact path, path with any suffix, or normalized path
@@ -257,8 +263,10 @@ function Remove-MountFromConfig {
                 ($lineWithoutSuffix -eq $normalizedPath) -or 
                 ($line -eq $Path) -or 
                 ($lineWithoutSuffix -eq $Path)) {
-                $found = $true
-                Write-Host "✅ Removed from global config: $line" -ForegroundColor Green
+                if (-not $found) {
+                    $found = $true
+                    $matchedLine = $line
+                }
             } else {
                 $newLines += $line
             }
@@ -266,6 +274,7 @@ function Remove-MountFromConfig {
         
         if ($found) {
             $newLines | Set-Content $globalConfig
+            Write-Host "✅ Removed from global config: $matchedLine" -ForegroundColor Green
             $removed = $true
         }
     }
@@ -275,8 +284,14 @@ function Remove-MountFromConfig {
         $lines = Get-Content $localConfig
         $newLines = @()
         $found = $false
+        $matchedLine = ""
         
         foreach ($line in $lines) {
+            # Skip empty lines
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+            
             $lineWithoutSuffix = $line -replace ':(.+)$', ''
             
             # Match either exact path, path with any suffix, or normalized path
@@ -284,8 +299,10 @@ function Remove-MountFromConfig {
                 ($lineWithoutSuffix -eq $normalizedPath) -or 
                 ($line -eq $Path) -or 
                 ($lineWithoutSuffix -eq $Path)) {
-                $found = $true
-                Write-Host "✅ Removed from local config: $line" -ForegroundColor Green
+                if (-not $found) {
+                    $found = $true
+                    $matchedLine = $line
+                }
             } else {
                 $newLines += $line
             }
@@ -293,6 +310,7 @@ function Remove-MountFromConfig {
         
         if ($found) {
             $newLines | Set-Content $localConfig
+            Write-Host "✅ Removed from local config: $matchedLine" -ForegroundColor Green
             $removed = $true
         }
     }
