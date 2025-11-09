@@ -191,6 +191,34 @@ function Remove-MountFromConfig {
     $localConfig = ".copilot_here/mounts.conf"
     $removed = $false
     
+    # Normalize the path similar to save logic
+    $normalizedPath = $Path
+    $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+    $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+    
+    # Convert to absolute if relative
+    if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
+        $expandedPath = Join-Path (Get-Location) $expandedPath
+        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+    }
+    
+    # If in user profile, convert to tilde format
+    if ($expandedPath.StartsWith($env:USERPROFILE)) {
+        $normalizedPath = "~" + $expandedPath.Substring($env:USERPROFILE.Length)
+    } else {
+        $normalizedPath = $expandedPath
+    }
+    
+    # Normalize to forward slashes for consistency
+    $normalizedPath = $normalizedPath.Replace('\', '/')
+    
+    # Extract mount suffix if present (e.g., :rw, :ro)
+    $mountSuffix = ""
+    if ($normalizedPath -match ':(.+)$') {
+        $mountSuffix = $Matches[1]
+        $normalizedPath = $normalizedPath -replace ':(.+)$', ''
+    }
+    
     # Check if global config is a symlink and follow it
     if (Test-Path $globalConfig) {
         $item = Get-Item $globalConfig -Force
@@ -215,18 +243,58 @@ function Remove-MountFromConfig {
         }
     }
     
-    # Try to remove from global config
-    if ((Test-Path $globalConfig) -and (Select-String -Path $globalConfig -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
-        (Get-Content $globalConfig) | Where-Object { $_ -ne $Path } | Set-Content $globalConfig
-        Write-Host "✅ Removed from global config: $Path" -ForegroundColor Green
-        $removed = $true
+    # Try to remove from global config - match both with and without suffix
+    if (Test-Path $globalConfig) {
+        $lines = Get-Content $globalConfig
+        $newLines = @()
+        $found = $false
+        
+        foreach ($line in $lines) {
+            $lineWithoutSuffix = $line -replace ':(.+)$', ''
+            
+            # Match either exact path, path with any suffix, or normalized path
+            if (($line -eq $normalizedPath) -or 
+                ($lineWithoutSuffix -eq $normalizedPath) -or 
+                ($line -eq $Path) -or 
+                ($lineWithoutSuffix -eq $Path)) {
+                $found = $true
+                Write-Host "✅ Removed from global config: $line" -ForegroundColor Green
+            } else {
+                $newLines += $line
+            }
+        }
+        
+        if ($found) {
+            $newLines | Set-Content $globalConfig
+            $removed = $true
+        }
     }
     
-    # Try to remove from local config
-    if ((Test-Path $localConfig) -and (Select-String -Path $localConfig -Pattern "^$([regex]::Escape($Path))$" -Quiet)) {
-        (Get-Content $localConfig) | Where-Object { $_ -ne $Path } | Set-Content $localConfig
-        Write-Host "✅ Removed from local config: $Path" -ForegroundColor Green
-        $removed = $true
+    # Try to remove from local config - match both with and without suffix
+    if (Test-Path $localConfig) {
+        $lines = Get-Content $localConfig
+        $newLines = @()
+        $found = $false
+        
+        foreach ($line in $lines) {
+            $lineWithoutSuffix = $line -replace ':(.+)$', ''
+            
+            # Match either exact path, path with any suffix, or normalized path
+            if (($line -eq $normalizedPath) -or 
+                ($lineWithoutSuffix -eq $normalizedPath) -or 
+                ($line -eq $Path) -or 
+                ($lineWithoutSuffix -eq $Path)) {
+                $found = $true
+                Write-Host "✅ Removed from local config: $line" -ForegroundColor Green
+            } else {
+                $newLines += $line
+            }
+        }
+        
+        if ($found) {
+            $newLines | Set-Content $localConfig
+            $removed = $true
+        }
     }
     
     if (-not $removed) {

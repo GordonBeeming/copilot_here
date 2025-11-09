@@ -197,6 +197,34 @@ __copilot_remove_mount() {
   local local_config=".copilot_here/mounts.conf"
   local removed=false
   
+  # Normalize the path similar to save logic
+  local normalized_path
+  if [[ "$path" == "~"* ]]; then
+    normalized_path="$path"
+  elif [[ "$path" == "/"* ]]; then
+    if [[ "$path" == "$HOME"* ]]; then
+      normalized_path="~${path#$HOME}"
+    else
+      normalized_path="$path"
+    fi
+  else
+    local dir_part=$(dirname "$path" 2>/dev/null || echo ".")
+    local base_part=$(basename "$path" 2>/dev/null || echo "$path")
+    local abs_dir=$(cd "$dir_part" 2>/dev/null && pwd || echo "$PWD")
+    normalized_path="$abs_dir/$base_part"
+    
+    if [[ "$normalized_path" == "$HOME"* ]]; then
+      normalized_path="~${normalized_path#$HOME}"
+    fi
+  fi
+  
+  # Extract mount suffix if present (e.g., :rw, :ro)
+  local mount_suffix=""
+  if [[ "$normalized_path" == *:* ]]; then
+    mount_suffix="${normalized_path##*:}"
+    normalized_path="${normalized_path%:*}"
+  fi
+  
   # Check if global config is a symlink and follow it
   if [ -L "$global_config" ]; then
     global_config=$(readlink -f "$global_config" 2>/dev/null || readlink "$global_config")
@@ -207,18 +235,68 @@ __copilot_remove_mount() {
     local_config=$(readlink -f "$local_config" 2>/dev/null || readlink "$local_config")
   fi
   
-  # Try to remove from global config
-  if [ -f "$global_config" ] && /usr/bin/grep -qF "$path" "$global_config"; then
-    /usr/bin/grep -vF "$path" "$global_config" > "$global_config.tmp" && mv "$global_config.tmp" "$global_config"
-    echo "✅ Removed from global config: $path"
-    removed=true
+  # Try to remove from global config - match both with and without suffix
+  if [ -f "$global_config" ]; then
+    local temp_file="${global_config}.tmp"
+    local found=false
+    
+    # Ensure temp file is empty
+    > "$temp_file"
+    
+    while IFS= read -r line || [ -n "$line" ]; do
+      local line_path="$line"
+      local line_without_suffix="${line%:*}"
+      
+      # Match either exact path, path with any suffix, or normalized path
+      if [[ "$line" == "$normalized_path" ]] || \
+         [[ "$line_without_suffix" == "$normalized_path" ]] || \
+         [[ "$line" == "$path" ]] || \
+         [[ "$line_without_suffix" == "$path" ]]; then
+        found=true
+        echo "✅ Removed from global config: $line"
+      else
+        echo "$line" >> "$temp_file"
+      fi
+    done < "$global_config"
+    
+    if [ "$found" = "true" ]; then
+      mv "$temp_file" "$global_config"
+      removed=true
+    else
+      rm -f "$temp_file"
+    fi
   fi
   
-  # Try to remove from local config
-  if [ -f "$local_config" ] && /usr/bin/grep -qF "$path" "$local_config"; then
-    /usr/bin/grep -vF "$path" "$local_config" > "$local_config.tmp" && mv "$local_config.tmp" "$local_config"
-    echo "✅ Removed from local config: $path"
-    removed=true
+  # Try to remove from local config - match both with and without suffix
+  if [ -f "$local_config" ]; then
+    local temp_file="${local_config}.tmp"
+    local found=false
+    
+    # Ensure temp file is empty
+    > "$temp_file"
+    
+    while IFS= read -r line || [ -n "$line" ]; do
+      local line_path="$line"
+      local line_without_suffix="${line%:*}"
+      
+      # Match either exact path, path with any suffix, or normalized path
+      if [[ "$line" == "$normalized_path" ]] || \
+         [[ "$line_without_suffix" == "$normalized_path" ]] || \
+         [[ "$line" == "$path" ]] || \
+         [[ "$line_without_suffix" == "$path" ]]; then
+        found=true
+        echo "✅ Removed from local config: $line"
+      else
+        echo "$line" >> "$temp_file"
+      fi
+    done < "$local_config"
+    
+    if [ "$found" = "true" ]; then
+      mv "$temp_file" "$local_config"
+      removed=true
+    else
+      rm -f "$temp_file"
+    fi
   fi
   
   if [ "$removed" = "false" ]; then
