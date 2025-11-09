@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-05.6
+# Version: 2025-11-09
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support
@@ -172,7 +172,7 @@ __copilot_save_mount() {
   fi
   
   # Check if already exists
-  if [ -f "$config_file" ] && grep -qF "$normalized_path" "$config_file"; then
+  if [ -f "$config_file" ] && /usr/bin/grep -qF "$normalized_path" "$config_file"; then
     echo "⚠️  Mount already exists in config: $normalized_path"
     return 1
   fi
@@ -208,15 +208,15 @@ __copilot_remove_mount() {
   fi
   
   # Try to remove from global config
-  if [ -f "$global_config" ] && grep -qF "$path" "$global_config"; then
-    grep -vF "$path" "$global_config" > "$global_config.tmp" && mv "$global_config.tmp" "$global_config"
+  if [ -f "$global_config" ] && /usr/bin/grep -qF "$path" "$global_config"; then
+    /usr/bin/grep -vF "$path" "$global_config" > "$global_config.tmp" && mv "$global_config.tmp" "$global_config"
     echo "✅ Removed from global config: $path"
     removed=true
   fi
   
   # Try to remove from local config
-  if [ -f "$local_config" ] && grep -qF "$path" "$local_config"; then
-    grep -vF "$path" "$local_config" > "$local_config.tmp" && mv "$local_config.tmp" "$local_config"
+  if [ -f "$local_config" ] && /usr/bin/grep -qF "$path" "$local_config"; then
+    /usr/bin/grep -vF "$path" "$local_config" > "$local_config.tmp" && mv "$local_config.tmp" "$local_config"
     echo "✅ Removed from local config: $path"
     removed=true
   fi
@@ -229,13 +229,13 @@ __copilot_remove_mount() {
 
 # Helper function for security checks (shared by all variants)
 __copilot_security_check() {
-  if ! gh auth status 2>/dev/null | grep "Token scopes:" | grep -q "'copilot'"; then
+  if ! gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q "'copilot'"; then
     echo "❌ Error: Your gh token is missing the required 'copilot' scope."
     echo "Please run 'gh auth refresh -h github.com -s copilot' to add it."
     return 1
   fi
 
-  if gh auth status 2>/dev/null | grep "Token scopes:" | grep -q -E "'(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)'"; then
+  if gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q -E "'(admin:|manage_|write:public_key|delete_repo|(write|delete)_packages)'"; then
     echo "⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise)."
     printf "Are you sure you want to proceed with this token? [y/N]: "
     read confirmation
@@ -258,7 +258,7 @@ __copilot_cleanup_images() {
   local cutoff_date=$(date -d '7 days ago' +%s 2>/dev/null || date -v-7d +%s 2>/dev/null)
   
   # Get all copilot_here images with the project label, excluding <none> tags
-  local all_images=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" | grep -v ":<none>" || true)
+  local all_images=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" | /usr/bin/grep -v ":<none>" || true)
   
   if [ -z "$all_images" ]; then
     echo "  ✓ No images to clean up"
@@ -695,7 +695,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05.1
+VERSION: 2025-11-09
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -781,7 +781,7 @@ EOF
         if [ -f ~/.copilot_here.sh ]; then
           current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
         elif type copilot_here >/dev/null 2>&1; then
-          current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+          current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
         fi
         
         # Check if using standalone file installation
@@ -853,7 +853,7 @@ EOF
         echo "✅ Created backup"
         
         # Replace script
-        if grep -q "# copilot_here shell functions" "$config_file"; then
+        if /usr/bin/grep -q "# copilot_here shell functions" "$config_file"; then
           awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
           cat "$temp_script" >> "${config_file}.tmp"
           mv "${config_file}.tmp" "$config_file"
@@ -967,7 +967,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05.1
+VERSION: 2025-11-09
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1053,7 +1053,7 @@ EOF
         if [ -f ~/.copilot_here.sh ]; then
           current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
         elif type copilot_here >/dev/null 2>&1; then
-          current_version=$(type copilot_here | grep "# Version:" | head -1 | sed 's/.*# Version: //')
+          current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
         fi
         
         # Check if using standalone file installation
@@ -1125,7 +1125,7 @@ EOF
         echo "✅ Created backup"
         
         # Replace script
-        if grep -q "# copilot_here shell functions" "$config_file"; then
+        if /usr/bin/grep -q "# copilot_here shell functions" "$config_file"; then
           awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
           cat "$temp_script" >> "${config_file}.tmp"
           mv "${config_file}.tmp" "$config_file"
