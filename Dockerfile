@@ -4,13 +4,24 @@ FROM node:20-slim
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, and zsh for the entrypoint script and testing.
+# Install git, curl, gpg, gosu, zsh, and PowerShell for the entrypoint script and testing.
 RUN apt-get update && apt-get install -y \
   curl \
   gpg \
   git \
   gosu \
   zsh \
+  wget \
+  apt-transport-https \
+  software-properties-common \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install PowerShell
+RUN wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+  && dpkg -i packages-microsoft-prod.deb \
+  && rm packages-microsoft-prod.deb \
+  && apt-get update \
+  && apt-get install -y powershell \
   && rm -rf /var/lib/apt/lists/*
 
 # ARG for the Copilot CLI version - passed from build process
