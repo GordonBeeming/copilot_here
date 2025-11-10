@@ -7,6 +7,7 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+  workflow_call:  # Allow this workflow to be called by other workflows
 
 permissions:
   contents: read
