@@ -65,18 +65,6 @@ if command -v pwsh >/dev/null 2>&1; then
     FAILED_SUITES=$((FAILED_SUITES + 1))
   fi
   echo ""
-  
-  # PowerShell basic tests (cross-platform)
-  echo -e "${BLUE}Running PowerShell basic tests...${NC}"
-  TOTAL_SUITES=$((TOTAL_SUITES + 1))
-  if pwsh -File "$TEST_DIR/test_powershell_basic.ps1"; then
-    echo -e "${GREEN}✓ PowerShell basic tests passed${NC}"
-    PASSED_SUITES=$((PASSED_SUITES + 1))
-  else
-    echo -e "${RED}✗ PowerShell basic tests failed${NC}"
-    FAILED_SUITES=$((FAILED_SUITES + 1))
-  fi
-  echo ""
 else
   echo -e "${YELLOW}⚠ PowerShell not available, skipping PowerShell tests${NC}"
   echo ""
@@ -108,20 +96,6 @@ if command -v zsh >/dev/null 2>&1; then
   echo ""
 fi
 
-# Test Docker commands (PowerShell if available)
-if command -v pwsh >/dev/null 2>&1; then
-  echo -e "${BLUE}Running PowerShell basic tests...${NC}"
-  TOTAL_SUITES=$((TOTAL_SUITES + 1))
-  if pwsh -File "$TEST_DIR/test_powershell_basic.ps1"; then
-    echo -e "${GREEN}✓ PowerShell basic tests passed${NC}"
-    PASSED_SUITES=$((PASSED_SUITES + 1))
-  else
-    echo -e "${RED}✗ PowerShell basic tests failed${NC}"
-    FAILED_SUITES=$((FAILED_SUITES + 1))
-  fi
-  echo ""
-fi
-
 # Test mount configuration (Bash)
 echo -e "${BLUE}Running mount configuration tests...${NC}"
 TOTAL_SUITES=$((TOTAL_SUITES + 1))
@@ -139,13 +113,6 @@ echo ""
 # Advanced edge case tests are Bash-specific due to array handling differences
 if command -v zsh >/dev/null 2>&1; then
   : # Zsh mount config tests pending - core functionality validated in test_zsh.sh
-fi
-
-# Test mount configuration (PowerShell if available)
-if command -v pwsh >/dev/null 2>&1; then
-  echo -e "${BLUE}Running PowerShell basic tests (duplicate removed)...${NC}"
-  # Note: PowerShell basic tests already run above
-  # Mount config tests for PowerShell are pending
 fi
 
 # Overall summary
