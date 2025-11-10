@@ -48,6 +48,7 @@ function Resolve-MountPath {
     
     # Expand environment variables and user home
     $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+    $resolvedPath = $resolvedPath.Trim()  # Remove any leading/trailing whitespace
     
     # Handle home directory expansion (both Windows and Linux)
     if ($env:USERPROFILE) {
@@ -58,6 +59,12 @@ function Resolve-MountPath {
     
     # Convert to absolute path if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
+    # DEBUG: Log path and check results
+    if ($env:CI) {
+        Write-Host "DEBUG: resolvedPath='$resolvedPath'" -ForegroundColor Cyan
+        Write-Host "DEBUG: IsPathRooted=$([System.IO.Path]::IsPathRooted($resolvedPath))" -ForegroundColor Cyan
+        Write-Host "DEBUG: Matches regex=$($resolvedPath -match '^[a-zA-Z]:\\')" -ForegroundColor Cyan
+    }
     $isAbsolute = [System.IO.Path]::IsPathRooted($resolvedPath) -or ($resolvedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
         # For relative paths, use GetFullPath with base path
