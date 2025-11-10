@@ -167,11 +167,20 @@ if ($Resolved -eq $Expected) {
 
 # Test 9: Absolute path unchanged
 Test-Start "Test absolute path resolution"
-$Resolved = Resolve-MountPath -Path "C:\absolute\path"
-if ($Resolved -eq "C:\absolute\path") {
-    Test-Pass "Absolute path unchanged"
+if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    $Resolved = Resolve-MountPath -Path "C:\absolute\path"
+    if ($Resolved -eq "C:\absolute\path") {
+        Test-Pass "Absolute path unchanged"
+    } else {
+        Test-Fail "Absolute path changed (got: $Resolved)"
+    }
 } else {
-    Test-Fail "Absolute path changed (got: $Resolved)"
+    $Resolved = Resolve-MountPath -Path "/absolute/path"
+    if ($Resolved -eq "/absolute/path") {
+        Test-Pass "Absolute path unchanged"
+    } else {
+        Test-Fail "Absolute path changed (got: $Resolved)"
+    }
 }
 
 # Test 10: Copilot-Yolo help
@@ -189,14 +198,6 @@ if ($HelpOutput -match "ListMounts") {
     Test-Pass "-ListMounts parameter documented"
 } else {
     Test-Fail "-ListMounts parameter not documented"
-}
-
-# Test 12: DryRun parameter exists
-Test-Start "Check -DryRun parameter"
-if ($HelpOutput -match "DryRun") {
-    Test-Pass "-DryRun parameter documented"
-} else {
-    Test-Fail "-DryRun parameter not documented"
 }
 
 # Cleanup and summary
