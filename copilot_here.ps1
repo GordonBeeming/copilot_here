@@ -46,40 +46,22 @@ function Get-ConfigMounts {
 function Resolve-MountPath {
     param([string]$Path)
     
-    # DEBUG: Log input path
-    if ($env:CI) {
-        Write-Host "DEBUG INPUT: Path='$Path'" -ForegroundColor Magenta
-    }
-    
     # Expand environment variables and user home
     $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
     $resolvedPath = $resolvedPath.Trim()  # Remove any leading/trailing whitespace
     
-    # DEBUG: Log after ExpandEnvironmentVariables
-    if ($env:CI) {
-        Write-Host "DEBUG AFTER ExpandEnv: resolvedPath='$resolvedPath'" -ForegroundColor Magenta
-    }
-    
     # Handle home directory expansion (both Windows and Linux)
-    if ($env:USERPROFILE) {
-        $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
-    } elseif ($env:HOME) {
-        $resolvedPath = $resolvedPath.Replace('~', $env:HOME)
-    }
-    
-    # DEBUG: Log after tilde replacement
-    if ($env:CI) {
-        Write-Host "DEBUG AFTER Tilde: resolvedPath='$resolvedPath'" -ForegroundColor Magenta
+    # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+    if ($resolvedPath.StartsWith('~')) {
+        if ($env:USERPROFILE) {
+            $resolvedPath = $env:USERPROFILE + $resolvedPath.Substring(1)
+        } elseif ($env:HOME) {
+            $resolvedPath = $env:HOME + $resolvedPath.Substring(1)
+        }
     }
     
     # Convert to absolute path if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-    # DEBUG: Log path and check results
-    if ($env:CI) {
-        Write-Host "DEBUG: resolvedPath='$resolvedPath'" -ForegroundColor Cyan
-        Write-Host "DEBUG: IsPathRooted=$([System.IO.Path]::IsPathRooted($resolvedPath))" -ForegroundColor Cyan
-        Write-Host "DEBUG: Matches regex=$($resolvedPath -match '^[a-zA-Z]:\\')" -ForegroundColor Cyan
-    }
     $isAbsolute = [System.IO.Path]::IsPathRooted($resolvedPath) -or ($resolvedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
         # For relative paths, use GetFullPath with explicit base path to avoid process current directory issues
@@ -175,7 +157,10 @@ function Save-MountToConfig {
     if ($IsGlobal) {
         # Expand environment variables and tilde
         $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
-        $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+        # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+        if ($expandedPath.StartsWith('~')) {
+            $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+        }
         
         # Convert to absolute if relative
         # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
@@ -241,7 +226,10 @@ function Remove-MountFromConfig {
     # Normalize the path similar to save logic
     $normalizedPath = $Path
     $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
-    $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+    # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+    if ($expandedPath.StartsWith('~')) {
+        $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+    }
     
     # Convert to absolute if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
