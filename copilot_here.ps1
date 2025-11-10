@@ -1078,6 +1078,3 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 Set-Alias -Name copilot_here -Value Copilot-Here
 Set-Alias -Name copilot_yolo -Value Copilot-Yolo
-notepad $PROFILE
-. C:\Users\YourName\Documents\PowerShell\copilot_here.ps1
-. $PROFILE
