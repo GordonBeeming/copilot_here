@@ -85,3 +85,15 @@ Summary at the end shows:
 - Number passed (green)
 - Number failed (red)
 - Exit code 1 if any failures
+
+## Docker Command Testing
+
+For information on testing Docker command generation without running containers, see:
+- [Docker Command Testing Strategy](../docs/testing-docker-commands.md)
+
+Currently, the integration tests focus on shell function behavior. Docker command generation testing requires either:
+1. A `--test-mode` flag to skip auth checks
+2. Refactoring to separate command building from execution
+3. Using snapshot/assertion testing on dry-run output
+
+See the testing strategy document for detailed approaches and recommendations.
