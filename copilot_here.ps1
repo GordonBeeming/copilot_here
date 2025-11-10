@@ -57,9 +57,9 @@ function Resolve-MountPath {
     }
     
     # Convert to absolute path if relative
-    # Use GetFullPath instead of Join-Path for safer path resolution
+    # Use GetFullPath with explicit base path to avoid process current directory issues
     if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
-        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath)
+        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
     }
     
     # Normalize path separators based on platform
@@ -153,9 +153,9 @@ function Save-MountToConfig {
         $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
         
         # Convert to absolute if relative
-        # Use GetFullPath instead of Join-Path for safer path resolution
+        # Use GetFullPath with explicit base path to avoid process current directory issues
         if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
         }
         
         # If in user profile, convert to tilde format
@@ -216,9 +216,9 @@ function Remove-MountFromConfig {
     $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
     
     # Convert to absolute if relative
-    # Use GetFullPath instead of Join-Path for safer path resolution
+    # Use GetFullPath with explicit base path to avoid process current directory issues
     if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
     }
     
     # If in user profile, convert to tilde format
