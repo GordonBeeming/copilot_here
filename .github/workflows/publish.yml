@@ -1,9 +1,11 @@
 # This workflow builds and publishes the Docker image.
-# It triggers on a push to main, on a nightly schedule, or manually.
-name: Publish Docker Image to GHCR
+# Tests run on all PRs and pushes. Publishing only happens on main branch.
+name: Build and Publish Docker Images
 
 on:
   push:
+    branches: ["main"]
+  pull_request:
     branches: ["main"]
   schedule:
     # Runs nightly at 3:15 AM UTC to check for npm package updates.
@@ -16,8 +18,20 @@ permissions:
   packages: write
 
 jobs:
+  # Run tests first - required for all triggers
+  test:
+    name: Run Integration Tests
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
   build-and-publish:
+    name: Build and Publish Images
+    needs: test  # Tests must pass before building/publishing
     runs-on: ubuntu-latest
+    # Only publish on main branch push, schedule, or manual dispatch
+    # PRs will run tests but not publish
+    if: github.event_name != 'pull_request'
     steps:
       # Step 1: Check out the repository's code
       - name: Checkout repository
@@ -158,3 +172,22 @@ jobs:
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
         run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
+
+      # Step 13: Summary of workflow behavior
+      - name: Workflow Summary
+        if: always()
+        run: |
+          echo "## Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tests:** ✅ Passed (required before build)" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.push_decision.outputs.push_needed }}" == "true" ]]; then
+            echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
+          fi

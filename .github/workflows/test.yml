@@ -12,30 +12,42 @@ permissions:
   contents: read
 
 jobs:
-  test-linux-mac:
-    name: Test on ${{ matrix.os }} with ${{ matrix.shell }}
+  test-bash-zsh:
+    name: Test Bash/Zsh on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        shell: [bash, zsh]
         
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Run ${{ matrix.shell }} integration tests
+      - name: Install PowerShell (for cross-platform testing)
         shell: bash
         run: |
-          if [ "${{ matrix.shell }}" = "zsh" ]; then
-            zsh tests/integration/test_zsh.sh
-          else
-            bash tests/integration/test_bash.sh
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            # Install PowerShell on Ubuntu
+            sudo apt-get update
+            sudo apt-get install -y wget apt-transport-https software-properties-common
+            wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            sudo apt-get update
+            sudo apt-get install -y powershell
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # Install PowerShell on macOS
+            brew install --cask powershell
           fi
+      
+      - name: Make test scripts executable
+        run: chmod +x tests/run_all_tests.sh tests/integration/*.sh
+        
+      - name: Run all integration tests
+        run: ./tests/run_all_tests.sh
 
   test-windows:
-    name: Test on Windows with PowerShell
+    name: Test PowerShell on Windows
     runs-on: windows-latest
     
     steps:
@@ -45,18 +57,23 @@ jobs:
       - name: Run PowerShell integration tests
         shell: pwsh
         run: |
-          tests/integration/test_powershell.ps1
+          pwsh tests/integration/test_powershell.ps1
+          
+      - name: Run PowerShell basic tests
+        shell: pwsh
+        run: |
+          pwsh tests/integration/test_powershell_basic.ps1
 
   test-summary:
     name: All Tests Summary
-    needs: [test-linux-mac, test-windows]
+    needs: [test-bash-zsh, test-windows]
     runs-on: ubuntu-latest
     if: always()
     
     steps:
       - name: Check test results
         run: |
-          if [ "${{ needs.test-linux-mac.result }}" != "success" ] || [ "${{ needs.test-windows.result }}" != "success" ]; then
+          if [ "${{ needs.test-bash-zsh.result }}" != "success" ] || [ "${{ needs.test-windows.result }}" != "success" ]; then
             echo "❌ Some tests failed"
             exit 1
           else

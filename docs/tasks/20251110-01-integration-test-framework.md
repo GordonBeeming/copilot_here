@@ -153,8 +153,30 @@ This completes the Docker command testing objective using Approach 2 (Mock Docke
 - ✅ Zsh: All tests passing (integration, Docker commands, mount config - note: some edge cases differ due to array indexing)
 - ⏳ PowerShell: Integration tests passing, Docker/mount tests in progress
 
-**Test Writing Standards Added:**
-- Every test must have Bash, Zsh, and PowerShell versions unless platform-specific
-- Platform-specific tests must document why with comments
-- Test file naming conventions established
-- Documentation requirements clarified
+### 2025-11-10 (continued) - CI/CD Pipeline: Tests Before Publish
+
+- [x] Updated `publish.yml` to require tests before building/publishing
+- [x] Tests now run on all PRs to main (but don't publish)
+- [x] Publishing only happens on main branch (after tests pass)
+- [x] Manual dispatch supported from any branch (tests always run)
+- [x] Updated `test.yml` to run comprehensive test suite
+- [x] Created `docs/ci-cd-pipeline.md` with complete pipeline documentation
+
+**Pipeline Flow:**
+```
+PR to main → Tests Run → No Publish
+Push to main → Tests Run → Build → Publish (if changed)
+Schedule/Manual → Tests Run → Build → Publish (if changed)
+```
+
+**Test Coverage in CI/CD:**
+- Linux: Bash, Zsh, PowerShell (via run_all_tests.sh)
+- macOS: Bash, Zsh, PowerShell (via run_all_tests.sh)
+- Windows: PowerShell integration + basic tests
+
+**Key Improvements:**
+- ✅ Tests are now mandatory before any build/publish
+- ✅ PRs get full test validation without publishing
+- ✅ Failed tests block image publication
+- ✅ All test suites run in CI (not just individual shell tests)
+- ✅ Comprehensive documentation for pipeline behavior
