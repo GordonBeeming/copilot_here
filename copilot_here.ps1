@@ -48,23 +48,36 @@ function Resolve-MountPath {
     
     # Expand environment variables and user home
     $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
-    $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
+    
+    # Handle home directory expansion (both Windows and Linux)
+    if ($env:USERPROFILE) {
+        $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
+    } elseif ($env:HOME) {
+        $resolvedPath = $resolvedPath.Replace('~', $env:HOME)
+    }
     
     # Convert to absolute path if relative
     if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
         $resolvedPath = Join-Path (Get-Location) $resolvedPath
     }
     
-    # Normalize path separators for Docker (use forward slashes)
-    $resolvedPath = $resolvedPath.Replace('\', '/')
+    # Normalize path separators based on platform
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        # Windows: use backslashes
+        $resolvedPath = $resolvedPath.Replace('/', '\')
+        $sensitivePatterns = @('^C:\\$', '^C:\\Windows', '^C:\\Program Files', '\\\.ssh', '\\AppData\\Roaming')
+    } else {
+        # Linux/macOS: use forward slashes
+        $resolvedPath = $resolvedPath.Replace('\', '/')
+        $sensitivePatterns = @('^/$', '^/root', '^/etc', '/\.ssh')
+    }
     
     # Warn if path doesn't exist
-    if (-not (Test-Path $resolvedPath.Replace('/', '\'))) {
+    if (-not (Test-Path $resolvedPath)) {
         Write-Host "⚠️  Warning: Path does not exist: $resolvedPath" -ForegroundColor Yellow
     }
     
     # Security warning for sensitive paths - require confirmation
-    $sensitivePatterns = @('^C:/$', '^C:/Windows', '^C:/Program Files', '/.ssh', '/AppData/Roaming')
     foreach ($pattern in $sensitivePatterns) {
         if ($resolvedPath -match $pattern) {
             Write-Host "⚠️  Warning: Mounting sensitive system path: $resolvedPath" -ForegroundColor Yellow
@@ -761,7 +774,7 @@ function Copilot-Here {
     }
 
     if ($h -or $Help) {
-        Write-Host @"
+        Write-Output @"
 copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 
 USAGE:
@@ -995,7 +1008,7 @@ function Copilot-Yolo {
     }
 
     if ($h -or $Help) {
-        Write-Host @"
+        Write-Output @"
 copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 
 USAGE:
