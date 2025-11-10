@@ -1,0 +1,64 @@
+# GitHub Actions workflow for running integration tests
+name: Integration Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux-mac:
+    name: Test on ${{ matrix.os }} with ${{ matrix.shell }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shell: [bash, zsh]
+        
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run ${{ matrix.shell }} integration tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.shell }}" = "zsh" ]; then
+            zsh tests/integration/test_zsh.sh
+          else
+            bash tests/integration/test_bash.sh
+          fi
+
+  test-windows:
+    name: Test on Windows with PowerShell
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run PowerShell integration tests
+        shell: pwsh
+        run: |
+          tests/integration/test_powershell.ps1
+
+  test-summary:
+    name: All Tests Summary
+    needs: [test-linux-mac, test-windows]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.test-linux-mac.result }}" != "success" ] || [ "${{ needs.test-windows.result }}" != "success" ]; then
+            echo "❌ Some tests failed"
+            exit 1
+          else
+            echo "✅ All tests passed!"
+          fi
