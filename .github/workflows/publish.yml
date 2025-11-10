@@ -1,5 +1,5 @@
 # This workflow builds and publishes the Docker image.
-# Tests run on all PRs and pushes. Publishing only happens on main branch.
+# Tests run first on all triggers. Publishing only happens on main branch.
 name: Build and Publish Docker Images
 
 on:
@@ -19,15 +19,61 @@ permissions:
 
 jobs:
   # Run tests first - required for all triggers
-  test:
-    name: Run Integration Tests
-    uses: ./.github/workflows/test.yml
-    permissions:
-      contents: read
+  test-bash-zsh:
+    name: Test Bash/Zsh on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install PowerShell (for cross-platform testing)
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            # Install PowerShell on Ubuntu
+            sudo apt-get update
+            sudo apt-get install -y wget apt-transport-https software-properties-common
+            wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            sudo apt-get update
+            sudo apt-get install -y powershell
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # Install PowerShell on macOS
+            brew install --cask powershell
+          fi
+      
+      - name: Make test scripts executable
+        run: chmod +x tests/run_all_tests.sh tests/integration/*.sh
+        
+      - name: Run all integration tests
+        run: ./tests/run_all_tests.sh
+
+  test-windows:
+    name: Test PowerShell on Windows
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run PowerShell integration tests
+        shell: pwsh
+        run: |
+          pwsh tests/integration/test_powershell.ps1
+          
+      - name: Run PowerShell basic tests
+        shell: pwsh
+        run: |
+          pwsh tests/integration/test_powershell_basic.ps1
 
   build-and-publish:
     name: Build and Publish Images
-    needs: test  # Tests must pass before building/publishing
+    needs: [test-bash-zsh, test-windows]  # Tests must pass before building/publishing
     runs-on: ubuntu-latest
     # Only publish on main branch push, schedule, or manual dispatch
     # PRs will run tests but not publish
