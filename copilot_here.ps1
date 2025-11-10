@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-05.6
+# Version: 2025-11-10
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Helper function to detect emoji support (PowerShell typically supports it)
@@ -710,6 +710,13 @@ function Copilot-Here {
             Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
+        
+        # Update embedded version in profile
+        # Download to temp first to check version
+        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+        } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
         }
@@ -937,6 +944,13 @@ function Copilot-Yolo {
             Write-Host "✨ Update complete! You're now on version $newVersion"
             return
         }
+        
+        # Update embedded version in profile
+        # Download to temp first to check version
+        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+        } catch {
             Write-Host "❌ Failed to download: $_" -ForegroundColor Red
             return
         }
