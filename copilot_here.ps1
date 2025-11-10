@@ -46,15 +46,30 @@ function Get-ConfigMounts {
 function Resolve-MountPath {
     param([string]$Path)
     
+    # DEBUG: Log input path
+    if ($env:CI) {
+        Write-Host "DEBUG INPUT: Path='$Path'" -ForegroundColor Magenta
+    }
+    
     # Expand environment variables and user home
     $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
     $resolvedPath = $resolvedPath.Trim()  # Remove any leading/trailing whitespace
+    
+    # DEBUG: Log after ExpandEnvironmentVariables
+    if ($env:CI) {
+        Write-Host "DEBUG AFTER ExpandEnv: resolvedPath='$resolvedPath'" -ForegroundColor Magenta
+    }
     
     # Handle home directory expansion (both Windows and Linux)
     if ($env:USERPROFILE) {
         $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
     } elseif ($env:HOME) {
         $resolvedPath = $resolvedPath.Replace('~', $env:HOME)
+    }
+    
+    # DEBUG: Log after tilde replacement
+    if ($env:CI) {
+        Write-Host "DEBUG AFTER Tilde: resolvedPath='$resolvedPath'" -ForegroundColor Magenta
     }
     
     # Convert to absolute path if relative
