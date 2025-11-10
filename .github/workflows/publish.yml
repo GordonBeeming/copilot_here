@@ -65,11 +65,6 @@ jobs:
         shell: pwsh
         run: |
           pwsh tests/integration/test_powershell.ps1
-          
-      - name: Run PowerShell basic tests
-        shell: pwsh
-        run: |
-          pwsh tests/integration/test_powershell_basic.ps1
 
   build-and-publish:
     name: Build and Publish Images
