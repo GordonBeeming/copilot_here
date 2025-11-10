@@ -62,10 +62,8 @@ function Resolve-MountPath {
     if (-not $isAbsolute) {
         # For relative paths, use GetFullPath with base path
         $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
-    } else {
-        # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
-        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath)
     }
+    # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
     
     # Normalize path separators based on platform
     if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
@@ -163,10 +161,8 @@ function Save-MountToConfig {
         if (-not $isAbsolute) {
             # For relative paths, use GetFullPath with base path
             $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
-        } else {
-            # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
-            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
         }
+        # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
         
         # If in user profile, convert to tilde format
         if ($expandedPath.StartsWith($env:USERPROFILE)) {
@@ -231,10 +227,8 @@ function Remove-MountFromConfig {
     if (-not $isAbsolute) {
         # For relative paths, use GetFullPath with base path
         $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
-    } else {
-        # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
-        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
     }
+    # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
     
     # If in user profile, convert to tilde format
     if ($expandedPath.StartsWith($env:USERPROFILE)) {
