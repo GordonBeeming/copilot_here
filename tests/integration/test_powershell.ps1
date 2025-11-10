@@ -157,26 +157,43 @@ if ($Mounts[0] -eq "/test/path1" -and $Mounts[1] -eq "/test/path2") {
 
 # Test 8: Path resolution (tilde/home expansion)
 Test-Start "Test home path expansion"
-$Resolved = Resolve-MountPath -Path "~/test"
-$Expected = if ($env:USERPROFILE) { Join-Path $env:USERPROFILE "test" } else { Join-Path $env:HOME "test" }
-if ($Resolved -eq $Expected) {
-    Test-Pass "Home path expansion works correctly"
-} else {
-    Test-Fail "Home path expansion failed (expected: $Expected, got: $Resolved)"
+$TestHomePath = Join-Path $TestDir "home_test"
+$TestHomeDoc = Join-Path $TestHomePath "Documents"
+New-Item -ItemType Directory -Path $TestHomeDoc -Force | Out-Null
+# Temporarily override HOME/USERPROFILE for testing
+$OldHome = $env:HOME
+$OldUserProfile = $env:USERPROFILE
+try {
+    $env:HOME = $TestHomePath
+    $env:USERPROFILE = $TestHomePath
+    $Resolved = Resolve-MountPath -Path "~/Documents"
+    $Expected = Join-Path $TestHomePath "Documents"
+    if ($Resolved -eq $Expected) {
+        Test-Pass "Home path expansion works correctly"
+    } else {
+        Test-Fail "Home path expansion failed (expected: $Expected, got: $Resolved)"
+    }
+} finally {
+    $env:HOME = $OldHome
+    $env:USERPROFILE = $OldUserProfile
 }
 
 # Test 9: Absolute path unchanged
 Test-Start "Test absolute path resolution"
 if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
-    $Resolved = Resolve-MountPath -Path "C:\absolute\path"
-    if ($Resolved -eq "C:\absolute\path") {
+    $TestAbsPath = Join-Path $TestDir "absolute\path"
+    New-Item -ItemType Directory -Path $TestAbsPath -Force | Out-Null
+    $Resolved = Resolve-MountPath -Path $TestAbsPath
+    if ($Resolved -eq $TestAbsPath) {
         Test-Pass "Absolute path unchanged"
     } else {
         Test-Fail "Absolute path changed (got: $Resolved)"
     }
 } else {
-    $Resolved = Resolve-MountPath -Path "/absolute/path"
-    if ($Resolved -eq "/absolute/path") {
+    $TestAbsPath = Join-Path $TestDir "absolute/path"
+    New-Item -ItemType Directory -Path $TestAbsPath -Force | Out-Null
+    $Resolved = Resolve-MountPath -Path $TestAbsPath
+    if ($Resolved -eq $TestAbsPath) {
         Test-Pass "Absolute path unchanged"
     } else {
         Test-Fail "Absolute path changed (got: $Resolved)"
