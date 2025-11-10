@@ -58,7 +58,7 @@ function Resolve-MountPath {
     
     # Convert to absolute path if relative
     if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
-        $resolvedPath = Join-Path (Get-Location) $resolvedPath
+        $resolvedPath = Join-Path (Get-Location).Path $resolvedPath
     }
     
     # Normalize path separators based on platform
@@ -153,7 +153,7 @@ function Save-MountToConfig {
         
         # Convert to absolute if relative
         if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-            $expandedPath = Join-Path (Get-Location) $expandedPath
+            $expandedPath = Join-Path (Get-Location).Path $expandedPath
             $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
         }
         
@@ -216,7 +216,7 @@ function Remove-MountFromConfig {
     
     # Convert to absolute if relative
     if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-        $expandedPath = Join-Path (Get-Location) $expandedPath
+        $expandedPath = Join-Path (Get-Location).Path $expandedPath
         $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
     }
     
