@@ -57,8 +57,9 @@ function Resolve-MountPath {
     }
     
     # Convert to absolute path if relative
+    # Use GetFullPath with explicit base path to avoid process current directory issues
     if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
-        $resolvedPath = Join-Path (Get-Location).Path $resolvedPath
+        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
     }
     
     # Normalize path separators based on platform
@@ -152,9 +153,9 @@ function Save-MountToConfig {
         $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
         
         # Convert to absolute if relative
+        # Use GetFullPath with explicit base path to avoid process current directory issues
         if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-            $expandedPath = Join-Path (Get-Location).Path $expandedPath
-            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
         }
         
         # If in user profile, convert to tilde format
@@ -215,9 +216,9 @@ function Remove-MountFromConfig {
     $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
     
     # Convert to absolute if relative
+    # Use GetFullPath with explicit base path to avoid process current directory issues
     if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
-        $expandedPath = Join-Path (Get-Location).Path $expandedPath
-        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
+        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
     }
     
     # If in user profile, convert to tilde format
@@ -857,7 +858,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05.1
+VERSION: 2025-11-10
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1079,7 +1080,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-05.1
+VERSION: 2025-11-10
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
