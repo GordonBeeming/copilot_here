@@ -49,7 +49,11 @@ function Print-Summary {
 }
 
 # Setup
-$TestDir = Join-Path $env:TEMP "copilot_test_$(Get-Random)"
+$TestDir = if ($env:TEMP) { 
+    Join-Path $env:TEMP "copilot_test_$(Get-Random)" 
+} else { 
+    Join-Path "/tmp" "copilot_test_$(Get-Random)" 
+}
 New-Item -ItemType Directory -Path $TestDir -Force | Out-Null
 
 # Cleanup function
@@ -154,7 +158,7 @@ if ($Mounts[0] -eq "/test/path1" -and $Mounts[1] -eq "/test/path2") {
 # Test 8: Path resolution (tilde/home expansion)
 Test-Start "Test home path expansion"
 $Resolved = Resolve-MountPath -Path "~/test"
-$Expected = Join-Path $env:USERPROFILE "test"
+$Expected = if ($env:USERPROFILE) { Join-Path $env:USERPROFILE "test" } else { Join-Path $env:HOME "test" }
 if ($Resolved -eq $Expected) {
     Test-Pass "Home path expansion works correctly"
 } else {
