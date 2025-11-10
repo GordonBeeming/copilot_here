@@ -57,8 +57,10 @@ function Resolve-MountPath {
     }
     
     # Convert to absolute path if relative
+    # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
     # Use GetFullPath with explicit base path to avoid process current directory issues
-    if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
+    $isAbsolute = [System.IO.Path]::IsPathRooted($resolvedPath) -or ($resolvedPath -match '^[a-zA-Z]:\\')
+    if (-not $isAbsolute) {
         $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
     }
     
@@ -153,8 +155,10 @@ function Save-MountToConfig {
         $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
         
         # Convert to absolute if relative
+        # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
         # Use GetFullPath with explicit base path to avoid process current directory issues
-        if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
+        $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
+        if (-not $isAbsolute) {
             $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
         }
         
@@ -216,8 +220,10 @@ function Remove-MountFromConfig {
     $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
     
     # Convert to absolute if relative
+    # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
     # Use GetFullPath with explicit base path to avoid process current directory issues
-    if (-not [System.IO.Path]::IsPathRooted($expandedPath)) {
+    $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
+    if (-not $isAbsolute) {
         $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
     }
     
