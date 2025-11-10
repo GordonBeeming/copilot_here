@@ -6,16 +6,30 @@ The copilot_here project uses GitHub Actions for continuous integration and depl
 
 ## Workflows
 
-### Integration Tests (`test.yml`)
+### Build and Publish (`publish.yml`)
+
+This is the **only workflow file** - it contains both testing and publishing.
 
 **Triggers:**
 - Push to `main` branch
-- Pull requests to `main`  
+- Pull requests to `main` (tests only, no publish)
+- Nightly schedule (3:15 AM UTC)
 - Manual dispatch (`workflow_dispatch`)
 
-**Test Matrix:**
-- **Linux/macOS:** Bash, Zsh, PowerShell (all tests via `run_all_tests.sh`)
-- **Windows:** PowerShell integration + basic tests
+**Jobs:**
+
+1. **test-bash-zsh** - Tests on Ubuntu and macOS
+   - Bash, Zsh, PowerShell (via `run_all_tests.sh`)
+   - Cross-platform validation
+   
+2. **test-windows** - Tests on Windows
+   - PowerShell integration tests
+   - PowerShell basic tests
+
+3. **build-and-publish** - Build and publish Docker images
+   - **Requires:** All tests must pass
+   - **Only runs:** On main branch (not PRs)
+   - Builds: base, dotnet, dotnet-playwright images
 
 **What Gets Tested:**
 - Function definitions and loading
@@ -24,14 +38,6 @@ The copilot_here project uses GitHub Actions for continuous integration and depl
 - Docker command generation (mocking without execution)
 - Mount configuration validation
 - Cross-shell compatibility
-
-### Build and Publish (`publish.yml`)
-
-**Triggers:**
-- Push to `main` branch
-- Pull requests to `main` (tests only, no publish)
-- Nightly schedule (3:15 AM UTC)
-- Manual dispatch (`workflow_dispatch`)
 
 **Pipeline Flow:**
 
