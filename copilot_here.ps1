@@ -48,21 +48,26 @@ function Resolve-MountPath {
     
     # Expand environment variables and user home
     $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+    $resolvedPath = $resolvedPath.Trim()  # Remove any leading/trailing whitespace
     
     # Handle home directory expansion (both Windows and Linux)
-    if ($env:USERPROFILE) {
-        $resolvedPath = $resolvedPath.Replace('~', $env:USERPROFILE)
-    } elseif ($env:HOME) {
-        $resolvedPath = $resolvedPath.Replace('~', $env:HOME)
+    # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+    if ($resolvedPath.StartsWith('~')) {
+        if ($env:USERPROFILE) {
+            $resolvedPath = $env:USERPROFILE + $resolvedPath.Substring(1)
+        } elseif ($env:HOME) {
+            $resolvedPath = $env:HOME + $resolvedPath.Substring(1)
+        }
     }
     
     # Convert to absolute path if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-    # Use GetFullPath with explicit base path to avoid process current directory issues
     $isAbsolute = [System.IO.Path]::IsPathRooted($resolvedPath) -or ($resolvedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
+        # For relative paths, use GetFullPath with explicit base path to avoid process current directory issues
         $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
     }
+    # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
     
     # Normalize path separators based on platform
     if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
@@ -152,15 +157,19 @@ function Save-MountToConfig {
     if ($IsGlobal) {
         # Expand environment variables and tilde
         $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
-        $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+        # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+        if ($expandedPath.StartsWith('~')) {
+            $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+        }
         
         # Convert to absolute if relative
         # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-        # Use GetFullPath with explicit base path to avoid process current directory issues
         $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
         if (-not $isAbsolute) {
+            # For relative paths, use GetFullPath with explicit base path to avoid process current directory issues
             $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
         }
+        # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
         
         # If in user profile, convert to tilde format
         if ($expandedPath.StartsWith($env:USERPROFILE)) {
@@ -217,15 +226,19 @@ function Remove-MountFromConfig {
     # Normalize the path similar to save logic
     $normalizedPath = $Path
     $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
-    $expandedPath = $expandedPath.Replace('~', $env:USERPROFILE)
+    # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
+    if ($expandedPath.StartsWith('~')) {
+        $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+    }
     
     # Convert to absolute if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-    # Use GetFullPath with explicit base path to avoid process current directory issues
     $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
+        # For relative paths, use GetFullPath with explicit base path to avoid process current directory issues
         $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
     }
+    # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
     
     # If in user profile, convert to tilde format
     if ($expandedPath.StartsWith($env:USERPROFILE)) {
