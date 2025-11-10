@@ -81,6 +81,74 @@ else
 fi
 echo ""
 
+# Test Docker commands (Zsh if available)
+if command -v zsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running Docker command tests (Zsh)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if zsh "$TEST_DIR/test_docker_commands_zsh.sh"; then
+    echo -e "${GREEN}✓ Docker command tests (Zsh) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Docker command tests (Zsh) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test Docker commands (PowerShell if available)
+if command -v pwsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running Docker command tests (PowerShell)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if pwsh -File "$TEST_DIR/test_docker_commands.ps1"; then
+    echo -e "${GREEN}✓ Docker command tests (PowerShell) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Docker command tests (PowerShell) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test mount configuration (Bash)
+echo -e "${BLUE}Running mount configuration tests...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_mount_config.sh"; then
+  echo -e "${GREEN}✓ Mount configuration tests passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ Mount configuration tests failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
+# Test mount configuration (Zsh if available)
+if command -v zsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running mount configuration tests (Zsh)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if zsh "$TEST_DIR/test_mount_config_zsh.sh"; then
+    echo -e "${GREEN}✓ Mount configuration tests (Zsh) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Mount configuration tests (Zsh) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test mount configuration (PowerShell if available)
+if command -v pwsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running mount configuration tests (PowerShell)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if pwsh -File "$TEST_DIR/test_mount_config.ps1"; then
+    echo -e "${GREEN}✓ Mount configuration tests (PowerShell) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Mount configuration tests (PowerShell) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
 # Overall summary
 echo "======================================"
 echo "OVERALL TEST SUMMARY"

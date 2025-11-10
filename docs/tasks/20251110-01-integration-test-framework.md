@@ -104,10 +104,10 @@ Tests run automatically on:
 ## Follow-up Items
 
 - [x] ~~Consider adding end-to-end Docker tests~~ - **DONE** via Docker command mocking tests
-- [ ] Add tests for mount configuration validation (edge cases, invalid paths, etc.)
+- [x] ~~Add tests for mount configuration validation~~ - **DONE** edge cases, paths, config parsing
 - [ ] Test error handling scenarios (invalid flags, missing dependencies)
 - [ ] Add performance benchmarks (optional)
-- [ ] Add PowerShell Docker command tests (currently only Bash)
+- [ ] Complete PowerShell versions of Docker and mount config tests (Bash/Zsh versions working)
 
 ## Notes
 
@@ -137,3 +137,24 @@ Tests run automatically on:
 - ✅ Mount modes (read-only vs read-write)
 
 This completes the Docker command testing objective using Approach 2 (Mock Docker Function) from the testing strategy guide.
+
+### 2025-11-10 (continued) - Mount Configuration and Cross-Shell Tests
+
+- [x] Added mount configuration validation tests (12 tests)
+- [x] Tests cover: comments, empty lines, whitespace, paths, tilde expansion, symlinks
+- [x] Created Bash and Zsh versions of all new tests
+- [x] Fixed whitespace-only line handling in `__copilot_load_mounts`
+- [x] Added test mode support to PowerShell script
+- [x] Updated Copilot instructions with test writing standards
+- [ ] PowerShell Docker/mount tests in progress (Bash/Zsh versions complete)
+
+**Cross-Shell Test Coverage:**
+- ✅ Bash: All tests passing (integration, Docker commands, mount config)
+- ✅ Zsh: All tests passing (integration, Docker commands, mount config - note: some edge cases differ due to array indexing)
+- ⏳ PowerShell: Integration tests passing, Docker/mount tests in progress
+
+**Test Writing Standards Added:**
+- Every test must have Bash, Zsh, and PowerShell versions unless platform-specific
+- Platform-specific tests must document why with comments
+- Test file naming conventions established
+- Documentation requirements clarified

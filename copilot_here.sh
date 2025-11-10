@@ -23,8 +23,8 @@ __copilot_load_mounts() {
   
   if [ -f "$actual_file" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
-      # Skip empty lines and comments
-      [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+      # Skip empty lines, whitespace-only lines, and comments
+      [[ -z "$line" || "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
       eval "${var_name}+=(\"\$line\")"
     done < "$actual_file"
   fi

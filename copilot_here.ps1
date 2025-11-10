@@ -2,6 +2,11 @@
 # Version: 2025-11-10
 # Repository: https://github.com/GordonBeeming/copilot_here
 
+# Test mode flag (set by tests to skip auth checks)
+if (-not $env:COPILOT_HERE_TEST_MODE) {
+    $env:COPILOT_HERE_TEST_MODE = "false"
+}
+
 # Helper function to detect emoji support (PowerShell typically supports it)
 function Test-EmojiSupport {
     return $true  # PowerShell 5+ typically supports UTF-8/emojis
@@ -322,6 +327,11 @@ function Remove-MountFromConfig {
 
 # Helper function for security checks (shared by all variants)
 function Test-CopilotSecurityCheck {
+    # Skip in test mode
+    if ($env:COPILOT_HERE_TEST_MODE -eq "true") {
+        return $true
+    }
+    
     Write-Host "Verifying GitHub CLI authentication..."
     $authStatus = gh auth status 2>$null
     if (-not ($authStatus | Select-String -Quiet "'copilot'")) {

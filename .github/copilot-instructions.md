@@ -190,6 +190,30 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 - ❌ Avoid `local -a` in eval (may cause issues)
 - ❌ Avoid bash-specific array features not in zsh
 
+### Test Writing Standards
+**CRITICAL**: Every test must have versions for ALL supported shells unless platform-specific.
+
+**Required Test Versions:**
+- ✅ **Bash** - `tests/integration/test_*.sh` (using `#!/bin/bash`)
+- ✅ **Zsh** - `tests/integration/test_*_zsh.sh` (using `#!/bin/zsh`) OR separate test suite
+- ✅ **PowerShell** - `tests/integration/test_*.ps1`
+
+**When a test is platform-specific:**
+- Add a clear comment at the top explaining why
+- Example: `# Linux/macOS only - tests symbolic link following with readlink`
+- Example: `# Windows only - tests Windows path handling with backslashes`
+
+**Test File Naming:**
+- Bash: `test_bash.sh`, `test_docker_commands.sh`
+- Zsh: `test_zsh.sh`, `test_docker_commands_zsh.sh`
+- PowerShell: `test_powershell.ps1`, `test_docker_commands.ps1`
+
+**Test Coverage Requirements:**
+- Each test file should validate the same functionality
+- Test counts may vary (e.g., Zsh arrays are 1-indexed vs 0-indexed in Bash)
+- Document any shell-specific behavior differences in comments
+- All tests must pass in their respective environments
+
 ### Dockerfiles
 - Use official base images
 - Combine RUN commands to reduce layers
