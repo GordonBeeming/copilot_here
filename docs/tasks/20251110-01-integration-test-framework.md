@@ -103,14 +103,37 @@ Tests run automatically on:
 
 ## Follow-up Items
 
-- [ ] Consider adding end-to-end Docker tests (if desired)
-- [ ] Add tests for mount configuration validation
-- [ ] Test error handling scenarios
+- [x] ~~Consider adding end-to-end Docker tests~~ - **DONE** via Docker command mocking tests
+- [ ] Add tests for mount configuration validation (edge cases, invalid paths, etc.)
+- [ ] Test error handling scenarios (invalid flags, missing dependencies)
 - [ ] Add performance benchmarks (optional)
+- [ ] Add PowerShell Docker command tests (currently only Bash)
 
 ## Notes
 
 - Tests are designed to be quick and focused on core functionality
-- No Docker required for running tests (tests shell functions only)
+- Docker command tests use mocking to validate commands without execution (<1 second runtime)
+- Shell function tests require no Docker
 - Test framework uses simple pass/fail reporting with color output
 - Warnings for non-existent paths are expected (tests path resolution logic, not actual paths)
+
+## Updates
+
+### 2025-11-10 - Docker Command Validation Tests Added
+
+- [x] Added `COPILOT_HERE_TEST_MODE` environment variable to skip auth checks
+- [x] Created `test_docker_commands.sh` with 11 Docker command validation tests
+- [x] Tests verify image variants (`-d`, `-dp`), flags (`--rm`, `-it`), mounts, and env vars
+- [x] Uses function mocking to capture Docker commands without execution
+- [x] All 11 tests passing in <1 second
+- [x] Updated test runner and documentation
+
+**Test Coverage:**
+- ✅ Image variant selection (base, dotnet, playwright)
+- ✅ Short flag aliases (`-d`, `-dp`)
+- ✅ Docker runtime flags (`--rm`, `-it`)
+- ✅ Volume mounts (working directory, additional mounts)
+- ✅ Environment variables (USER_ID, GROUP_ID, etc.)
+- ✅ Mount modes (read-only vs read-write)
+
+This completes the Docker command testing objective using Approach 2 (Mock Docker Function) from the testing strategy guide.
