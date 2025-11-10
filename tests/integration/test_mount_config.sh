@@ -130,9 +130,14 @@ fi
 
 # Test 5: Tilde expansion in path resolution
 test_start "Tilde expansion works"
-RESOLVED=$(__copilot_resolve_mount_path "~/Documents")
+TEST_TILDE_PATH="$TEST_DIR/tilde_test"
+mkdir -p "$TEST_TILDE_PATH"
+# Create a symlink in a location we control to test tilde expansion
+HOME_TEST="$TEST_DIR/home_test"
+mkdir -p "$HOME_TEST/Documents"
+RESOLVED=$(HOME="$HOME_TEST" __copilot_resolve_mount_path "~/Documents")
 
-if [[ "$RESOLVED" == "$HOME/Documents" ]]; then
+if [[ "$RESOLVED" == "$HOME_TEST/Documents" ]]; then
   test_pass "Tilde expanded correctly"
 else
   test_fail "Tilde expansion failed (got: $RESOLVED)"
@@ -140,9 +145,11 @@ fi
 
 # Test 6: Absolute path unchanged
 test_start "Absolute path remains unchanged"
-RESOLVED=$(__copilot_resolve_mount_path "/usr/local/bin")
+TEST_ABS_PATH="$TEST_DIR/absolute/path"
+mkdir -p "$TEST_ABS_PATH"
+RESOLVED=$(__copilot_resolve_mount_path "$TEST_ABS_PATH")
 
-if [[ "$RESOLVED" == "/usr/local/bin" ]]; then
+if [[ "$RESOLVED" == "$TEST_ABS_PATH" ]]; then
   test_pass "Absolute path unchanged"
 else
   test_fail "Absolute path modified"
