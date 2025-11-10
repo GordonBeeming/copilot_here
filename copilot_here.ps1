@@ -58,10 +58,13 @@ function Resolve-MountPath {
     
     # Convert to absolute path if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-    # Use GetFullPath with explicit base path to avoid process current directory issues
     $isAbsolute = [System.IO.Path]::IsPathRooted($resolvedPath) -or ($resolvedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
+        # For relative paths, use GetFullPath with base path
         $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath, (Get-Location).Path)
+    } else {
+        # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
+        $resolvedPath = [System.IO.Path]::GetFullPath($resolvedPath)
     }
     
     # Normalize path separators based on platform
@@ -156,10 +159,13 @@ function Save-MountToConfig {
         
         # Convert to absolute if relative
         # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-        # Use GetFullPath with explicit base path to avoid process current directory issues
         $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
         if (-not $isAbsolute) {
+            # For relative paths, use GetFullPath with base path
             $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
+        } else {
+            # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
+            $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
         }
         
         # If in user profile, convert to tilde format
@@ -221,10 +227,13 @@ function Remove-MountFromConfig {
     
     # Convert to absolute if relative
     # Check for both Unix-style (/) and Windows-style (C:\) absolute paths
-    # Use GetFullPath with explicit base path to avoid process current directory issues
     $isAbsolute = [System.IO.Path]::IsPathRooted($expandedPath) -or ($expandedPath -match '^[a-zA-Z]:\\')
     if (-not $isAbsolute) {
+        # For relative paths, use GetFullPath with base path
         $expandedPath = [System.IO.Path]::GetFullPath($expandedPath, (Get-Location).Path)
+    } else {
+        # For absolute paths, normalize using single-parameter GetFullPath to avoid path corruption
+        $expandedPath = [System.IO.Path]::GetFullPath($expandedPath)
     }
     
     # If in user profile, convert to tilde format
