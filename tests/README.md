@@ -7,6 +7,7 @@ This directory contains integration tests for the copilot_here shell scripts.
 - **test_bash.sh** - Tests for Bash shell compatibility
 - **test_zsh.sh** - Tests for Zsh shell compatibility  
 - **test_powershell.ps1** - Tests for PowerShell compatibility
+- **test_docker_commands.sh** - Tests Docker command generation (uses mocking)
 
 ## Running Tests Locally
 
@@ -32,6 +33,11 @@ zsh tests/integration/test_zsh.sh
 pwsh tests/integration/test_powershell.ps1
 ```
 
+**Docker Commands:**
+```bash
+bash tests/integration/test_docker_commands.sh
+```
+
 ## What Gets Tested
 
 Each test suite validates:
@@ -44,6 +50,19 @@ Each test suite validates:
 6. **Path Resolution** - Tests tilde/home directory expansion
 7. **Absolute Paths** - Verifies absolute paths remain unchanged
 8. **Documentation** - Checks that options are properly documented
+
+### Docker Command Tests
+
+The Docker command tests validate:
+
+1. **Image Variants** - Correct tags for base, dotnet, and playwright images
+2. **Short Flags** - `-d` and `-dp` shortcuts work correctly
+3. **Docker Flags** - `--rm` and `-it` flags are present
+4. **Volume Mounts** - Working directory and additional mounts
+5. **Environment Variables** - User context and config variables
+6. **Mount Modes** - Read-only vs read-write mounts
+
+These tests use function mocking to capture Docker commands without actually running containers, making them fast and reliable.
 
 ## CI/CD Integration
 

@@ -2,6 +2,9 @@
 # Version: 2025-11-09
 # Repository: https://github.com/GordonBeeming/copilot_here
 
+# Test mode flag (set by tests to skip auth checks)
+COPILOT_HERE_TEST_MODE="${COPILOT_HERE_TEST_MODE:-false}"
+
 # Helper function to detect emoji support
 __copilot_supports_emoji() {
   [[ "$LANG" == *"UTF-8"* ]] && [[ "$TERM" != "dumb" ]]
@@ -323,6 +326,11 @@ __copilot_remove_mount() {
 
 # Helper function for security checks (shared by all variants)
 __copilot_security_check() {
+  # Skip in test mode
+  if [ "$COPILOT_HERE_TEST_MODE" = "true" ]; then
+    return 0
+  fi
+  
   if ! gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q "'copilot'"; then
     echo "❌ Error: Your gh token is missing the required 'copilot' scope."
     echo "Please run 'gh auth refresh -h github.com -s copilot' to add it."

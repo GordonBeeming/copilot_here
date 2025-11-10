@@ -69,6 +69,18 @@ else
   echo ""
 fi
 
+# Test Docker commands (Bash only - uses mocking)
+echo -e "${BLUE}Running Docker command tests...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_docker_commands.sh"; then
+  echo -e "${GREEN}✓ Docker command tests passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ Docker command tests failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
 # Overall summary
 echo "======================================"
 echo "OVERALL TEST SUMMARY"
