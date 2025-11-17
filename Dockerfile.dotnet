@@ -13,16 +13,22 @@ RUN apt-get update && apt-get install -y \
   libicu-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# Install .NET 8 SDK
+# Install .NET 8 SDK (latest)
 RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
   && chmod +x dotnet-install.sh \
   && ./dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet \
   && rm dotnet-install.sh
 
-# Install .NET 9 SDK
+# Install .NET 9 SDK (latest)
 RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
   && chmod +x dotnet-install.sh \
   && ./dotnet-install.sh --channel 9.0 --install-dir /usr/share/dotnet \
+  && rm dotnet-install.sh
+
+# Install .NET 10 SDK (latest)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && ./dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet \
   && rm dotnet-install.sh
 
 # Add .NET to PATH
