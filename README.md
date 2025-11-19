@@ -35,6 +35,8 @@ Choose your platform below. The scripts include both **Safe Mode** (asks for con
 
 ### Image Variants
 
+All images support both **AMD64** (x86_64) and **ARM64** (Apple Silicon, etc.) architectures.
+
 All functions support switching between Docker image variants using flags:
 - **No flag** - Base image (Node.js, Git, basic tools)
 - **`-d` or `--dotnet`** - .NET image (includes .NET 8 & 9 SDKs)
@@ -298,6 +300,7 @@ Extends the base image with .NET SDK support for building and testing .NET appli
 **Includes:**
 - .NET 8.0 SDK
 - .NET 9.0 SDK
+- .NET 10.0 SDK
 - ASP.NET Core runtimes
 - All base image features
 

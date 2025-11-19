@@ -13,7 +13,7 @@ This is a secure, portable Docker environment for running the GitHub Copilot CLI
   - Example: `2025-10-27` → `2025-10-27.1` → `2025-10-27.2`
 
 ### Where to Update Versions
-When modifying shell functions in README.md, update ALL version references:
+When modifying shell functions in the standalone script files, update ALL version references:
 1. Bash/Zsh script header comment: `# Version: YYYY-MM-DD`
 2. PowerShell script header comment: `# Version: YYYY-MM-DD`
 3. Bash copilot_here help text: `VERSION: YYYY-MM-DD`
@@ -28,26 +28,17 @@ When modifying shell functions in README.md, update ALL version references:
 - Changes to help text or documentation within scripts
 
 ### Script File Synchronization
-**CRITICAL**: When updating the shell scripts, you must update BOTH locations:
-1. **Standalone script files**: `copilot_here.sh` and `copilot_here.ps1` (auto-install method)
-2. **README manual installation sections**: The code blocks users copy/paste for manual setup
+**CRITICAL**: The standalone script files (`copilot_here.sh` and `copilot_here.ps1`) are the source of truth.
+- The README.md now uses `curl` commands to download these files directly from the repository.
+- Ensure both scripts are kept in sync regarding functionality and version numbers.
 
-After making changes to README:
-```bash
-# Regenerate standalone files from README
-awk '/^   ```bash$/,/^   ```$/ {if (!/^   ```/) print}' README.md | sed 's/^   //' > copilot_here.sh
-awk '/^   ```powershell$/,/^   ```$/ {if (!/^   ```/) print}' README.md | sed 's/^   //' > copilot_here.ps1
-```
-
-Both locations must stay in sync so auto-install and manual install get the same functionality.
-
-**Current version**: 2025-11-05.1
+**Current version**: 2025-11-19
 
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
 - **Runtime**: Node.js 20
 - **CLI Tool**: GitHub Copilot CLI (@github/copilot)
-- **Container**: Docker
+- **Container**: Docker (Multi-arch: AMD64 & ARM64)
 - **CI/CD**: GitHub Actions
 - **Registry**: GitHub Container Registry (ghcr.io)
 
@@ -72,6 +63,7 @@ Extends the base image with:
 Extends the Playwright image with:
 - .NET 8 SDK
 - .NET 9 SDK
+- .NET 10 SDK
 
 **Use Case**: .NET development, building and testing .NET applications with web testing capabilities
 
@@ -453,7 +445,7 @@ Each image variant gets multiple tags:
 
 ---
 
-**Last Updated**: 2025-01-09
+**Last Updated**: 2025-11-19
 **Version**: 1.0.0
 **Docker Base**: node:20-slim
 **Image Variants**: 3 (base, playwright, dotnet)
