@@ -47,6 +47,14 @@ Updated the GitHub Actions workflow to build and publish multi-architecture Dock
 
 7. **Renumbered all steps** to maintain sequential order (Steps 3-15)
 
+### Dockerfile Updates (`Dockerfile`)
+
+8. **Fixed PowerShell installation for ARM64**
+   - AMD64: Uses Microsoft's APT repository (existing method)
+   - ARM64: Downloads PowerShell 7.4.6 from GitHub releases and installs to `/opt/microsoft/powershell/7`
+   - Architecture detection using `dpkg --print-architecture`
+   - Creates symlink at `/usr/bin/pwsh` for both architectures
+
 ### Multi-Platform Build Process
 
 The workflow now:
@@ -74,4 +82,13 @@ The changes will be tested when the workflow runs by:
 - Build times will increase slightly due to building for two platforms
 - GitHub Actions runners use QEMU for ARM64 builds (cross-compilation)
 - The workflow maintains the same caching strategy for both platforms
-- No changes needed to Dockerfiles - they are platform-agnostic
+- No changes needed to child Dockerfiles (dotnet, playwright) - they inherit the multi-arch base
+- PowerShell on ARM64 uses version 7.4.6 from GitHub releases (APT repo only has AMD64 packages)
+
+## Build Failure & Fix
+
+**Initial build failed** due to PowerShell installation failing on ARM64:
+- Microsoft's APT repository doesn't provide PowerShell packages for ARM64/Debian
+- Fixed by implementing architecture-specific installation:
+  - AMD64: Continues to use APT repository
+  - ARM64: Downloads and extracts PowerShell 7.4.6 tarball from GitHub releases
