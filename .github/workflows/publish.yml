@@ -83,7 +83,15 @@ jobs:
         id: repo
         run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      # Step 3: Log in to the GitHub Container Registry (GHCR)
+      # Step 3: Set up QEMU for multi-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Step 4: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 5: Log in to the GitHub Container Registry (GHCR)
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -91,7 +99,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Step 4: Extract metadata (tags, labels) for Docker
+      # Step 6: Extract metadata (tags, labels) for Docker
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -105,7 +113,7 @@ jobs:
             # Add tag for the git commit SHA
             type=sha
 
-      # Step 5: Get the latest Copilot CLI version from GitHub releases
+      # Step 7: Get the latest Copilot CLI version from GitHub releases
       - name: Get latest Copilot CLI version
         id: copilot_version
         run: |
@@ -114,7 +122,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Latest Copilot CLI version: $VERSION"
 
-      # Step 6: Get the digest of the currently published 'latest' image
+      # Step 8: Get the digest of the currently published 'latest' image
       # This step only runs on scheduled or manual triggers, not on push events.
       - name: Get digest of the remote 'latest' image
         if: github.event_name != 'push'
@@ -125,7 +133,7 @@ jobs:
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
           echo "Remote digest: $DIGEST"
 
-      # Step 7: Build the image and check for changes
+      # Step 9: Build the image and check for changes
       # This step builds the image locally and tags it, making it ready for a potential push.
       # It uses the remote 'latest' image as a cache source and passes the Copilot version as a build arg.
       # The version arg ensures cache invalidation when a new Copilot version is released.
@@ -134,8 +142,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: false # We don't push yet; we decide that in the next step.
-          load: true # Load the image into the runner's Docker daemon.
+          load: false # Can't load multi-platform images
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
@@ -144,8 +153,9 @@ jobs:
             COPILOT_VERSION=${{ steps.copilot_version.outputs.version }}
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
           cache-to: type=inline
+          outputs: type=image,push=false
 
-      # Step 8: Decide if a push is required based on the trigger and image changes
+      # Step 10: Decide if a push is required based on the trigger and image changes
       - name: Determine if a push is required
         id: push_decision
         run: |
@@ -160,24 +170,33 @@ jobs:
             echo "push_needed=false" >> $GITHUB_OUTPUT
           fi
 
-      # Step 9: Push the image to registry only if needed
-      - name: Push image to registry
+      # Step 11: Push the base image to registry only if needed
+      - name: Push base image to registry
         if: steps.push_decision.outputs.push_needed == 'true'
-        # The image was already built and tagged, so we just need to push it.
-        # Also tag with full SHA for variant image builds
-        run: |
-          docker push --all-tags ghcr.io/${{ steps.repo.outputs.name }}
-          # Tag with full SHA for variant builds to reference
-          docker tag ghcr.io/${{ steps.repo.outputs.name }}:latest ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
-          docker push ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}:latest
+            ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            project=copilot_here
+          build-args: |
+            COPILOT_VERSION=${{ steps.copilot_version.outputs.version }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
+          cache-to: type=inline
 
-      # Step 10: Build and push .NET image (based on the base image)
+      # Step 12: Build and push .NET image (based on the base image)
       - name: Build and push .NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.dotnet
+          platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             BASE_IMAGE_TAG=sha-${{ github.sha }}
@@ -190,13 +209,14 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
           cache-to: type=inline
 
-      # Step 11: Build and push Playwright+.NET image (based on the .NET image)
+      # Step 13: Build and push Playwright+.NET image (based on the .NET image)
       - name: Build and push Playwright+.NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.playwright
+          platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
@@ -209,12 +229,12 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright,mode=max
           cache-to: type=inline
 
-      # Step 12: Provide a clear summary message for scheduled runs when no update was needed
+      # Step 14: Provide a clear summary message for scheduled runs when no update was needed
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
         run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
 
-      # Step 13: Summary of workflow behavior
+      # Step 15: Summary of workflow behavior
       - name: Workflow Summary
         if: always()
         run: |
