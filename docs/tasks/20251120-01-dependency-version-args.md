@@ -17,7 +17,8 @@ Previously, the `.NET` and `Playwright` Docker images were only rebuilt when the
 
 3.  **Updated `.github/workflows/publish.yml`**:
     -   Merged version fetching into a single step "Get latest dependency versions" (id: `versions`).
-    -   Fetches Copilot CLI, Playwright, and .NET SDKs (8, 9, 10) versions.
+    -   Fetches Copilot CLI and Playwright versions using `npm view`.
+    -   Fetches .NET SDKs (8, 9, 10) versions using `curl` + `jq`.
     -   Passed these versions as build arguments to the respective Docker build steps.
     -   Removed the conditional execution (`if: steps.push_decision.outputs.push_needed == 'true'`) for the .NET and Playwright image builds. This ensures that these images are always checked against the build arguments. If the versions have changed, the cache will be invalidated, and the image will be rebuilt and pushed. If versions haven't changed, Docker layer caching will be used.
 
