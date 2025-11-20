@@ -257,14 +257,15 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 
 ## Development Workflow
 
-### Git Workflow - Commit as You Go
-**IMPORTANT**: Commit changes incrementally as you complete logical units of work.
+### Git Workflow - Wait for Approval
+**IMPORTANT**: Wait for user approval before committing changes.
 
 #### Commit Guidelines:
-1. **Commit frequently**: After completing each logical change or fix
-2. **Small, focused commits**: Each commit should represent one change
-3. **Descriptive messages**: Use clear, concise commit messages
-4. **Fix mistakes**: If you need to fix something in the last commit:
+1. **Prepare changes**: Make your changes and verify them
+2. **Ask for approval**: Present the changes to the user and ask if you should commit
+3. **Commit on approval**: Only run the git commit command when the user says "commit" or similar
+4. **Descriptive messages**: Use clear, concise commit messages
+5. **Fix mistakes**: If you need to fix something in the last commit:
    ```bash
    # Undo last commit but keep changes
    git reset --soft HEAD~1
@@ -273,7 +274,7 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
    git commit -m "Fixed: [description]"
    ```
 
-#### When to Commit:
+#### When to Ask to Commit:
 - ✅ After adding a new feature or component
 - ✅ After fixing a bug
 - ✅ After updating documentation
@@ -350,13 +351,16 @@ Co-authored-by: Other Contributor <other@example.com>"
 2. Verify workflow syntax if modified
 3. Document significant changes in `/docs/tasks/` following naming conventions
 4. **Include screenshots in task docs** with relative image paths if applicable
-5. **Commit your changes with co-author attribution**:
+5. **Ask for approval to commit**:
+   - Explain what changes are ready to be committed
+   - Wait for user confirmation
+6. **Commit your changes with co-author attribution** (after approval):
    ```bash
    git add . && git commit -m "Type: Description
 
    Co-authored-by: Name <email@example.com>"
    ```
-6. **DO NOT push to remote** - Only commit locally, never use `git push`
+7. **DO NOT push to remote** - Only commit locally, never use `git push`
 
 ## Testing and Quality
 
@@ -423,7 +427,7 @@ Each image variant gets multiple tags:
 ## Important Reminders
 
 ### ⚠️ Critical Guidelines
-1. **Commit as you go** - Make incremental commits after each logical change
+1. **Wait for approval** - Ask before committing changes
 2. **Fix commits if needed** - Use `git reset --soft HEAD~1` to undo last commit and fix
 3. **Add co-authors to commits** - Always attribute the requester (see Git Workflow section)
 4. **All files in project directory** - Never write outside project root
