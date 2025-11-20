@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.12
+# Version: 2025-11-20.13
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -947,6 +947,12 @@ function Copilot-Here {
         [switch]$Help,
         [switch]$d,
         [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
         [switch]$dp,
         [switch]$DotnetPlaywright,
         [string[]]$Mount,
@@ -1017,7 +1023,10 @@ USAGE:
   Copilot-Here [IMAGE_MANAGEMENT]
 
 OPTIONS:
-  -d, -Dotnet              Use .NET image variant
+  -d, -Dotnet              Use .NET image variant (all versions)
+  -d8, -Dotnet8            Use .NET 8 image variant
+  -d9, -Dotnet9            Use .NET 9 image variant
+  -d10, -Dotnet10          Use .NET 10 image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
@@ -1094,6 +1103,9 @@ EXAMPLES:
   # Use .NET image
   Copilot-Here -d -p "build this .NET project"
   
+  # Use .NET 9 image
+  Copilot-Here -d9 -p "build this .NET 9 project"
+  
   # Fast mode (skip cleanup and pull)
   Copilot-Here -NoCleanup -NoPull -p "quick question"
 
@@ -1101,7 +1113,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.12
+VERSION: 2025-11-20.13
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1110,6 +1122,12 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     $imageTag = "latest"
     if ($d -or $Dotnet) {
         $imageTag = "dotnet"
+    } elseif ($d8 -or $Dotnet8) {
+        $imageTag = "dotnet-8"
+    } elseif ($d9 -or $Dotnet9) {
+        $imageTag = "dotnet-9"
+    } elseif ($d10 -or $Dotnet10) {
+        $imageTag = "dotnet-10"
     } elseif ($dp -or $DotnetPlaywright) {
         $imageTag = "dotnet-playwright"
     }
@@ -1131,6 +1149,12 @@ function Copilot-Yolo {
         [switch]$Help,
         [switch]$d,
         [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
         [switch]$dp,
         [switch]$DotnetPlaywright,
         [string[]]$Mount,
@@ -1201,7 +1225,10 @@ USAGE:
   Copilot-Yolo [IMAGE_MANAGEMENT]
 
 OPTIONS:
-  -d, -Dotnet              Use .NET image variant
+  -d, -Dotnet              Use .NET image variant (all versions)
+  -d8, -Dotnet8            Use .NET 8 image variant
+  -d9, -Dotnet9            Use .NET 9 image variant
+  -d10, -Dotnet10          Use .NET 10 image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
@@ -1261,6 +1288,9 @@ EXAMPLES:
   # Use .NET + Playwright image
   Copilot-Yolo -dp -p "write playwright tests"
   
+  # Use .NET 10 image
+  Copilot-Yolo -d10 -p "explore .NET 10 features"
+  
   # Fast mode (skip cleanup)
   Copilot-Yolo -NoCleanup -p "generate README"
 
@@ -1273,7 +1303,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.12
+VERSION: 2025-11-20.13
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1282,6 +1312,12 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     $imageTag = "latest"
     if ($d -or $Dotnet) {
         $imageTag = "dotnet"
+    } elseif ($d8 -or $Dotnet8) {
+        $imageTag = "dotnet-8"
+    } elseif ($d9 -or $Dotnet9) {
+        $imageTag = "dotnet-9"
+    } elseif ($d10 -or $Dotnet10) {
+        $imageTag = "dotnet-10"
     } elseif ($dp -or $DotnetPlaywright) {
         $imageTag = "dotnet-playwright"
     }

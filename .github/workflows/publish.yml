@@ -239,6 +239,90 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
           cache-to: type=inline
 
+      # Step 13a: Extract metadata for .NET 8 image
+      - name: Extract metadata for .NET 8 image
+        id: meta-dotnet8
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=dotnet-8
+            type=raw,value=dotnet-8-sha-${{ github.sha }}
+
+      # Step 13b: Build and push .NET 8 image
+      - name: Build and push .NET 8 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.dotnet8
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
+            DOTNET_SDK_8_VERSION=${{ steps.versions.outputs.dotnet_8_version }}
+          tags: ${{ steps.meta-dotnet8.outputs.tags }}
+          labels: |
+            ${{ steps.meta-dotnet8.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-8,mode=max
+          cache-to: type=inline
+
+      # Step 13c: Extract metadata for .NET 9 image
+      - name: Extract metadata for .NET 9 image
+        id: meta-dotnet9
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=dotnet-9
+            type=raw,value=dotnet-9-sha-${{ github.sha }}
+
+      # Step 13d: Build and push .NET 9 image
+      - name: Build and push .NET 9 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.dotnet9
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
+            DOTNET_SDK_9_VERSION=${{ steps.versions.outputs.dotnet_9_version }}
+          tags: ${{ steps.meta-dotnet9.outputs.tags }}
+          labels: |
+            ${{ steps.meta-dotnet9.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-9,mode=max
+          cache-to: type=inline
+
+      # Step 13e: Extract metadata for .NET 10 image
+      - name: Extract metadata for .NET 10 image
+        id: meta-dotnet10
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=dotnet-10
+            type=raw,value=dotnet-10-sha-${{ github.sha }}
+
+      # Step 13f: Build and push .NET 10 image
+      - name: Build and push .NET 10 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.dotnet10
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
+            DOTNET_SDK_10_VERSION=${{ steps.versions.outputs.dotnet_10_version }}
+          tags: ${{ steps.meta-dotnet10.outputs.tags }}
+          labels: |
+            ${{ steps.meta-dotnet10.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-10,mode=max
+          cache-to: type=inline
+
       # Step 14: Extract metadata for Playwright+.NET image
       - name: Extract metadata for Playwright+.NET image
         id: meta-playwright
@@ -286,6 +370,9 @@ jobs:
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:latest\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-8\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-9\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-10\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY

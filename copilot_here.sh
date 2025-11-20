@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.12
+# Version: 2025-11-20.13
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -969,7 +969,10 @@ USAGE:
   copilot_here [IMAGE_MANAGEMENT]
 
 OPTIONS:
-  -d, --dotnet              Use .NET image variant
+  -d, --dotnet              Use .NET image variant (all versions)
+  -d8, --dotnet8            Use .NET 8 image variant
+  -d9, --dotnet9            Use .NET 9 image variant
+  -d10, --dotnet10          Use .NET 10 image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
@@ -1045,6 +1048,9 @@ EXAMPLES:
   
   # Use .NET image with custom log level
   copilot_here -d --log-level debug -p "build this .NET project"
+  
+  # Use .NET 9 image
+  copilot_here -d9 -p "build this .NET 9 project"
   
   # Fast mode (skip cleanup and pull)
   copilot_here --no-cleanup --no-pull -p "quick question"
@@ -1141,6 +1147,18 @@ EOF
         image_tag="dotnet"
         shift
         ;;
+      -d8|--dotnet8)
+        image_tag="dotnet-8"
+        shift
+        ;;
+      -d9|--dotnet9)
+        image_tag="dotnet-9"
+        shift
+        ;;
+      -d10|--dotnet10)
+        image_tag="dotnet-10"
+        shift
+        ;;
       -dp|--dotnet-playwright)
         image_tag="dotnet-playwright"
         shift
@@ -1194,7 +1212,10 @@ USAGE:
   copilot_yolo [IMAGE_MANAGEMENT]
 
 OPTIONS:
-  -d, --dotnet              Use .NET image variant
+  -d, --dotnet              Use .NET image variant (all versions)
+  -d8, --dotnet8            Use .NET 8 image variant
+  -d9, --dotnet9            Use .NET 9 image variant
+  -d10, --dotnet10          Use .NET 10 image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
@@ -1249,6 +1270,9 @@ EXAMPLES:
   
   # Use .NET + Playwright image
   copilot_yolo -dp -p "write playwright tests"
+  
+  # Use .NET 10 image
+  copilot_yolo -d10 -p "explore .NET 10 features"
   
   # Fast mode (skip cleanup)
   copilot_yolo --no-cleanup -p "generate README"
@@ -1348,6 +1372,18 @@ EOF
        ;;
       -d|--dotnet)
         image_tag="dotnet"
+        shift
+        ;;
+      -d8|--dotnet8)
+        image_tag="dotnet-8"
+        shift
+        ;;
+      -d9|--dotnet9)
+        image_tag="dotnet-9"
+        shift
+        ;;
+      -d10|--dotnet10)
+        image_tag="dotnet-10"
         shift
         ;;
       -dp|--dotnet-playwright)
