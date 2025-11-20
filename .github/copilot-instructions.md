@@ -32,7 +32,7 @@ When modifying shell functions in the standalone script files, update ALL versio
 - The README.md now uses `curl` commands to download these files directly from the repository.
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 
-**Current version**: 2025-11-19
+**Current version**: 2025-11-20
 
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
@@ -445,7 +445,7 @@ Each image variant gets multiple tags:
 
 ---
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-11-20
 **Version**: 1.0.0
 **Docker Base**: node:20-slim
 **Image Variants**: 3 (base, playwright, dotnet)

@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-19
+# Version: 2025-11-20
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -331,9 +331,10 @@ __copilot_security_check() {
     return 0
   fi
   
-  if ! gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q "'copilot'"; then
-    echo "❌ Error: Your gh token is missing the required 'copilot' scope."
-    echo "Please run 'gh auth refresh -h github.com -s copilot' to add it."
+  if ! gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q "'copilot'" || \
+     ! gh auth status 2>/dev/null | /usr/bin/grep "Token scopes:" | /usr/bin/grep -q "'read:packages'"; then
+    echo "❌ Error: Your gh token is missing the required 'copilot' or 'read:packages' scope."
+    echo "Please run 'gh auth refresh -h github.com -s copilot,read:packages' to add it."
     return 1
   fi
 
@@ -797,7 +798,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-19
+VERSION: 2025-11-20
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1069,7 +1070,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-19
+VERSION: 2025-11-20
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================

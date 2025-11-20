@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-19
+# Version: 2025-11-20
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -367,9 +367,9 @@ function Test-CopilotSecurityCheck {
     
     Write-Host "Verifying GitHub CLI authentication..."
     $authStatus = gh auth status 2>$null
-    if (-not ($authStatus | Select-String -Quiet "'copilot'")) {
-        Write-Host "❌ Error: Your gh token is missing the required 'copilot' scope." -ForegroundColor Red
-        Write-Host "Please run 'gh auth refresh -h github.com -s copilot' to add it."
+    if (-not ($authStatus | Select-String -Quiet "'copilot'") -or -not ($authStatus | Select-String -Quiet "'read:packages'")) {
+        Write-Host "❌ Error: Your gh token is missing the required 'copilot' or 'read:packages' scope." -ForegroundColor Red
+        Write-Host "Please run 'gh auth refresh -h github.com -s copilot,read:packages' to add it."
         return $false
     }
 
@@ -877,7 +877,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-19
+VERSION: 2025-11-20
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1099,7 +1099,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-19
+VERSION: 2025-11-20
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return

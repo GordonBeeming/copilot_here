@@ -21,7 +21,7 @@ The `copilot_here` shell function is a lightweight wrapper around a Docker conta
 Before you start, make sure you have the following installed and configured on your machine:
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux).
 - The [GitHub CLI (`gh`)](https://cli.github.com/).
-- You must be logged in to the GitHub CLI. You can check by running `gh auth status`. Your token **must** have the `copilot` scope. If it doesn't, run `gh auth refresh -h github.com -s copilot` to add it.
+- You must be logged in to the GitHub CLI. You can check by running `gh auth status`. Your token **must** have the `copilot` and `read:packages` scopes. If it doesn't, run `gh auth refresh -h github.com -s copilot,read:packages` to add them.
 
 ## 🛠️ Setup Instructions
 
