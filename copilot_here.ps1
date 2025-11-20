@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.7
+# Version: 2025-11-20.11
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -494,14 +494,17 @@ function Remove-UnusedCopilotImages {
     # Get cutoff timestamp (7 days ago)
     $cutoffDate = (Get-Date).AddDays(-7)
     
-    # Get all copilot_here images with the project label, excluding <none> tags
-    $allImages = docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" 2>$null
+    # Resolve the ID of the image we want to keep to ensure we don't delete it
+    $keepImageId = docker inspect --format="{{.Id}}" $KeepImage 2>$null
+    
+    # Get all copilot_here images by repository name with full IDs
+    $allImages = docker images --no-trunc "ghcr.io/gordonbeeming/copilot_here" --format "{{.ID}}|{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" 2>$null
     if (-not $allImages) {
         Write-Host "  ✓ No images to clean up"
         return
     }
     
-    $imagesToProcess = $allImages | Where-Object { $_ -notmatch ':<none>' }
+    $imagesToProcess = $allImages
     if (-not $imagesToProcess) {
         Write-Host "  ✓ No images to clean up"
         return
@@ -510,21 +513,24 @@ function Remove-UnusedCopilotImages {
     $count = 0
     foreach ($imageInfo in $imagesToProcess) {
         $parts = $imageInfo -split '\|'
-        $image = $parts[0]
-        $createdAt = $parts[1]
+        $imageId = $parts[0]
+        $imageName = $parts[1]
+        $createdAt = $parts[2]
         
-        if ($image -ne $KeepImage) {
+        # Check if this is the image we want to keep (by ID)
+        if ($imageId -ne $keepImageId) {
             # Parse creation date (format: "2025-01-28 12:34:56 +0000 UTC")
             try {
                 $imageDate = [DateTime]::Parse($createdAt.Substring(0, 19))
                 
                 if ($imageDate -lt $cutoffDate) {
-                    Write-Host "  🗑️  Removing old image: $image (created: $createdAt)"
-                    $result = docker rmi $image 2>$null
+                    $shortId = $imageId.Substring(7, 12)
+                    Write-Host "  🗑️  Removing old image: $imageName (ID: $shortId...) (created: $createdAt)"
+                    $result = docker rmi -f $imageId 2>$null
                     if ($LASTEXITCODE -eq 0) {
                         $count++
                     } else {
-                        Write-Host "  ⚠️  Failed to remove: $image (may be in use)"
+                        Write-Host "  ⚠️  Failed to remove: $imageName (may be in use by running container)"
                     }
                 }
             } catch {
@@ -1095,7 +1101,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.7
+VERSION: 2025-11-20.11
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1267,7 +1273,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.7
+VERSION: 2025-11-20.11
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return

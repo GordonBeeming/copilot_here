@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.7
+# Version: 2025-11-20.11
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -443,8 +443,11 @@ __copilot_cleanup_images() {
   # Get cutoff timestamp (7 days ago)
   local cutoff_date=$(date -d '7 days ago' +%s 2>/dev/null || date -v-7d +%s 2>/dev/null)
   
-  # Get all copilot_here images with the project label, excluding <none> tags
-  local all_images=$(docker images --filter "label=project=copilot_here" --format "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" | /usr/bin/grep -v ":<none>" || true)
+  # Resolve the ID of the image we want to keep to ensure we don't delete it
+  local keep_image_id=$(docker inspect --format="{{.Id}}" "$keep_image" 2>/dev/null || echo "")
+  
+  # Get all copilot_here images by repository name with full IDs
+  local all_images=$(docker images --no-trunc "ghcr.io/gordonbeeming/copilot_here" --format "{{.ID}}|{{.Repository}}:{{.Tag}}|{{.CreatedAt}}" || true)
   
   if [ -z "$all_images" ]; then
     echo "  ✓ No images to clean up"
@@ -452,17 +455,18 @@ __copilot_cleanup_images() {
   fi
   
   local count=0
-  while IFS='|' read -r image created_at; do
-    if [ -n "$image" ] && [ "$image" != "$keep_image" ]; then
+  while IFS='|' read -r image_id image_name created_at; do
+    # Check if this is the image we want to keep (by ID)
+    if [ -n "$image_id" ] && [ "$image_id" != "$keep_image_id" ]; then
       # Parse creation date (format: "2025-01-28 12:34:56 +0000 UTC")
       local image_date=$(date -d "$created_at" +%s 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z %Z" "$created_at" +%s 2>/dev/null)
       
       if [ -n "$image_date" ] && [ "$image_date" -lt "$cutoff_date" ]; then
-        echo "  🗑️  Removing old image: $image (created: ${created_at})"
-        if docker rmi "$image" > /dev/null 2>&1; then
+        echo "  🗑️  Removing old image: $image_name (ID: ${image_id:7:12}...) (created: ${created_at})"
+        if docker rmi -f "$image_id" > /dev/null 2>&1; then
           ((count++))
         else
-          echo "  ⚠️  Failed to remove: $image (may be in use)"
+          echo "  ⚠️  Failed to remove: $image_name (may be in use by running container)"
         fi
       fi
     fi
@@ -1049,7 +1053,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.7
+VERSION: 2025-11-20.11
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1258,7 +1262,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.7
+VERSION: 2025-11-20.11
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
