@@ -113,19 +113,15 @@ jobs:
             # Add tag for the git commit SHA
             type=sha
 
-      # Step 7: Get the latest Copilot CLI version from GitHub releases
-      - name: Get latest Copilot CLI version
-        id: copilot_version
-        run: |
-          # Fetch the latest release tag from GitHub
-          VERSION=$(curl -s https://api.github.com/repos/github/copilot-cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Latest Copilot CLI version: $VERSION"
-
-      # Step 7.5: Get latest dependency versions
+      # Step 7: Get latest versions for dependencies
       - name: Get latest dependency versions
-        id: deps_versions
+        id: versions
         run: |
+          # Copilot CLI
+          COPILOT_VERSION=$(curl -s https://api.github.com/repos/github/copilot-cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "copilot_version=$COPILOT_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest Copilot CLI version: $COPILOT_VERSION"
+
           # Playwright
           PLAYWRIGHT_VERSION=$(npm view playwright version)
           echo "playwright_version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
@@ -174,7 +170,7 @@ jobs:
             ${{ steps.meta.outputs.labels }}
             project=copilot_here
           build-args: |
-            COPILOT_VERSION=${{ steps.copilot_version.outputs.version }}
+            COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
           cache-to: type=inline
           outputs: type=image,push=false
@@ -209,7 +205,7 @@ jobs:
             ${{ steps.meta.outputs.labels }}
             project=copilot_here
           build-args: |
-            COPILOT_VERSION=${{ steps.copilot_version.outputs.version }}
+            COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
           cache-to: type=inline
 
@@ -233,9 +229,9 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE_TAG=sha-${{ github.sha }}
-            DOTNET_SDK_8_VERSION=${{ steps.deps_versions.outputs.dotnet_8_version }}
-            DOTNET_SDK_9_VERSION=${{ steps.deps_versions.outputs.dotnet_9_version }}
-            DOTNET_SDK_10_VERSION=${{ steps.deps_versions.outputs.dotnet_10_version }}
+            DOTNET_SDK_8_VERSION=${{ steps.versions.outputs.dotnet_8_version }}
+            DOTNET_SDK_9_VERSION=${{ steps.versions.outputs.dotnet_9_version }}
+            DOTNET_SDK_10_VERSION=${{ steps.versions.outputs.dotnet_10_version }}
           tags: ${{ steps.meta-dotnet.outputs.tags }}
           labels: |
             ${{ steps.meta-dotnet.outputs.labels }}
@@ -263,7 +259,7 @@ jobs:
           push: true
           build-args: |
             DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
-            PLAYWRIGHT_VERSION=${{ steps.deps_versions.outputs.playwright_version }}
+            PLAYWRIGHT_VERSION=${{ steps.versions.outputs.playwright_version }}
           tags: ${{ steps.meta-playwright.outputs.tags }}
           labels: |
             ${{ steps.meta-playwright.outputs.labels }}
