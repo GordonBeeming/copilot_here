@@ -47,10 +47,47 @@ All functions support switching between Docker image variants using flags:
 - **`-h` or `--help`** - Show usage help and examples (Bash/Zsh) or `-h` / `-Help` (PowerShell)
 - **`--no-cleanup`** - Skip cleanup of unused Docker images (Bash/Zsh) or `-NoCleanup` (PowerShell)
 - **`--no-pull`** - Skip pulling the latest image (Bash/Zsh) or `-NoPull` (PowerShell)
-  --update-scripts          Update scripts from GitHub repository
-  --upgrade-scripts         Alias for --update-scripts
+- **`--mount <path>`** - Mount a directory as read-only (Bash/Zsh) or `-Mount <path>` (PowerShell)
+- **`--mount-rw <path>`** - Mount a directory as read-write (Bash/Zsh) or `-MountRw <path>` (PowerShell)
+- **`--save-mount <path>`** - Save a mount to local config (Bash/Zsh) or `-SaveMount <path>` (PowerShell)
+- **`--save-mount-global <path>`** - Save a mount to global config (Bash/Zsh) or `-SaveMountGlobal <path>` (PowerShell)
+- **`--remove-mount <path>`** - Remove a saved mount (Bash/Zsh) or `-RemoveMount <path>` (PowerShell)
+- **`--list-mounts`** - List all configured mounts (Bash/Zsh) or `-ListMounts` (PowerShell)
+- **`--update-scripts`** - Update scripts from GitHub repository (Bash/Zsh) or `-UpdateScripts` (PowerShell)
+
+> **Note:** The script automatically checks for updates before running and prompts you if a new version is available.
 
 > ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens.
+
+### Directory Mounting
+
+By default, `copilot_here` only mounts the current working directory. You can mount additional directories using flags or configuration files.
+
+**CLI Flags:**
+- `--mount ./path/to/dir` (Read-only)
+- `--mount-rw ./path/to/dir` (Read-write)
+
+**Configuration Files:**
+- Global: `~/.config/copilot_here/mounts.conf`
+- Local: `.copilot_here/mounts.conf`
+
+**Format:** `path/to/dir:ro` or `path/to/dir:rw` (one per line)
+
+**Management Commands:**
+Use `--save-mount`, `--save-mount-global`, `--remove-mount`, and `--list-mounts` to manage persistent mounts.
+
+### Image Management
+
+You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwright`, or a specific SHA) so you don't have to pass flags every time.
+
+**Management Commands:**
+- `--show-image` - Show current default image configuration (Bash/Zsh) or `-ShowImage` (PowerShell)
+- `--set-default-image <tag>` - Set default image in local config (Bash/Zsh) or `-SetDefaultImage <tag>` (PowerShell)
+- `--set-default-image-global <tag>` - Set default image in global config (Bash/Zsh) or `-SetDefaultImageGlobal <tag>` (PowerShell)
+
+**Configuration Files:**
+- Global: `~/.config/copilot_here/image.conf`
+- Local: `.copilot_here/image.conf`
 
 
 
