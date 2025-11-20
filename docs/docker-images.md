@@ -75,6 +75,7 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 
 ```text
 IMAGE MANAGEMENT:
+  --list-images     List all available Docker images
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config

@@ -84,6 +84,7 @@ Use `--save-mount`, `--save-mount-global`, `--remove-mount`, and `--list-mounts`
 You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwright`, or a specific SHA) so you don't have to pass flags every time.
 
 **Management Commands:**
+- `--list-images` - List all available Docker images (Bash/Zsh) or `-ListImages` (PowerShell)
 - `--show-image` - Show current default image configuration (Bash/Zsh) or `-ShowImage` (PowerShell)
 - `--set-image <tag>` - Set default image in local config (Bash/Zsh) or `-SetImage <tag>` (PowerShell)
 - `--set-image-global <tag>` - Set default image in global config (Bash/Zsh) or `-SetImageGlobal <tag>` (PowerShell)

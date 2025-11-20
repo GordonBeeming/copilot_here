@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.14
+# Version: 2025-11-20.15
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -411,6 +411,18 @@ __copilot_get_default_image() {
   
   # Default
   echo "latest"
+}
+
+# Helper function to list available images
+__copilot_list_images() {
+  echo "📦 Available Images:"
+  echo "  • latest (Base image)"
+  echo "  • dotnet (.NET 8, 9, 10 SDKs)"
+  echo "  • dotnet-8 (.NET 8 SDK)"
+  echo "  • dotnet-9 (.NET 9 SDK)"
+  echo "  • dotnet-10 (.NET 10 SDK)"
+  echo "  • dotnet-playwright (.NET + Playwright)"
+  echo "  • dotnet-sha-<sha> (Specific commit SHA)"
 }
 
 # Helper function to show default image
@@ -1027,6 +1039,7 @@ MOUNT MANAGEMENT:
  copilot_here --save-mount-global ~/data:rw
 
 IMAGE MANAGEMENT:
+  --list-images     List all available Docker images
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config
@@ -1137,6 +1150,10 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
+       return 0
+       ;;
+     --list-images)
+       __copilot_list_images
        return 0
        ;;
      --show-image)
@@ -1272,6 +1289,7 @@ MOUNT MANAGEMENT:
  copilot_yolo --save-mount-global ~/data:rw
 
 IMAGE MANAGEMENT:
+  --list-images     List all available Docker images
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config
@@ -1366,6 +1384,10 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
+       return 0
+       ;;
+     --list-images)
+       __copilot_list_images
        return 0
        ;;
      --show-image)

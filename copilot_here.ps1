@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.14
+# Version: 2025-11-20.15
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -437,6 +437,17 @@ function Get-DefaultImage {
 }
 
 # Helper function to show default image
+function Show-AvailableImages {
+    Write-Host "📦 Available Images:"
+    Write-Host "  • latest (Base image)"
+    Write-Host "  • dotnet (.NET 8, 9, 10 SDKs)"
+    Write-Host "  • dotnet-8 (.NET 8 SDK)"
+    Write-Host "  • dotnet-9 (.NET 9 SDK)"
+    Write-Host "  • dotnet-10 (.NET 10 SDK)"
+    Write-Host "  • dotnet-playwright (.NET + Playwright)"
+    Write-Host "  • dotnet-sha-<sha> (Specific commit SHA)"
+}
+
 function Show-ImageConfig {
     $localConfig = ".copilot_here/image.conf"
     $globalConfig = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
@@ -990,6 +1001,7 @@ function Copilot-Here {
         [string]$SaveMount,
         [string]$SaveMountGlobal,
         [string]$RemoveMount,
+        [switch]$ListImages,
         [switch]$ShowImage,
         [string]$SetImage,
         [string]$SetImageGlobal,
@@ -1021,6 +1033,11 @@ function Copilot-Here {
     
     if ($RemoveMount) {
         Remove-MountFromConfig -Path $RemoveMount
+        return
+    }
+
+    if ($ListImages) {
+        Show-AvailableImages
         return
     }
 
@@ -1088,6 +1105,7 @@ MOUNT MANAGEMENT:
  Copilot-Here -SaveMountGlobal ~/data:rw
 
 IMAGE MANAGEMENT:
+  -ListImages              List all available Docker images
   -ShowImage               Show current default image configuration
   -SetImage <tag>   Set default image in local config
   -SetImageGlobal <tag> Set default image in global config
@@ -1206,6 +1224,7 @@ function Copilot-Yolo {
         [string]$SaveMount,
         [string]$SaveMountGlobal,
         [string]$RemoveMount,
+        [switch]$ListImages,
         [switch]$ShowImage,
         [string]$SetImage,
         [string]$SetImageGlobal,
@@ -1237,6 +1256,11 @@ function Copilot-Yolo {
     
     if ($RemoveMount) {
         Remove-MountFromConfig -Path $RemoveMount
+        return
+    }
+
+    if ($ListImages) {
+        Show-AvailableImages
         return
     }
 
@@ -1304,6 +1328,7 @@ MOUNT MANAGEMENT:
  Copilot-Yolo -SaveMountGlobal ~/data:rw
 
 IMAGE MANAGEMENT:
+  -ListImages              List all available Docker images
   -ShowImage               Show current default image configuration
   -SetImage <tag>   Set default image in local config
   -SetImageGlobal <tag> Set default image in global config
