@@ -189,7 +189,18 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
           cache-to: type=inline
 
-      # Step 12: Build and push .NET image (based on the base image)
+      # Step 12: Extract metadata for .NET image
+      - name: Extract metadata for .NET image
+        if: steps.push_decision.outputs.push_needed == 'true'
+        id: meta-dotnet
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=dotnet
+            type=raw,value=dotnet-sha-${{ github.sha }}
+
+      # Step 13: Build and push .NET image (based on the base image)
       - name: Build and push .NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
@@ -200,16 +211,25 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE_TAG=sha-${{ github.sha }}
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:dotnet
-            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-sha-${{ github.sha }}
+          tags: ${{ steps.meta-dotnet.outputs.tags }}
           labels: |
-            ${{ steps.meta.outputs.labels }}
+            ${{ steps.meta-dotnet.outputs.labels }}
             project=copilot_here
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet,mode=max
           cache-to: type=inline
 
-      # Step 13: Build and push Playwright+.NET image (based on the .NET image)
+      # Step 14: Extract metadata for Playwright+.NET image
+      - name: Extract metadata for Playwright+.NET image
+        if: steps.push_decision.outputs.push_needed == 'true'
+        id: meta-playwright
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=dotnet-playwright
+            type=raw,value=dotnet-playwright-sha-${{ github.sha }}
+
+      # Step 15: Build and push Playwright+.NET image (based on the .NET image)
       - name: Build and push Playwright+.NET image
         if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
@@ -220,21 +240,19 @@ jobs:
           push: true
           build-args: |
             DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright
-            ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright-sha-${{ github.sha }}
+          tags: ${{ steps.meta-playwright.outputs.tags }}
           labels: |
-            ${{ steps.meta.outputs.labels }}
+            ${{ steps.meta-playwright.outputs.labels }}
             project=copilot_here
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright,mode=max
           cache-to: type=inline
 
-      # Step 14: Provide a clear summary message for scheduled runs when no update was needed
+      # Step 16: Provide a clear summary message for scheduled runs when no update was needed
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
         run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
 
-      # Step 15: Summary of workflow behavior
+      # Step 17: Summary of workflow behavior
       - name: Workflow Summary
         if: always()
         run: |
