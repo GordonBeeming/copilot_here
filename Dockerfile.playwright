@@ -1,6 +1,7 @@
 # Build on top of the .NET image to add Playwright capabilities
 # ARG will be provided by the build process with the commit hash
 ARG DOTNET_IMAGE_TAG
+ARG PLAYWRIGHT_VERSION=latest
 FROM ghcr.io/gordonbeeming/copilot_here:${DOTNET_IMAGE_TAG}
 
 # Switch to root to install packages
@@ -31,7 +32,7 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Playwright globally via npm
-RUN npm install -g playwright@latest
+RUN npm install -g playwright@${PLAYWRIGHT_VERSION}
 
 # Create the directory structure for playwright cache
 # We'll install as root but place files where appuser can access them

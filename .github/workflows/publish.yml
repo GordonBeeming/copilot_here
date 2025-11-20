@@ -122,6 +122,30 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Latest Copilot CLI version: $VERSION"
 
+      # Step 7.5: Get latest dependency versions
+      - name: Get latest dependency versions
+        id: deps_versions
+        run: |
+          # Playwright
+          PLAYWRIGHT_VERSION=$(npm view playwright version)
+          echo "playwright_version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest Playwright version: $PLAYWRIGHT_VERSION"
+          
+          # .NET 8
+          DOTNET_8_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json | jq -r '."latest-sdk"')
+          echo "dotnet_8_version=$DOTNET_8_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest .NET 8 SDK version: $DOTNET_8_VERSION"
+          
+          # .NET 9
+          DOTNET_9_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/9.0/releases.json | jq -r '."latest-sdk"')
+          echo "dotnet_9_version=$DOTNET_9_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest .NET 9 SDK version: $DOTNET_9_VERSION"
+          
+          # .NET 10
+          DOTNET_10_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
+          echo "dotnet_10_version=$DOTNET_10_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest .NET 10 SDK version: $DOTNET_10_VERSION"
+
       # Step 8: Get the digest of the currently published 'latest' image
       # This step only runs on scheduled or manual triggers, not on push events.
       - name: Get digest of the remote 'latest' image
@@ -191,7 +215,6 @@ jobs:
 
       # Step 12: Extract metadata for .NET image
       - name: Extract metadata for .NET image
-        if: steps.push_decision.outputs.push_needed == 'true'
         id: meta-dotnet
         uses: docker/metadata-action@v5
         with:
@@ -202,7 +225,6 @@ jobs:
 
       # Step 13: Build and push .NET image (based on the base image)
       - name: Build and push .NET image
-        if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -211,6 +233,9 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE_TAG=sha-${{ github.sha }}
+            DOTNET_SDK_8_VERSION=${{ steps.deps_versions.outputs.dotnet_8_version }}
+            DOTNET_SDK_9_VERSION=${{ steps.deps_versions.outputs.dotnet_9_version }}
+            DOTNET_SDK_10_VERSION=${{ steps.deps_versions.outputs.dotnet_10_version }}
           tags: ${{ steps.meta-dotnet.outputs.tags }}
           labels: |
             ${{ steps.meta-dotnet.outputs.labels }}
@@ -220,7 +245,6 @@ jobs:
 
       # Step 14: Extract metadata for Playwright+.NET image
       - name: Extract metadata for Playwright+.NET image
-        if: steps.push_decision.outputs.push_needed == 'true'
         id: meta-playwright
         uses: docker/metadata-action@v5
         with:
@@ -231,7 +255,6 @@ jobs:
 
       # Step 15: Build and push Playwright+.NET image (based on the .NET image)
       - name: Build and push Playwright+.NET image
-        if: steps.push_decision.outputs.push_needed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -240,6 +263,7 @@ jobs:
           push: true
           build-args: |
             DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}
+            PLAYWRIGHT_VERSION=${{ steps.deps_versions.outputs.playwright_version }}
           tags: ${{ steps.meta-playwright.outputs.tags }}
           labels: |
             ${{ steps.meta-playwright.outputs.labels }}
