@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.6
+# Version: 2025-11-20.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -987,8 +987,8 @@ MOUNT MANAGEMENT:
 
 IMAGE MANAGEMENT:
   --show-image      Show current default image configuration
-  --set-default-image <tag> Set default image in local config
-  --set-default-image-global <tag> Set default image in global config
+  --set-image <tag> Set default image in local config
+  --set-image-global <tag> Set default image in global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -1027,8 +1027,8 @@ EXAMPLES:
   copilot_here --list-mounts
   
   # Set default image
-  copilot_here --set-default-image dotnet
-  copilot_here --set-default-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  copilot_here --set-image dotnet
+  copilot_here --set-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
   
   # Ask a question (short syntax)
   copilot_here -p "how do I list files in bash?"
@@ -1049,7 +1049,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.6
+VERSION: 2025-11-20.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1097,19 +1097,19 @@ EOF
        __copilot_show_default_image
        return 0
        ;;
-     --set-default-image)
+     --set-image)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-default-image requires an image tag argument"
+         echo "❌ Error: --set-image requires an image tag argument"
          return 1
        fi
        __copilot_save_image_config "$1" "false"
        return 0
        ;;
-     --set-default-image-global)
+     --set-image-global)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-default-image-global requires an image tag argument"
+         echo "❌ Error: --set-image-global requires an image tag argument"
          return 1
        fi
        __copilot_save_image_config "$1" "true"
@@ -1212,8 +1212,8 @@ MOUNT MANAGEMENT:
 
 IMAGE MANAGEMENT:
   --show-image      Show current default image configuration
-  --set-default-image <tag> Set default image in local config
-  --set-default-image-global <tag> Set default image in global config
+  --set-image <tag> Set default image in local config
+  --set-image-global <tag> Set default image in global config
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -1258,7 +1258,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.6
+VERSION: 2025-11-20.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1306,19 +1306,19 @@ EOF
        __copilot_show_default_image
        return 0
        ;;
-     --set-default-image)
+     --set-image)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-default-image requires an image tag argument"
+         echo "❌ Error: --set-image requires an image tag argument"
          return 1
        fi
        __copilot_save_image_config "$1" "false"
        return 0
        ;;
-     --set-default-image-global)
+     --set-image-global)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-default-image-global requires an image tag argument"
+         echo "❌ Error: --set-image-global requires an image tag argument"
          return 1
        fi
        __copilot_save_image_config "$1" "true"

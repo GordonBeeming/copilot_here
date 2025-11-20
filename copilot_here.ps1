@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.6
+# Version: 2025-11-20.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -949,6 +949,9 @@ function Copilot-Here {
         [string]$SaveMount,
         [string]$SaveMountGlobal,
         [string]$RemoveMount,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
         [switch]$UpdateScripts,
@@ -975,6 +978,21 @@ function Copilot-Here {
     
     if ($RemoveMount) {
         Remove-MountFromConfig -Path $RemoveMount
+        return
+    }
+
+    if ($ShowImage) {
+        Show-ImageConfig
+        return
+    }
+
+    if ($SetImage) {
+        Save-ImageConfig -ImageTag $SetImage -IsGlobal $false
+        return
+    }
+
+    if ($SetImageGlobal) {
+        Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
         return
     }
 
@@ -1015,8 +1033,8 @@ MOUNT MANAGEMENT:
 
 IMAGE MANAGEMENT:
   -ShowImage               Show current default image configuration
-  -SetDefaultImage <tag>   Set default image in local config
-  -SetDefaultImageGlobal <tag> Set default image in global config
+  -SetImage <tag>   Set default image in local config
+  -SetImageGlobal <tag> Set default image in global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -1055,8 +1073,8 @@ EXAMPLES:
   Copilot-Here -ListMounts
   
   # Set default image
-  Copilot-Here -SetDefaultImage dotnet
-  Copilot-Here -SetDefaultImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  Copilot-Here -SetImage dotnet
+  Copilot-Here -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
 
   # Ask a question
   Copilot-Here -p "how do I list files in PowerShell?"
@@ -1077,7 +1095,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.6
+VERSION: 2025-11-20.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1115,6 +1133,9 @@ function Copilot-Yolo {
         [string]$SaveMount,
         [string]$SaveMountGlobal,
         [string]$RemoveMount,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
         [switch]$UpdateScripts,
@@ -1141,6 +1162,21 @@ function Copilot-Yolo {
     
     if ($RemoveMount) {
         Remove-MountFromConfig -Path $RemoveMount
+        return
+    }
+
+    if ($ShowImage) {
+        Show-ImageConfig
+        return
+    }
+
+    if ($SetImage) {
+        Save-ImageConfig -ImageTag $SetImage -IsGlobal $false
+        return
+    }
+
+    if ($SetImageGlobal) {
+        Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
         return
     }
 
@@ -1181,8 +1217,8 @@ MOUNT MANAGEMENT:
 
 IMAGE MANAGEMENT:
   -ShowImage               Show current default image configuration
-  -SetDefaultImage <tag>   Set default image in local config
-  -SetDefaultImageGlobal <tag> Set default image in global config
+  -SetImage <tag>   Set default image in local config
+  -SetImageGlobal <tag> Set default image in global config
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -1201,8 +1237,8 @@ EXAMPLES:
   Copilot-Yolo
   
   # Set default image
-  Copilot-Yolo -SetDefaultImage dotnet
-  Copilot-Yolo -SetDefaultImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  Copilot-Yolo -SetImage dotnet
+  Copilot-Yolo -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
 
   # Execute without confirmation
   Copilot-Yolo -p "run the tests and fix failures"
@@ -1231,7 +1267,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.6
+VERSION: 2025-11-20.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
