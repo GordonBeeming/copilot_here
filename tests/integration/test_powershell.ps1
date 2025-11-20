@@ -220,3 +220,4 @@ if ($HelpOutput -match "ListMounts") {
 # Cleanup and summary
 Cleanup
 Print-Summary
+exit 0

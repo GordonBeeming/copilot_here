@@ -212,3 +212,4 @@ try {
 }
 
 Print-Summary
+exit 0

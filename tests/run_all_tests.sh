@@ -57,7 +57,7 @@ if command -v pwsh >/dev/null 2>&1; then
   # PowerShell integration tests (now cross-platform compatible)
   echo -e "${BLUE}Running PowerShell tests...${NC}"
   TOTAL_SUITES=$((TOTAL_SUITES + 1))
-  if pwsh -File "$TEST_DIR/test_powershell.ps1"; then
+  if pwsh -File "$SCRIPT_DIR/run_all_tests.ps1"; then
     echo -e "${GREEN}✓ PowerShell tests passed${NC}"
     PASSED_SUITES=$((PASSED_SUITES + 1))
   else
@@ -104,6 +104,30 @@ if bash "$TEST_DIR/test_mount_config.sh"; then
   PASSED_SUITES=$((PASSED_SUITES + 1))
 else
   echo -e "${RED}✗ Mount configuration tests failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
+# Test image configuration (Bash)
+echo -e "${BLUE}Running image configuration tests...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_image_config.sh"; then
+  echo -e "${GREEN}✓ Image configuration tests passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ Image configuration tests failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
+# Test window title (Bash)
+echo -e "${BLUE}Running window title tests...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_window_title.sh"; then
+  echo -e "${GREEN}✓ Window title tests passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ Window title tests failed${NC}"
   FAILED_SUITES=$((FAILED_SUITES + 1))
 fi
 echo ""

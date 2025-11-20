@@ -67,3 +67,4 @@ if ($output -match "MOCK_TITLE_CHECK: .*🤖⚡️ $currentDirName") {
 }
 
 Write-Host "All tests passed!" -ForegroundColor Green
+exit 0
