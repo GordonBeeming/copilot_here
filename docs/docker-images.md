@@ -68,3 +68,14 @@ Each image variant is also tagged with the commit SHA for reproducibility:
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-9-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-10-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright-sha-<commit>`
+
+## Image Management
+
+You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwright`, or a specific SHA) so you don't have to pass flags every time.
+
+```text
+IMAGE MANAGEMENT:
+  --show-image      Show current default image configuration
+  --set-image <tag> Set default image in local config
+  --set-image-global <tag> Set default image in global config
+```
