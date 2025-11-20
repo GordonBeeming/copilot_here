@@ -2,7 +2,7 @@
 
 Run the GitHub Copilot CLI from any directory on your machine, inside a sandboxed Docker container that automatically uses your existing `gh` authentication.
 
-
+[![Build and Publish Docker Images](https://github.com/GordonBeeming/copilot_here/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/GordonBeeming/copilot_here/actions/workflows/publish.yml)
 
 ## 🚀 What is this?
 
