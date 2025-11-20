@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.11
+# Version: 2025-11-20.12
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -455,18 +455,18 @@ __copilot_cleanup_images() {
   fi
   
   local count=0
-  while IFS='|' read -r image_id image_name created_at; do
+  while IFS='|' read -r cleanup_image_id cleanup_image_name cleanup_created_at; do
     # Check if this is the image we want to keep (by ID)
-    if [ -n "$image_id" ] && [ "$image_id" != "$keep_image_id" ]; then
+    if [ -n "$cleanup_image_id" ] && [ "$cleanup_image_id" != "$keep_image_id" ]; then
       # Parse creation date (format: "2025-01-28 12:34:56 +0000 UTC")
-      local image_date=$(date -d "$created_at" +%s 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z %Z" "$created_at" +%s 2>/dev/null)
+      local image_date=$(date -d "$cleanup_created_at" +%s 2>/dev/null || date -j -f "%Y-%m-%d %H:%M:%S %z %Z" "$cleanup_created_at" +%s 2>/dev/null)
       
       if [ -n "$image_date" ] && [ "$image_date" -lt "$cutoff_date" ]; then
-        echo "  🗑️  Removing old image: $image_name (ID: ${image_id:7:12}...) (created: ${created_at})"
-        if docker rmi -f "$image_id" > /dev/null 2>&1; then
+        echo "  🗑️  Removing old image: $cleanup_image_name (ID: ${cleanup_image_id:7:12}...) (created: ${cleanup_created_at})"
+        if docker rmi -f "$cleanup_image_id" > /dev/null 2>&1; then
           ((count++))
         else
-          echo "  ⚠️  Failed to remove: $image_name (may be in use by running container)"
+          echo "  ⚠️  Failed to remove: $cleanup_image_name (may be in use by running container)"
         fi
       fi
     fi
@@ -1053,7 +1053,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.11
+VERSION: 2025-11-20.12
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1262,7 +1262,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.11
+VERSION: 2025-11-20.12
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
