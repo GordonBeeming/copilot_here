@@ -39,7 +39,10 @@ All images support both **AMD64** (x86_64) and **ARM64** (Apple Silicon, etc.) a
 
 All functions support switching between Docker image variants using flags:
 - **No flag** - Base image (Node.js, Git, basic tools)
-- **`-d` or `--dotnet`** - .NET image (includes .NET 8 & 9 SDKs)
+- **`-d` or `--dotnet`** - .NET image (includes .NET 8, 9 & 10 SDKs)
+- **`-d8` or `--dotnet8`** - .NET 8 image (includes .NET 8 SDK)
+- **`-d9` or `--dotnet9`** - .NET 9 image (includes .NET 9 SDK)
+- **`-d10` or `--dotnet10`** - .NET 10 image (includes .NET 10 SDK)
 - **`-dp` or `--dotnet-playwright`** - .NET + Playwright image (includes browser automation)
 
 ### Additional Options
@@ -348,6 +351,39 @@ local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet"
 ```
 
 **Best for:** .NET development, building/testing .NET applications, ASP.NET Core projects
+
+#### .NET 8 Image
+**Tag:** `dotnet-8`
+
+Extends the base image with .NET 8 SDK support.
+
+**Includes:**
+- .NET 8.0 SDK
+- All base image features
+
+**Best for:** .NET 8 specific development
+
+#### .NET 9 Image
+**Tag:** `dotnet-9`
+
+Extends the base image with .NET 9 SDK support.
+
+**Includes:**
+- .NET 9.0 SDK
+- All base image features
+
+**Best for:** .NET 9 specific development
+
+#### .NET 10 Image
+**Tag:** `dotnet-10`
+
+Extends the base image with .NET 10 SDK support.
+
+**Includes:**
+- .NET 10.0 SDK
+- All base image features
+
+**Best for:** .NET 10 specific development
 
 #### .NET + Playwright Image
 **Tag:** `dotnet-playwright`

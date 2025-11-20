@@ -1,6 +1,6 @@
 # Docker Image Variants
 
-This repository now publishes three Docker image variants:
+This repository publishes multiple Docker image variants to optimize for size and functionality:
 
 ## Base Image: `latest`
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:latest`
@@ -10,66 +10,61 @@ The standard copilot_here image with:
 - GitHub Copilot CLI
 - Git, curl, gpg, gosu
 
-**Usage:**
-```bash
-copilot_here() {
-  local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
-  # ... rest of function
-}
-```
+## .NET Images
 
-## Playwright Image: `playwright`
-**Tag:** `ghcr.io/gordonbeeming/copilot_here:playwright`
+### Full .NET Image: `dotnet`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet`
 
 Extends the base image with:
-- Everything from the base image
+- .NET 8 SDK
+- .NET 9 SDK
+- .NET 10 SDK
+
+### .NET 8 Image: `dotnet-8`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-8`
+
+Extends the base image with:
+- .NET 8 SDK
+
+### .NET 9 Image: `dotnet-9`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-9`
+
+Extends the base image with:
+- .NET 9 SDK
+
+### .NET 10 Image: `dotnet-10`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-10`
+
+Extends the base image with:
+- .NET 10 SDK
+
+## Playwright Image: `dotnet-playwright`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright`
+
+Extends the **Full .NET Image** with:
 - Playwright (latest version)
 - Chromium browser with all dependencies
 - System libraries for browser automation
 
 **Use Case:** Web testing, browser automation, checking published web content
 
-**Usage:**
-```bash
-copilot_playwright() {
-  local image_name="ghcr.io/gordonbeeming/copilot_here:playwright"
-  # ... rest of function
-}
-```
+## Build Dependency Chain
 
-## .NET Image: `dotnet`
-**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet`
-
-Extends the Playwright image with:
-- Everything from the Playwright image
-- .NET 8 SDK
-- .NET 9 SDK
-
-**Use Case:** .NET development, building and testing .NET applications with web testing capabilities
-
-**Usage:**
-```bash
-copilot_dotnet() {
-  local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet"
-  # ... rest of function
-}
+```mermaid
+graph TD
+    Base[Base Image] --> Dotnet[Full .NET Image]
+    Base --> Dotnet8[.NET 8 Image]
+    Base --> Dotnet9[.NET 9 Image]
+    Base --> Dotnet10[.NET 10 Image]
+    Dotnet --> Playwright[Playwright Image]
 ```
 
 ## Version Tags
 
 Each image variant is also tagged with the commit SHA for reproducibility:
 - `ghcr.io/gordonbeeming/copilot_here:sha-<commit>`
-- `ghcr.io/gordonbeeming/copilot_here:playwright-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-sha-<commit>`
-
-## Build Dependency Chain
-
-```
-Base Image (Dockerfile)
-    ↓
-Playwright Image (Dockerfile.playwright) 
-    ↓
-.NET Image (Dockerfile.dotnet)
-```
-
-Each image in the chain uses the commit-specific tag from the same workflow run to ensure consistency.
+- `ghcr.io/gordonbeeming/copilot_here:dotnet-8-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:dotnet-9-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:dotnet-10-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright-sha-<commit>`
