@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.3
+# Version: 2025-11-20.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -322,6 +322,89 @@ __copilot_remove_mount() {
     echo "⚠️  Mount not found in any config: $path"
     return 1
   fi
+}
+
+# Helper function to save default image to config
+__copilot_save_image_config() {
+  local image_tag="$1"
+  local is_global="$2"
+  local config_file
+  
+  if [ "$is_global" = "true" ]; then
+    config_file="$HOME/.config/copilot_here/image.conf"
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+    fi
+    /bin/mkdir -p "$(/usr/bin/dirname "$config_file")"
+    echo "✅ Saved default image to global config: $image_tag"
+  else
+    config_file=".copilot_here/image.conf"
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+    fi
+    /bin/mkdir -p "$(/usr/bin/dirname "$config_file")"
+    echo "✅ Saved default image to local config: $image_tag"
+  fi
+  
+  echo "$image_tag" > "$config_file"
+  echo "   Config file: $config_file"
+}
+
+# Helper function to get default image
+__copilot_get_default_image() {
+  local local_config=".copilot_here/image.conf"
+  local global_config="$HOME/.config/copilot_here/image.conf"
+  
+  # Check local config first
+  if [ -f "$local_config" ]; then
+    local image=$(head -n 1 "$local_config" | tr -d '[:space:]')
+    if [ -n "$image" ]; then
+      echo "$image"
+      return 0
+    fi
+  fi
+  
+  # Check global config
+  if [ -f "$global_config" ]; then
+    local image=$(head -n 1 "$global_config" | tr -d '[:space:]')
+    if [ -n "$image" ]; then
+      echo "$image"
+      return 0
+    fi
+  fi
+  
+  # Default
+  echo "latest"
+}
+
+# Helper function to show default image
+__copilot_show_default_image() {
+  local local_config=".copilot_here/image.conf"
+  local global_config="$HOME/.config/copilot_here/image.conf"
+  local current_default=$(__copilot_get_default_image)
+  
+  echo "🖼️  Image Configuration:"
+  echo "  Current effective default: $current_default"
+  echo ""
+  
+  if [ -f "$local_config" ]; then
+    local local_img=$(head -n 1 "$local_config" | tr -d '[:space:]')
+    echo "  📍 Local config (.copilot_here/image.conf): $local_img"
+  else
+    echo "  📍 Local config: (not set)"
+  fi
+  
+  if [ -f "$global_config" ]; then
+    local global_img=$(head -n 1 "$global_config" | tr -d '[:space:]')
+    echo "  🌍 Global config (~/.config/copilot_here/image.conf): $global_img"
+  else
+    echo "  🌍 Global config: (not set)"
+  fi
+  
+  echo ""
+  echo "  🔧 Base default: latest"
 }
 
 # Helper function for security checks (shared by all variants)
@@ -859,7 +942,7 @@ __copilot_check_for_updates() {
 
 # Safe Mode: Asks for confirmation before executing
 copilot_here() {
-  local image_tag="latest"
+  local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
   local args=()
@@ -879,6 +962,7 @@ copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 USAGE:
   copilot_here [OPTIONS] [COPILOT_ARGS]
   copilot_here [MOUNT_MANAGEMENT]
+  copilot_here [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
@@ -900,6 +984,11 @@ MOUNT MANAGEMENT:
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
  copilot_here --save-mount ~/notes:rw
  copilot_here --save-mount-global ~/data:rw
+
+IMAGE MANAGEMENT:
+  --show-image      Show current default image configuration
+  --set-default-image <tag> Set default image in local config
+  --set-default-image-global <tag> Set default image in global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -937,6 +1026,10 @@ EXAMPLES:
   copilot_here --save-mount-global ~/common-data
   copilot_here --list-mounts
   
+  # Set default image
+  copilot_here --set-default-image dotnet
+  copilot_here --set-default-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  
   # Ask a question (short syntax)
   copilot_here -p "how do I list files in bash?"
   
@@ -956,7 +1049,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.3
+VERSION: 2025-11-20.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -998,6 +1091,28 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
+       return 0
+       ;;
+     --show-image)
+       __copilot_show_default_image
+       return 0
+       ;;
+     --set-default-image)
+       shift
+       if [ -z "$1" ]; then
+         echo "❌ Error: --set-default-image requires an image tag argument"
+         return 1
+       fi
+       __copilot_save_image_config "$1" "false"
+       return 0
+       ;;
+     --set-default-image-global)
+       shift
+       if [ -z "$1" ]; then
+         echo "❌ Error: --set-default-image-global requires an image tag argument"
+         return 1
+       fi
+       __copilot_save_image_config "$1" "true"
        return 0
        ;;
      --mount)
@@ -1052,7 +1167,7 @@ EOF
 
 # YOLO Mode: Auto-approves all tool usage
 copilot_yolo() {
-  local image_tag="latest"
+  local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
   local args=()
@@ -1072,6 +1187,7 @@ copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 USAGE:
   copilot_yolo [OPTIONS] [COPILOT_ARGS]
   copilot_yolo [MOUNT_MANAGEMENT]
+  copilot_yolo [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant
@@ -1093,6 +1209,11 @@ MOUNT MANAGEMENT:
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
  copilot_yolo --save-mount ~/notes:rw
  copilot_yolo --save-mount-global ~/data:rw
+
+IMAGE MANAGEMENT:
+  --show-image      Show current default image configuration
+  --set-default-image <tag> Set default image in local config
+  --set-default-image-global <tag> Set default image in global config
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -1137,7 +1258,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.3
+VERSION: 2025-11-20.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1179,6 +1300,28 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
+       return 0
+       ;;
+     --show-image)
+       __copilot_show_default_image
+       return 0
+       ;;
+     --set-default-image)
+       shift
+       if [ -z "$1" ]; then
+         echo "❌ Error: --set-default-image requires an image tag argument"
+         return 1
+       fi
+       __copilot_save_image_config "$1" "false"
+       return 0
+       ;;
+     --set-default-image-global)
+       shift
+       if [ -z "$1" ]; then
+         echo "❌ Error: --set-default-image-global requires an image tag argument"
+         return 1
+       fi
+       __copilot_save_image_config "$1" "true"
        return 0
        ;;
      --mount)

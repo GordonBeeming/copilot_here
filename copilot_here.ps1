@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.3
+# Version: 2025-11-20.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -355,6 +355,105 @@ function Remove-MountFromConfig {
     
     if (-not $removed) {
         Write-Host "⚠️  Mount not found in any config: $Path" -ForegroundColor Yellow
+    }
+}
+
+# Helper function to save default image to config
+function Save-ImageConfig {
+    param(
+        [string]$ImageTag,
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configFile = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+        $configDir = Split-Path $configFile.Replace('/', '\')
+        if (-not (Test-Path $configDir)) {
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        }
+        Write-Host "✅ Saved default image to global config: $ImageTag" -ForegroundColor Green
+    } else {
+        $configFile = ".copilot_here/image.conf"
+        if (-not (Test-Path ".copilot_here")) {
+            New-Item -ItemType Directory -Path ".copilot_here" -Force | Out-Null
+        }
+        Write-Host "✅ Saved default image to local config: $ImageTag" -ForegroundColor Green
+    }
+    
+    $configFilePath = $configFile.Replace('/', '\')
+    Set-Content -Path $configFilePath -Value $ImageTag
+    Write-Host "   Config file: $configFile"
+}
+
+# Helper function to get default image
+function Get-DefaultImage {
+    $localConfig = ".copilot_here/image.conf"
+    $globalConfig = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+    
+    if (Test-Path $localConfig) {
+        $image = Get-Content $localConfig -TotalCount 1
+        if (-not [string]::IsNullOrWhiteSpace($image)) {
+            return $image.Trim()
+        }
+    }
+    
+    if (Test-Path $globalConfig) {
+        $image = Get-Content $globalConfig -TotalCount 1
+        if (-not [string]::IsNullOrWhiteSpace($image)) {
+            return $image.Trim()
+        }
+    }
+    
+    return "latest"
+}
+
+# Helper function to show default image
+function Show-ImageConfig {
+    $localConfig = ".copilot_here/image.conf"
+    $globalConfig = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+    $currentDefault = Get-DefaultImage
+    
+    Write-Host "🖼️  Image Configuration:"
+    Write-Host "  Current effective default: $currentDefault"
+    Write-Host ""
+    
+    $supportsEmoji = Test-EmojiSupport
+    
+    if (Test-Path $localConfig) {
+        $localImg = (Get-Content $localConfig -TotalCount 1).Trim()
+        if ($supportsEmoji) {
+            Write-Host "  📍 Local config (.copilot_here/image.conf): $localImg"
+        } else {
+            Write-Host "  L: Local config (.copilot_here/image.conf): $localImg"
+        }
+    } else {
+         if ($supportsEmoji) {
+            Write-Host "  📍 Local config: (not set)"
+        } else {
+            Write-Host "  L: Local config: (not set)"
+        }
+    }
+    
+    if (Test-Path $globalConfig) {
+        $globalImg = (Get-Content $globalConfig -TotalCount 1).Trim()
+        if ($supportsEmoji) {
+            Write-Host "  🌍 Global config (~/.config/copilot_here/image.conf): $globalImg"
+        } else {
+            Write-Host "  G: Global config (~/.config/copilot_here/image.conf): $globalImg"
+        }
+    } else {
+         if ($supportsEmoji) {
+            Write-Host "  🌍 Global config: (not set)"
+        } else {
+            Write-Host "  G: Global config: (not set)"
+        }
+    }
+    
+    Write-Host ""
+    if ($supportsEmoji) {
+        Write-Host "  🔧 Base default: latest"
+    } else {
+        Write-Host "  Base: latest"
     }
 }
 
@@ -891,6 +990,7 @@ copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
 USAGE:
   Copilot-Here [OPTIONS] [COPILOT_ARGS]
   Copilot-Here [MOUNT_MANAGEMENT]
+  Copilot-Here [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
@@ -912,6 +1012,11 @@ MOUNT MANAGEMENT:
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
  Copilot-Here -SaveMount ~/notes:rw
  Copilot-Here -SaveMountGlobal ~/data:rw
+
+IMAGE MANAGEMENT:
+  -ShowImage               Show current default image configuration
+  -SetDefaultImage <tag>   Set default image in local config
+  -SetDefaultImageGlobal <tag> Set default image in global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -949,6 +1054,10 @@ EXAMPLES:
   Copilot-Here -SaveMountGlobal ~/common-data
   Copilot-Here -ListMounts
   
+  # Set default image
+  Copilot-Here -SetDefaultImage dotnet
+  Copilot-Here -SetDefaultImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+
   # Ask a question
   Copilot-Here -p "how do I list files in PowerShell?"
   
@@ -968,7 +1077,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.3
+VERSION: 2025-11-20.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1047,6 +1156,7 @@ copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
 USAGE:
   Copilot-Yolo [OPTIONS] [COPILOT_ARGS]
   Copilot-Yolo [MOUNT_MANAGEMENT]
+  Copilot-Yolo [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant
@@ -1069,6 +1179,11 @@ MOUNT MANAGEMENT:
  Copilot-Yolo -SaveMount ~/notes:rw
  Copilot-Yolo -SaveMountGlobal ~/data:rw
 
+IMAGE MANAGEMENT:
+  -ShowImage               Show current default image configuration
+  -SetDefaultImage <tag>   Set default image in local config
+  -SetDefaultImageGlobal <tag> Set default image in global config
+
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
  -p, --prompt <text>     Execute a prompt directly
@@ -1085,6 +1200,10 @@ EXAMPLES:
   # Interactive mode (auto-approves all)
   Copilot-Yolo
   
+  # Set default image
+  Copilot-Yolo -SetDefaultImage dotnet
+  Copilot-Yolo -SetDefaultImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+
   # Execute without confirmation
   Copilot-Yolo -p "run the tests and fix failures"
   
@@ -1112,7 +1231,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.3
+VERSION: 2025-11-20.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
