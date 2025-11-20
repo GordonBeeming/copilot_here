@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.2.1
+# Version: 2025-11-20.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -691,6 +691,149 @@ function Invoke-CopilotRun {
     }
 }
 
+# Helper function to update scripts
+function Update-CopilotScripts {
+    Write-Host "📦 Updating copilot_here scripts from GitHub..."
+    
+    # Get current version
+    $currentVersion = ""
+    $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+    if (Test-Path $standalonePath) {
+        $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+    } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+        $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+    }
+    
+    # Check for standalone file
+    if (Test-Path $standalonePath) {
+        # Check if it's a symlink (junction/symbolic link)
+        $targetFile = $standalonePath
+        $item = Get-Item $standalonePath -Force
+        if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
+            $targetFile = $item.Target
+            Write-Host "🔗 Symlink detected, updating target: $targetFile"
+        }
+        
+        # Download to temp first to check version
+        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+        } catch {
+            Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+            return
+        }
+        
+        $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+        
+        if ($currentVersion -and $newVersion) {
+            Write-Host "📌 Version: $currentVersion → $newVersion"
+        }
+        
+        # Update the actual file (following symlinks)
+        Move-Item $tempScript $targetFile -Force
+        Write-Host "✅ Scripts updated successfully!"
+        Write-Host "🔄 Reloading..."
+        . $standalonePath
+        Write-Host "✨ Update complete! You're now on version $newVersion"
+        return
+    }
+    
+    # Update embedded version in profile
+    # Download to temp first to check version
+    $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
+    } catch {
+        Write-Host "❌ Failed to download: $_" -ForegroundColor Red
+        return
+    }
+    
+    $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
+    
+    if ($currentVersion -and $newVersion) {
+        Write-Host "📌 Version: $currentVersion → $newVersion"
+    }
+    
+    # Backup
+    $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    Copy-Item $PROFILE $backupPath
+    Write-Host "✅ Created backup: $backupPath"
+    
+    # Replace
+    $profileContent = Get-Content $PROFILE -Raw
+    if ($profileContent -match '# copilot_here PowerShell functions') {
+        $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
+        Set-Content $PROFILE $newProfile
+        Write-Host "✅ Scripts updated!"
+    } else {
+        Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
+        Write-Host "✅ Scripts added!"
+    }
+    
+    Remove-Item $tempScript
+    Write-Host "🔄 Reloading..."
+    . $PROFILE
+    Write-Host "✨ Update complete! You're now on version $newVersion"
+}
+
+# Helper function to check for updates
+function Test-CopilotUpdate {
+    # Skip in test mode
+    if ($env:COPILOT_HERE_TEST_MODE -eq "true") {
+        return $false
+    }
+
+    # Get current version
+    $currentVersion = ""
+    $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+    if (Test-Path $standalonePath) {
+        $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
+    } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
+        $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+    }
+    
+    if (-not $currentVersion) { return $false }
+
+    # Fetch remote version (with timeout)
+    try {
+        $remoteContent = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        $remoteVersion = ($remoteContent.Content -split "`n")[1] -replace '# Version: ', '' -replace "`r", ""
+    } catch {
+        return $false # Failed to check
+    }
+
+    if (-not $remoteVersion) { return $false }
+
+    if ($currentVersion -ne $remoteVersion) {
+        # Compare versions
+        try {
+            $v1Str = $currentVersion -replace '-', '.'
+            $v2Str = $remoteVersion -replace '-', '.'
+            $v1 = [System.Version]$v1Str
+            $v2 = [System.Version]$v2Str
+            if ($v2 -gt $v1) {
+                Write-Host "📢 Update available: $currentVersion → $remoteVersion"
+                $confirmation = Read-Host "Would you like to update now? [y/N]"
+                if ($confirmation.ToLower() -eq 'y' -or $confirmation.ToLower() -eq 'yes') {
+                    Update-CopilotScripts
+                    return $true
+                }
+            }
+        } catch {
+            # Fallback string compare
+            if ($remoteVersion -gt $currentVersion) {
+                 Write-Host "📢 Update available: $currentVersion → $remoteVersion"
+                $confirmation = Read-Host "Would you like to update now? [y/N]"
+                if ($confirmation.ToLower() -eq 'y' -or $confirmation.ToLower() -eq 'yes') {
+                    Update-CopilotScripts
+                    return $true
+                }
+            }
+        }
+    }
+    return $false
+}
+
 # Safe Mode: Asks for confirmation before executing
 function Copilot-Here {
     [CmdletBinding()]
@@ -737,87 +880,7 @@ function Copilot-Here {
     }
 
     if ($UpdateScripts -or $UpgradeScripts) {
-        Write-Host "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Get current version
-        $currentVersion = ""
-        $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-        if (Test-Path $standalonePath) {
-            $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
-        } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
-            $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
-        }
-        
-        # Check for standalone file
-        if (Test-Path $standalonePath) {
-            # Check if it's a symlink (junction/symbolic link)
-            $targetFile = $standalonePath
-            $item = Get-Item $standalonePath -Force
-            if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
-                $targetFile = $item.Target
-                Write-Host "🔗 Symlink detected, updating target: $targetFile"
-            }
-            
-            # Download to temp first to check version
-            $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-            try {
-                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-            } catch {
-                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
-                return
-            }
-            
-            $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
-            
-            if ($currentVersion -and $newVersion) {
-                Write-Host "📌 Version: $currentVersion → $newVersion"
-            }
-            
-            # Update the actual file (following symlinks)
-            Move-Item $tempScript $targetFile -Force
-            Write-Host "✅ Scripts updated successfully!"
-            Write-Host "🔄 Reloading..."
-            . $standalonePath
-            Write-Host "✨ Update complete! You're now on version $newVersion"
-            return
-        }
-        
-        # Update embedded version in profile
-        # Download to temp first to check version
-        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-        } catch {
-            Write-Host "❌ Failed to download: $_" -ForegroundColor Red
-            return
-        }
-        
-        $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
-        
-        if ($currentVersion -and $newVersion) {
-            Write-Host "📌 Version: $currentVersion → $newVersion"
-        }
-        
-        # Backup
-        $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-        Copy-Item $PROFILE $backupPath
-        Write-Host "✅ Created backup: $backupPath"
-        
-        # Replace
-        $profileContent = Get-Content $PROFILE -Raw
-        if ($profileContent -match '# copilot_here PowerShell functions') {
-            $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
-            Set-Content $PROFILE $newProfile
-            Write-Host "✅ Scripts updated!"
-        } else {
-            Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
-            Write-Host "✅ Scripts added!"
-        }
-        
-        Remove-Item $tempScript
-        Write-Host "🔄 Reloading..."
-        . $PROFILE
-        Write-Host "✨ Update complete! You're now on version $newVersion"
+        Update-CopilotScripts
         return
     }
 
@@ -905,7 +968,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.2.1
+VERSION: 2025-11-20.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -921,6 +984,8 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     # Initialize mount arrays if not provided
     if (-not $Mount) { $Mount = @() }
     if (-not $MountRW) { $MountRW = @() }
+    
+    if (Test-CopilotUpdate) { return }
     
     Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
 }
@@ -971,87 +1036,7 @@ function Copilot-Yolo {
     }
 
     if ($UpdateScripts -or $UpgradeScripts) {
-        Write-Host "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Get current version
-        $currentVersion = ""
-        $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-        if (Test-Path $standalonePath) {
-            $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
-        } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
-            $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
-        }
-        
-        # Check for standalone file
-        if (Test-Path $standalonePath) {
-            # Check if it's a symlink (junction/symbolic link)
-            $targetFile = $standalonePath
-            $item = Get-Item $standalonePath -Force
-            if ($item.LinkType -eq "SymbolicLink" -or $item.LinkType -eq "Junction") {
-                $targetFile = $item.Target
-                Write-Host "🔗 Symlink detected, updating target: $targetFile"
-            }
-            
-            # Download to temp first to check version
-            $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-            try {
-                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-            } catch {
-                Write-Host "❌ Failed to download: $_" -ForegroundColor Red
-                return
-            }
-            
-            $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
-            
-            if ($currentVersion -and $newVersion) {
-                Write-Host "📌 Version: $currentVersion → $newVersion"
-            }
-            
-            # Update the actual file (following symlinks)
-            Move-Item $tempScript $targetFile -Force
-            Write-Host "✅ Scripts updated successfully!"
-            Write-Host "🔄 Reloading..."
-            . $standalonePath
-            Write-Host "✨ Update complete! You're now on version $newVersion"
-            return
-        }
-        
-        # Update embedded version in profile
-        # Download to temp first to check version
-        $tempScript = Join-Path $env:TEMP "copilot_here_update.ps1"
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $tempScript
-        } catch {
-            Write-Host "❌ Failed to download: $_" -ForegroundColor Red
-            return
-        }
-        
-        $newVersion = (Get-Content $tempScript -TotalCount 2)[1] -replace '# Version: ', ''
-        
-        if ($currentVersion -and $newVersion) {
-            Write-Host "📌 Version: $currentVersion → $newVersion"
-        }
-        
-        # Backup
-        $backupPath = "$PROFILE.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-        Copy-Item $PROFILE $backupPath
-        Write-Host "✅ Created backup: $backupPath"
-        
-        # Replace
-        $profileContent = Get-Content $PROFILE -Raw
-        if ($profileContent -match '# copilot_here PowerShell functions') {
-            $newProfile = $profileContent -replace '(?s)# copilot_here PowerShell functions.*?Set-Alias -Name copilot_yolo -Value Copilot-Yolo', (Get-Content $tempScript -Raw)
-            Set-Content $PROFILE $newProfile
-            Write-Host "✅ Scripts updated!"
-        } else {
-            Add-Content $PROFILE "`n$(Get-Content $tempScript -Raw)"
-            Write-Host "✅ Scripts added!"
-        }
-        
-        Remove-Item $tempScript
-        Write-Host "🔄 Reloading..."
-        . $PROFILE
-        Write-Host "✨ Update complete! You're now on version $newVersion"
+        Update-CopilotScripts
         return
     }
 
@@ -1127,7 +1112,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.2.1
+VERSION: 2025-11-20.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1143,6 +1128,8 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     # Initialize mount arrays if not provided
     if (-not $Mount) { $Mount = @() }
     if (-not $MountRW) { $MountRW = @() }
+    
+    if (Test-CopilotUpdate) { return }
     
     Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
 }

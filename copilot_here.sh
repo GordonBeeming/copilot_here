@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.2
+# Version: 2025-11-20.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -715,6 +715,148 @@ __copilot_run() {
   )
 }
 
+# Helper function to update scripts
+__copilot_update_scripts() {
+  echo "📦 Updating copilot_here scripts from GitHub..."
+  
+  # Get current version
+  local current_version=""
+  if [ -f ~/.copilot_here.sh ]; then
+    current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+  elif type copilot_here >/dev/null 2>&1; then
+    current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
+  fi
+  
+  # Check if using standalone file installation
+  if [ -f ~/.copilot_here.sh ]; then
+    echo "✅ Detected standalone installation at ~/.copilot_here.sh"
+    
+    # Check if it's a symlink
+    local target_file=~/.copilot_here.sh
+    if [ -L ~/.copilot_here.sh ]; then
+      target_file=$(readlink -f ~/.copilot_here.sh)
+      echo "🔗 Symlink detected, updating target: $target_file"
+    fi
+    
+    # Download to temp first to check version
+    local temp_script=$(mktemp)
+    if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+      echo "❌ Failed to download script"
+      rm -f "$temp_script"
+      return 1
+    fi
+    
+    local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+    
+    if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+      echo "📌 Version: $current_version → $new_version"
+    fi
+    
+    # Update the actual file (following symlinks)
+    mv "$temp_script" "$target_file"
+    echo "✅ Scripts updated successfully!"
+    echo "🔄 Reloading..."
+    source ~/.copilot_here.sh
+    echo "✨ Update complete! You're now on version $new_version"
+    return 0
+  fi
+  
+  # Inline installation - update shell config
+  local config_file=""
+  if [ -n "$ZSH_VERSION" ]; then
+    config_file="${ZDOTDIR:-$HOME}/.zshrc"
+  elif [ -n "$BASH_VERSION" ]; then
+    config_file="$HOME/.bashrc"
+  else
+    echo "❌ Unsupported shell. Please update manually."
+    return 1
+  fi
+  
+  if [ ! -f "$config_file" ]; then
+    echo "❌ Shell config not found: $config_file"
+    return 1
+  fi
+  
+  # Download latest
+  local temp_script=$(mktemp)
+  if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
+    echo "❌ Failed to download script"
+    rm -f "$temp_script"
+    return 1
+  fi
+  
+  local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
+  
+  if [ -n "$current_version" ] && [ -n "$new_version" ]; then
+    echo "📌 Version: $current_version → $new_version"
+  fi
+  
+  # Backup
+  cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+  echo "✅ Created backup"
+  
+  # Replace script
+  if /usr/bin/grep -q "# copilot_here shell functions" "$config_file"; then
+    awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
+    cat "$temp_script" >> "${config_file}.tmp"
+    mv "${config_file}.tmp" "$config_file"
+    echo "✅ Scripts updated!"
+  else
+    echo "" >> "$config_file"
+    cat "$temp_script" >> "$config_file"
+    echo "✅ Scripts added!"
+  fi
+  
+  rm -f "$temp_script"
+  echo "🔄 Reloading..."
+  source "$config_file"
+  echo "✨ Update complete! You're now on version $new_version"
+  return 0
+}
+
+# Helper function to check for updates
+__copilot_check_for_updates() {
+  # Skip in test mode
+  if [ "$COPILOT_HERE_TEST_MODE" = "true" ]; then
+    return 0
+  fi
+
+  # Get current version
+  local current_version=""
+  if [ -f ~/.copilot_here.sh ]; then
+    current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
+  elif type copilot_here >/dev/null 2>&1; then
+    current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
+  fi
+  
+  if [ -z "$current_version" ]; then
+    return 0
+  fi
+
+  # Fetch remote version (with timeout)
+  local remote_version=$(curl -m 2 -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" 2>/dev/null | sed -n '2s/# Version: //p')
+
+  if [ -z "$remote_version" ]; then
+    return 0 # Failed to check or offline
+  fi
+
+  if [ "$current_version" != "$remote_version" ]; then
+     # Check if remote is actually newer using sort -V
+     local newest=$(printf "%s\n%s" "$current_version" "$remote_version" | sort -V | tail -n1)
+     if [ "$newest" = "$remote_version" ]; then
+        echo "📢 Update available: $current_version → $remote_version"
+        printf "Would you like to update now? [y/N]: "
+        read confirmation
+        local lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
+        if [[ "$lower_confirmation" == "y" || "$lower_confirmation" == "yes" ]]; then
+           __copilot_update_scripts
+           return 1 # Updated
+        fi
+     fi
+  fi
+  return 0
+}
+
 # Safe Mode: Asks for confirmation before executing
 copilot_here() {
   local image_tag="latest"
@@ -814,7 +956,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.2
+VERSION: 2025-11-20.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -893,101 +1035,8 @@ EOF
         shift
         ;;
       --update-scripts|--upgrade-scripts)
-        echo "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Get current version
-        local current_version=""
-        if [ -f ~/.copilot_here.sh ]; then
-          current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
-        elif type copilot_here >/dev/null 2>&1; then
-          current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
-        fi
-        
-        # Check if using standalone file installation
-        if [ -f ~/.copilot_here.sh ]; then
-          echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-          
-          # Check if it's a symlink
-          local target_file=~/.copilot_here.sh
-          if [ -L ~/.copilot_here.sh ]; then
-            target_file=$(readlink -f ~/.copilot_here.sh)
-            echo "🔗 Symlink detected, updating target: $target_file"
-          fi
-          
-          # Download to temp first to check version
-          local temp_script=$(mktemp)
-          if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-             Failed to download script"echo "
-            rm -f "$temp_script"
-            return 1
-          fi
-          
-          local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
-          
-          if [ -n "$current_version" ] && [ -n "$new_version" ]; then
-            echo "📌 Version: $current_version → $new_version"
-          fi
-          
-          # Update the actual file (following symlinks)
-          mv "$temp_script" "$target_file"
-          echo "✅ Scripts updated successfully!"
-          echo "🔄 Reloading..."
-          source ~/.copilot_here.sh
-          echo "✨ Update complete! You're now on version $new_version"
-          return 0
-        fi
-        
-        # Inline installation - update shell config
-        local config_file=""
-        if [ -n "$ZSH_VERSION" ]; then
-          config_file="${ZDOTDIR:-$HOME}/.zshrc"
-        elif [ -n "$BASH_VERSION" ]; then
-          config_file="$HOME/.bashrc"
-        else
-          echo "❌ Unsupported shell. Please update manually."
-          return 1
-        fi
-        
-        if [ ! -f "$config_file" ]; then
-          echo "❌ Shell config not found: $config_file"
-          return 1
-        fi
-        
-        # Download latest
-        local temp_script=$(mktemp)
-        if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-          echo "❌ Failed to download script"
-          rm -f "$temp_script"
-          return 1
-        fi
-        
-        local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
-        
-        if [ -n "$current_version" ] && [ -n "$new_version" ]; then
-          echo "📌 Version: $current_version → $new_version"
-        fi
-        
-        # Backup
-        cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "✅ Created backup"
-        
-        # Replace script
-        if /usr/bin/grep -q "# copilot_here shell functions" "$config_file"; then
-          awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
-          cat "$temp_script" >> "${config_file}.tmp"
-          mv "${config_file}.tmp" "$config_file"
-          echo "✅ Scripts updated!"
-        else
-          echo "" >> "$config_file"
-          cat "$temp_script" >> "$config_file"
-          echo "✅ Scripts added!"
-        fi
-        
-        rm -f "$temp_script"
-        echo "🔄 Reloading..."
-        source "$config_file"
-        echo "✨ Update complete! You're now on version $new_version"
-        return 0
+        __copilot_update_scripts
+        return $?
         ;;
       *)
         args+=("$1")
@@ -995,6 +1044,8 @@ EOF
         ;;
     esac
   done
+  
+  __copilot_check_for_updates || return 0
   
   __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
 }
@@ -1086,7 +1137,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.2
+VERSION: 2025-11-20.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1165,101 +1216,8 @@ EOF
         shift
         ;;
       --update-scripts|--upgrade-scripts)
-        echo "📦 Updating copilot_here scripts from GitHub..."
-        
-        # Get current version
-        local current_version=""
-        if [ -f ~/.copilot_here.sh ]; then
-          current_version=$(sed -n '2s/# Version: //p' ~/.copilot_here.sh 2>/dev/null)
-        elif type copilot_here >/dev/null 2>&1; then
-          current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
-        fi
-        
-        # Check if using standalone file installation
-        if [ -f ~/.copilot_here.sh ]; then
-          echo "✅ Detected standalone installation at ~/.copilot_here.sh"
-          
-          # Check if it's a symlink
-          local target_file=~/.copilot_here.sh
-          if [ -L ~/.copilot_here.sh ]; then
-            target_file=$(readlink -f ~/.copilot_here.sh)
-            echo "🔗 Symlink detected, updating target: $target_file"
-          fi
-          
-          # Download to temp first to check version
-          local temp_script=$(mktemp)
-          if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-             Failed to download script"echo "
-            rm -f "$temp_script"
-            return 1
-          fi
-          
-          local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
-          
-          if [ -n "$current_version" ] && [ -n "$new_version" ]; then
-            echo "📌 Version: $current_version → $new_version"
-          fi
-          
-          # Update the actual file (following symlinks)
-          mv "$temp_script" "$target_file"
-          echo "✅ Scripts updated successfully!"
-          echo "🔄 Reloading..."
-          source ~/.copilot_here.sh
-          echo "✨ Update complete! You're now on version $new_version"
-          return 0
-        fi
-        
-        # Inline installation - update shell config
-        local config_file=""
-        if [ -n "$ZSH_VERSION" ]; then
-          config_file="${ZDOTDIR:-$HOME}/.zshrc"
-        elif [ -n "$BASH_VERSION" ]; then
-          config_file="$HOME/.bashrc"
-        else
-          echo "❌ Unsupported shell. Please update manually."
-          return 1
-        fi
-        
-        if [ ! -f "$config_file" ]; then
-          echo "❌ Shell config not found: $config_file"
-          return 1
-        fi
-        
-        # Download latest
-        local temp_script=$(mktemp)
-        if ! curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh" -o "$temp_script"; then
-          echo "❌ Failed to download script"
-          rm -f "$temp_script"
-          return 1
-        fi
-        
-        local new_version=$(sed -n '2s/# Version: //p' "$temp_script" 2>/dev/null)
-        
-        if [ -n "$current_version" ] && [ -n "$new_version" ]; then
-          echo "📌 Version: $current_version → $new_version"
-        fi
-        
-        # Backup
-        cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "✅ Created backup"
-        
-        # Replace script
-        if /usr/bin/grep -q "# copilot_here shell functions" "$config_file"; then
-          awk '/# copilot_here shell functions/,/^}$/ {next} {print}' "$config_file" > "${config_file}.tmp"
-          cat "$temp_script" >> "${config_file}.tmp"
-          mv "${config_file}.tmp" "$config_file"
-          echo "✅ Scripts updated!"
-        else
-          echo "" >> "$config_file"
-          cat "$temp_script" >> "$config_file"
-          echo "✅ Scripts added!"
-        fi
-        
-        rm -f "$temp_script"
-        echo "🔄 Reloading..."
-        source "$config_file"
-        echo "✨ Update complete! You're now on version $new_version"
-        return 0
+        __copilot_update_scripts
+        return $?
         ;;
       *)
         args+=("$1")
@@ -1267,6 +1225,8 @@ EOF
         ;;
     esac
   done
+  
+  __copilot_check_for_updates || return 0
   
   __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
 }
