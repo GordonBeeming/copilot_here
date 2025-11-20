@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.13
+# Version: 2025-11-20.14
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -350,6 +350,40 @@ __copilot_save_image_config() {
   
   echo "$image_tag" > "$config_file"
   echo "   Config file: $config_file"
+}
+
+# Helper function to clear default image from config
+__copilot_clear_image_config() {
+  local is_global="$1"
+  local config_file
+  
+  if [ "$is_global" = "true" ]; then
+    config_file="$HOME/.config/copilot_here/image.conf"
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+    fi
+    
+    if [ -f "$config_file" ]; then
+      rm "$config_file"
+      echo "✅ Cleared default image from global config"
+    else
+      echo "⚠️  No global image config found to clear"
+    fi
+  else
+    config_file=".copilot_here/image.conf"
+    # Check if config file is a symlink and follow it
+    if [ -L "$config_file" ]; then
+      config_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+    fi
+    
+    if [ -f "$config_file" ]; then
+      rm "$config_file"
+      echo "✅ Cleared default image from local config"
+    else
+      echo "⚠️  No local image config found to clear"
+    fi
+  fi
 }
 
 # Helper function to get default image
@@ -996,6 +1030,8 @@ IMAGE MANAGEMENT:
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config
+  --clear-image     Clear default image from local config
+  --clear-image-global Clear default image from global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -1239,6 +1275,8 @@ IMAGE MANAGEMENT:
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config
+  --clear-image     Clear default image from local config
+  --clear-image-global Clear default image from global config
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:

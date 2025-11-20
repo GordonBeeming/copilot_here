@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.13
+# Version: 2025-11-20.14
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -383,6 +383,35 @@ function Save-ImageConfig {
     $configFilePath = $configFile.Replace('/', '\')
     Set-Content -Path $configFilePath -Value $ImageTag
     Write-Host "   Config file: $configFile"
+}
+
+# Helper function to clear default image from config
+function Clear-ImageConfig {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configFile = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+        $configFilePath = $configFile.Replace('/', '\')
+        
+        if (Test-Path $configFilePath) {
+            Remove-Item $configFilePath -Force
+            Write-Host "✅ Cleared default image from global config" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️  No global image config found to clear" -ForegroundColor Yellow
+        }
+    } else {
+        $configFile = ".copilot_here/image.conf"
+        $configFilePath = $configFile.Replace('/', '\')
+        
+        if (Test-Path $configFilePath) {
+            Remove-Item $configFilePath -Force
+            Write-Host "✅ Cleared default image from local config" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️  No local image config found to clear" -ForegroundColor Yellow
+        }
+    }
 }
 
 # Helper function to get default image
@@ -964,6 +993,8 @@ function Copilot-Here {
         [switch]$ShowImage,
         [string]$SetImage,
         [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
         [switch]$UpdateScripts,
@@ -1005,6 +1036,16 @@ function Copilot-Here {
 
     if ($SetImageGlobal) {
         Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
+        return
+    }
+
+    if ($ClearImage) {
+        Clear-ImageConfig -IsGlobal $false
+        return
+    }
+
+    if ($ClearImageGlobal) {
+        Clear-ImageConfig -IsGlobal $true
         return
     }
 
@@ -1050,6 +1091,8 @@ IMAGE MANAGEMENT:
   -ShowImage               Show current default image configuration
   -SetImage <tag>   Set default image in local config
   -SetImageGlobal <tag> Set default image in global config
+  -ClearImage              Clear default image from local config
+  -ClearImageGlobal        Clear default image from global config
 
 MOUNT CONFIG:
   Mounts can be configured in three ways (priority: CLI > Local > Global):
@@ -1113,7 +1156,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.13
+VERSION: 2025-11-20.14
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1166,6 +1209,8 @@ function Copilot-Yolo {
         [switch]$ShowImage,
         [string]$SetImage,
         [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
         [switch]$UpdateScripts,
@@ -1207,6 +1252,16 @@ function Copilot-Yolo {
 
     if ($SetImageGlobal) {
         Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
+        return
+    }
+
+    if ($ClearImage) {
+        Clear-ImageConfig -IsGlobal $false
+        return
+    }
+
+    if ($ClearImageGlobal) {
+        Clear-ImageConfig -IsGlobal $true
         return
     }
 
@@ -1252,6 +1307,8 @@ IMAGE MANAGEMENT:
   -ShowImage               Show current default image configuration
   -SetImage <tag>   Set default image in local config
   -SetImageGlobal <tag> Set default image in global config
+  -ClearImage              Clear default image from local config
+  -ClearImageGlobal        Clear default image from global config
 
 COPILOT_ARGS:
   All standard GitHub Copilot CLI arguments are supported:
@@ -1303,7 +1360,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.13
+VERSION: 2025-11-20.14
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return

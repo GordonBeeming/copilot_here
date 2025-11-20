@@ -78,4 +78,6 @@ IMAGE MANAGEMENT:
   --show-image      Show current default image configuration
   --set-image <tag> Set default image in local config
   --set-image-global <tag> Set default image in global config
+  --clear-image     Clear default image from local config
+  --clear-image-global Clear default image from global config
 ```

@@ -87,6 +87,8 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 - `--show-image` - Show current default image configuration (Bash/Zsh) or `-ShowImage` (PowerShell)
 - `--set-image <tag>` - Set default image in local config (Bash/Zsh) or `-SetImage <tag>` (PowerShell)
 - `--set-image-global <tag>` - Set default image in global config (Bash/Zsh) or `-SetImageGlobal <tag>` (PowerShell)
+- `--clear-image` - Clear default image from local config (Bash/Zsh) or `-ClearImage` (PowerShell)
+- `--clear-image-global` - Clear default image from global config (Bash/Zsh) or `-ClearImageGlobal` (PowerShell)
 
 **Configuration Files:**
 - Global: `~/.config/copilot_here/image.conf`
