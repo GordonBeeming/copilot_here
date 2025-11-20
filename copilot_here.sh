@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20
+# Version: 2025-11-20.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -469,6 +469,7 @@ __copilot_run() {
     container_work_dir="/home/appuser${relative_path}"
   fi
   
+
   local docker_args=(
     --rm -it
     -v "$current_dir:$container_work_dir"
@@ -696,7 +697,22 @@ __copilot_run() {
     copilot_args+=("$@")
   fi
 
-  docker run "${docker_args[@]}" "${copilot_args[@]}"
+  # Wrap in subshell to safely use trap for title reset
+  (
+    # Set terminal title
+    local title_emoji="🤖"
+    if [ "$allow_all_tools" = "true" ]; then
+      title_emoji="🤖⚡️"
+    fi
+    
+    local current_dir_name=$(basename "$current_dir")
+    local title="${title_emoji} ${current_dir_name}"
+    
+    printf "\033]0;%s\007" "$title"
+    trap 'printf "\033]0;\007"' EXIT
+    
+    docker run "${docker_args[@]}" "${copilot_args[@]}"
+  )
 }
 
 # Safe Mode: Asks for confirmation before executing
@@ -798,7 +814,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20
+VERSION: 2025-11-20.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1070,7 +1086,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20
+VERSION: 2025-11-20.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================

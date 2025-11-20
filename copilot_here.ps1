@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20
+# Version: 2025-11-20.2.1
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -660,7 +660,35 @@ function Invoke-CopilotRun {
     }
 
     $finalDockerArgs = $dockerBaseArgs + $copilotCommand
-    docker run $finalDockerArgs
+    
+    # Set terminal title
+    $titleEmoji = "🤖"
+    if ($AllowAllTools) {
+        $titleEmoji = "🤖⚡️"
+    }
+    
+    if (-not $currentDir) {
+        $currentDir = (Get-Location).Path
+        if ($currentDir) {
+            $currentDir = $currentDir.Replace('\', '/')
+        }
+    }
+    
+    if ($currentDir) {
+        $currentDirName = Split-Path -Leaf $currentDir
+    } else {
+        $currentDirName = "copilot_here"
+    }
+    $newTitle = "$titleEmoji $currentDirName"
+    
+    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $Host.UI.RawUI.WindowTitle = $newTitle
+    
+    try {
+        docker run $finalDockerArgs
+    } finally {
+        $Host.UI.RawUI.WindowTitle = $originalTitle
+    }
 }
 
 # Safe Mode: Asks for confirmation before executing
@@ -877,7 +905,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20
+VERSION: 2025-11-20.2.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1099,7 +1127,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20
+VERSION: 2025-11-20.2.1
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
