@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.15
+# Version: 2025-11-20.16
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1108,7 +1108,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.12
+VERSION: 2025-11-20.16
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1342,7 +1342,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.12
+VERSION: 2025-11-20.16
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================

@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.15
+# Version: 2025-11-20.16
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1174,7 +1174,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.14
+VERSION: 2025-11-20.16
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1385,7 +1385,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.14
+VERSION: 2025-11-20.16
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
