@@ -40,7 +40,8 @@ RUN mkdir -p /home/appuser/.cache/ms-playwright
 
 # Install Chromium browser for Playwright as root
 # Place it in a location that will be accessible to appuser at runtime
-RUN PLAYWRIGHT_BROWSERS_PATH=/home/appuser/.cache/ms-playwright npx playwright install chromium --with-deps
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/appuser/.cache/ms-playwright
+RUN npx playwright install chromium --with-deps
 
 # Fix ownership for the appuser (UID/GID from entrypoint will match)
 RUN chown -R 1000:1000 /home/appuser 2>/dev/null || true
