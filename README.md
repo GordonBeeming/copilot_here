@@ -43,6 +43,7 @@ All functions support switching between Docker image variants using flags:
 - **`-d8` or `--dotnet8`** - .NET 8 image (includes .NET 8 SDK)
 - **`-d9` or `--dotnet9`** - .NET 9 image (includes .NET 9 SDK)
 - **`-d10` or `--dotnet10`** - .NET 10 image (includes .NET 10 SDK)
+- **`-pw` or `--playwright`** - Playwright image (includes browser automation)
 - **`-dp` or `--dotnet-playwright`** - .NET + Playwright image (includes browser automation)
 
 ### Additional Options
@@ -388,6 +389,24 @@ Extends the base image with .NET 10 SDK support.
 
 **Best for:** .NET 10 specific development
 
+#### Playwright Image
+**Tag:** `playwright`
+
+Extends the base image with Playwright browser automation capabilities.
+
+**Includes:**
+- Playwright (latest)
+- Chromium browser with dependencies
+- All base image features
+
+**Usage:**
+```bash
+# Update the image_name in your function to use the Playwright variant
+local image_name="ghcr.io/gordonbeeming/copilot_here:playwright"
+```
+
+**Best for:** Node.js web testing, browser automation, E2E testing with Playwright (no .NET)
+
 #### .NET + Playwright Image
 **Tag:** `dotnet-playwright`
 
@@ -413,6 +432,7 @@ local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet-playwright"
 
 - Use **`latest`** for general development, scripting, and Node.js projects
 - Use **`dotnet`** when working with .NET projects without browser testing needs
+- Use **`playwright`** when working with Node.js projects that need browser automation
 - Use **`dotnet-playwright`** when you need both .NET and browser automation capabilities
 
 Future variants may include Python, Java, and other language-specific toolchains.

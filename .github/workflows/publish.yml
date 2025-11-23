@@ -338,7 +338,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.playwright
+          file: ./Dockerfile.dotnet-playwright
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -351,7 +351,35 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright,mode=max
           cache-to: type=inline
 
-      # Step 16: Provide a clear summary message for scheduled runs when no update was needed
+      # Step 16: Extract metadata for Playwright image
+      - name: Extract metadata for Playwright image
+        id: meta-playwright-base
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=playwright
+            type=raw,value=playwright-sha-${{ github.sha }}
+
+      # Step 17: Build and push Playwright image (based on the base image)
+      - name: Build and push Playwright image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.playwright
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BASE_IMAGE_TAG=sha-${{ github.sha }}
+            PLAYWRIGHT_VERSION=${{ steps.versions.outputs.playwright_version }}
+          tags: ${{ steps.meta-playwright-base.outputs.tags }}
+          labels: |
+            ${{ steps.meta-playwright-base.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:playwright,mode=max
+          cache-to: type=inline
+
+      # Step 18: Provide a clear summary message for scheduled runs when no update was needed
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && steps.push_decision.outputs.push_needed == 'false'
         run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
@@ -374,6 +402,7 @@ jobs:
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-9\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-10\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:playwright\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi

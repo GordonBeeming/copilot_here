@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-20.16
+# Version: 2025-11-23
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -444,6 +444,7 @@ function Show-AvailableImages {
     Write-Host "  • dotnet-8 (.NET 8 SDK)"
     Write-Host "  • dotnet-9 (.NET 9 SDK)"
     Write-Host "  • dotnet-10 (.NET 10 SDK)"
+    Write-Host "  • playwright (Playwright)"
     Write-Host "  • dotnet-playwright (.NET + Playwright)"
     Write-Host "  • dotnet-sha-<sha> (Specific commit SHA)"
 }
@@ -1085,6 +1086,7 @@ OPTIONS:
   -d8, -Dotnet8            Use .NET 8 image variant
   -d9, -Dotnet9            Use .NET 9 image variant
   -d10, -Dotnet10          Use .NET 10 image variant
+  -pw, -Playwright         Use Playwright image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
@@ -1174,7 +1176,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.16
+VERSION: 2025-11-23
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1308,6 +1310,7 @@ OPTIONS:
   -d8, -Dotnet8            Use .NET 8 image variant
   -d9, -Dotnet9            Use .NET 9 image variant
   -d10, -Dotnet10          Use .NET 10 image variant
+  -pw, -Playwright         Use Playwright image variant
   -dp, -DotnetPlaywright   Use .NET + Playwright image variant
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
@@ -1385,7 +1388,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.16
+VERSION: 2025-11-23
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return

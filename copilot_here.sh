@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-20.16
+# Version: 2025-11-23
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -421,6 +421,7 @@ __copilot_list_images() {
   echo "  • dotnet-8 (.NET 8 SDK)"
   echo "  • dotnet-9 (.NET 9 SDK)"
   echo "  • dotnet-10 (.NET 10 SDK)"
+  echo "  • playwright (Playwright)"
   echo "  • dotnet-playwright (.NET + Playwright)"
   echo "  • dotnet-sha-<sha> (Specific commit SHA)"
 }
@@ -1019,6 +1020,7 @@ OPTIONS:
   -d8, --dotnet8            Use .NET 8 image variant
   -d9, --dotnet9            Use .NET 9 image variant
   -d10, --dotnet10          Use .NET 10 image variant
+  -pw, --playwright         Use Playwright image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
@@ -1108,7 +1110,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.16
+VERSION: 2025-11-23
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1269,6 +1271,7 @@ OPTIONS:
   -d8, --dotnet8            Use .NET 8 image variant
   -d9, --dotnet9            Use .NET 9 image variant
   -d10, --dotnet10          Use .NET 10 image variant
+  -pw, --playwright         Use Playwright image variant
   -dp, --dotnet-playwright  Use .NET + Playwright image variant
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
@@ -1342,7 +1345,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-20.16
+VERSION: 2025-11-23
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================

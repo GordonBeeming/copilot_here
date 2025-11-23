@@ -1,8 +1,8 @@
-# Build on top of the base image to add Playwright capabilities
+# Build on top of the .NET image to add Playwright capabilities
 # ARG will be provided by the build process with the commit hash
-ARG BASE_IMAGE_TAG
+ARG DOTNET_IMAGE_TAG
 ARG PLAYWRIGHT_VERSION=latest
-FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
+FROM ghcr.io/gordonbeeming/copilot_here:${DOTNET_IMAGE_TAG}
 
 # Switch to root to install packages
 USER root
