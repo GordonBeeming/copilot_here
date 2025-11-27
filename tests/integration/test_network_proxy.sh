@@ -233,7 +233,7 @@ fi
 
 # Test 15: Dockerfile.proxy exists
 test_start "Check Dockerfile.proxy exists"
-if [ -f "$SCRIPT_DIR/Dockerfile.proxy" ]; then
+if [ -f "$SCRIPT_DIR/docker/Dockerfile.proxy" ]; then
   test_pass "Dockerfile.proxy exists"
 else
   test_fail "Dockerfile.proxy not found"

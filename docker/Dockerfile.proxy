@@ -1,0 +1,39 @@
+# Build stage - use Alpine for smaller musl-based build
+FROM rust:1.83-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies for musl
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
+
+# Copy source from proxy/ subdirectory
+COPY proxy/Cargo.toml Cargo.toml
+COPY proxy/Cargo.lock Cargo.lock
+COPY proxy/src src
+
+# Build release binary (statically linked with musl)
+RUN OPENSSL_STATIC=1 cargo build --release
+
+# Runtime stage - minimal Alpine
+FROM alpine:3.21
+
+# Install only essential runtime dependencies
+RUN apk add --no-cache ca-certificates su-exec
+
+# Create proxy user
+RUN addgroup -S proxy-user && adduser -S -G proxy-user -h /app proxy-user
+
+# Copy binary from builder
+COPY --from=builder /build/target/release/secure-proxy /app/secure-proxy
+
+# Create directories
+RUN mkdir -p /config /logs /ca && \
+    chown -R proxy-user:proxy-user /app /config /logs /ca
+
+# Copy entrypoint
+COPY proxy-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 58080
+
+ENTRYPOINT ["/entrypoint.sh"]

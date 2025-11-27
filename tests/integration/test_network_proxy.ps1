@@ -224,7 +224,7 @@ if (Test-Path (Join-Path $ScriptDir "proxy-entrypoint.sh")) {
 
 # Test 16: Dockerfile.proxy exists
 Test-Start "Check Dockerfile.proxy exists"
-if (Test-Path (Join-Path $ScriptDir "Dockerfile.proxy")) {
+if (Test-Path (Join-Path $ScriptDir "docker/Dockerfile.proxy")) {
     Test-Pass "Dockerfile.proxy exists"
 } else {
     Test-Fail "Dockerfile.proxy not found"

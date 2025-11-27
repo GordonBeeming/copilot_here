@@ -162,6 +162,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile.base
           platforms: linux/amd64,linux/arm64
           push: false # We don't push yet; we decide that in the next step.
           load: false # Can't load multi-platform images
@@ -196,6 +197,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile.base
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -224,7 +226,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.proxy
+          file: ./docker/Dockerfile.proxy
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta-proxy.outputs.tags }}
@@ -249,7 +251,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet
+          file: ./docker/variants/Dockerfile.dotnet
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -279,7 +281,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet8
+          file: ./docker/variants/Dockerfile.dotnet8
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -307,7 +309,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet9
+          file: ./docker/variants/Dockerfile.dotnet9
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -335,7 +337,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet10
+          file: ./docker/variants/Dockerfile.dotnet10
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -363,7 +365,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet-playwright
+          file: ./docker/variants/Dockerfile.dotnet-playwright
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -391,7 +393,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.playwright
+          file: ./docker/variants/Dockerfile.playwright
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
