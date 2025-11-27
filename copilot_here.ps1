@@ -1046,7 +1046,9 @@ function Get-ProcessedNetworkConfig {
     
     # Write to temp file in a location Docker can access (user's config dir)
     # Fall back to system temp if config dir creation fails
-    $tempDir = "$env:USERPROFILE\.config\copilot_here\tmp"
+    # Use USERPROFILE on Windows, HOME on macOS/Linux
+    $userHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+    $tempDir = "$userHome/.config/copilot_here/tmp"
     try {
         if (-not (Test-Path $tempDir)) {
             New-Item -ItemType Directory -Path $tempDir -Force -ErrorAction Stop | Out-Null
