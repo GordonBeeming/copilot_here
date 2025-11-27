@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-23
+# Version: 2025-11-27
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -498,6 +498,253 @@ function Show-ImageConfig {
     }
 }
 
+# Helper function to create or load network proxy config
+function Ensure-NetworkConfig {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configFile = "$configDir\network.json"
+    } else {
+        $configDir = ".copilot_here"
+        $configFile = "$configDir\network.json"
+    }
+    
+    # Check if config already exists
+    if (Test-Path $configFile) {
+        Write-Host "✅ Using existing network config: $configFile"
+        return $true
+    }
+    
+    # Config doesn't exist - ask user about mode and create it
+    Write-Host "📝 Creating network proxy configuration..."
+    Write-Host ""
+    Write-Host "   The network proxy can run in two modes:"
+    Write-Host "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
+    Write-Host "   • [m]onitor - Log all requests but allow everything (useful for testing)"
+    Write-Host ""
+    $modeChoice = Read-Host "   Select mode (default: enforce)"
+    
+    $mode = "enforce"
+    if ($modeChoice.ToLower() -eq "monitor" -or $modeChoice.ToLower() -eq "m") {
+        $mode = "monitor"
+    }
+    
+    # Create config directory
+    if (-not (Test-Path $configDir)) {
+        try {
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        } catch {
+            Write-Host "❌ Error: Failed to create config directory: $configDir" -ForegroundColor Red
+            return $false
+        }
+    }
+    
+    # Load default rules if available
+    $defaultRulesFile = "$env:USERPROFILE\.config\copilot_here\default-network-rules.json"
+    $allowedRules = $null
+    
+    if (Test-Path $defaultRulesFile) {
+        try {
+            $defaultContent = Get-Content $defaultRulesFile -Raw | ConvertFrom-Json
+            $allowedRules = $defaultContent.allowed_rules
+        } catch {
+            # Fallback to inline defaults
+        }
+    }
+    
+    # Fallback to inline defaults if not found
+    if (-not $allowedRules) {
+        $allowedRules = @(
+            @{
+                host = "api.github.com"
+                allowed_paths = @("/user", "/graphql")
+            },
+            @{
+                host = "api.individual.githubcopilot.com"
+                allowed_paths = @("/models", "/mcp/readonly", "/chat/completions")
+            }
+        )
+    }
+    
+    # Create config object
+    $config = @{
+        inherit_default_rules = $true
+        mode = $mode
+        allowed_rules = $allowedRules
+    }
+    
+    # Write config file
+    try {
+        $config | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+    } catch {
+        Write-Host "❌ Error: Failed to write config file: $configFile" -ForegroundColor Red
+        return $false
+    }
+    
+    Write-Host ""
+    Write-Host "✅ Created network config: $configFile" -ForegroundColor Green
+    Write-Host "   Mode: $mode"
+    Write-Host "   inherit_default_rules: true"
+    Write-Host ""
+    
+    return $true
+}
+
+# Helper function to run with airlock (Docker Compose mode)
+function Invoke-CopilotAirlock {
+    param(
+        [string]$ImageTag,
+        [bool]$AllowAllTools,
+        [bool]$SkipCleanup,
+        [bool]$SkipPull,
+        [string]$NetworkConfigFile,
+        [string[]]$MountsRO,
+        [string[]]$MountsRW,
+        [string[]]$Arguments
+    )
+    
+    if (-not (Test-CopilotSecurityCheck)) { return }
+    
+    $appImage = "ghcr.io/gordonbeeming/copilot_here:$ImageTag"
+    $proxyImage = "ghcr.io/gordonbeeming/copilot_here:proxy"
+    
+    Write-Host "🛡️  Starting in Airlock mode..."
+    Write-Host "   App image: $appImage"
+    Write-Host "   Proxy image: $proxyImage"
+    Write-Host "   Network config: $NetworkConfigFile"
+    
+    # Pull images unless skipped
+    if (-not $SkipPull) {
+        Write-Host "📥 Pulling images..."
+        docker pull $appImage
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to pull app image" -ForegroundColor Red
+            return
+        }
+        docker pull $proxyImage
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to pull proxy image" -ForegroundColor Red
+            return
+        }
+    }
+    
+    # Get current directory info for project name
+    $currentDir = (Get-Location).Path
+    $currentDirName = Split-Path -Leaf $currentDir
+    $titleEmoji = "🤖"
+    if ($AllowAllTools) {
+        $titleEmoji = "🤖⚡️"
+    }
+    
+    # Generate unique session ID
+    $sessionId = [System.Guid]::NewGuid().ToString().Substring(0, 8)
+    
+    # Project name matches terminal title format
+    $projectName = "$currentDirName-$sessionId"
+    
+    # Create temporary compose file
+    $tempCompose = [System.IO.Path]::GetTempFileName() + ".yml"
+    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    $templateFile = "$configDir\docker-compose.airlock.yml.template"
+    
+    # Download template if not exists
+    if (-not (Test-Path $templateFile)) {
+        Write-Host "📥 Downloading compose template..."
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $templateFile
+        } catch {
+            Write-Host "❌ Failed to download compose template" -ForegroundColor Red
+            Remove-Item $tempCompose -ErrorAction SilentlyContinue
+            return
+        }
+    }
+    
+    # Get token
+    $token = gh auth token 2>$null
+    if ([string]::IsNullOrEmpty($token)) {
+        Write-Host "⚠️  Could not retrieve token using 'gh auth token'." -ForegroundColor Yellow
+    }
+    
+    # Prepare copilot config path
+    $copilotConfig = "$env:USERPROFILE\.config\copilot-cli-docker"
+    if (-not (Test-Path $copilotConfig)) {
+        New-Item -ItemType Directory -Path $copilotConfig -Force | Out-Null
+    }
+    
+    # Container work directory
+    $containerWorkDir = "/home/appuser/work"
+    
+    # Build extra mounts string
+    $extraMounts = ""
+    foreach ($mountPath in $MountsRO) {
+        $resolved = Resolve-MountPath $mountPath
+        if ($resolved) {
+            $extraMounts += "      - ${resolved}:${resolved}:ro`n"
+        }
+    }
+    foreach ($mountPath in $MountsRW) {
+        $resolved = Resolve-MountPath $mountPath
+        if ($resolved) {
+            $extraMounts += "      - ${resolved}:${resolved}:rw`n"
+        }
+    }
+    
+    # Build copilot command args as JSON array
+    $copilotCmd = '["copilot"'
+    if ($AllowAllTools) {
+        $copilotCmd += ', "--allow-all-tools", "--allow-all-paths"'
+        $copilotCmd += ", `"--add-dir`", `"$containerWorkDir`""
+    }
+    
+    if ($Arguments.Count -eq 0) {
+        $copilotCmd += ', "--banner"'
+    } else {
+        foreach ($arg in $Arguments) {
+            $escapedArg = $arg -replace '"', '\"'
+            $copilotCmd += ", `"$escapedArg`""
+        }
+    }
+    $copilotCmd += ']'
+    
+    # Read template and substitute variables
+    $template = Get-Content $templateFile -Raw
+    $compose = $template `
+        -replace '\{\{PROJECT_NAME\}\}', $projectName `
+        -replace '\{\{APP_IMAGE\}\}', $appImage `
+        -replace '\{\{PROXY_IMAGE\}\}', $proxyImage `
+        -replace '\{\{WORK_DIR\}\}', ($currentDir -replace '\\', '/') `
+        -replace '\{\{CONTAINER_WORK_DIR\}\}', $containerWorkDir `
+        -replace '\{\{COPILOT_CONFIG\}\}', ($copilotConfig -replace '\\', '/') `
+        -replace '\{\{NETWORK_CONFIG\}\}', ($NetworkConfigFile -replace '\\', '/') `
+        -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
+        -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
+        -replace '\{\{GITHUB_TOKEN\}\}', $token `
+        -replace '\{\{EXTRA_MOUNTS\}\}', $extraMounts `
+        -replace '\{\{COPILOT_ARGS\}\}', $copilotCmd
+    
+    Set-Content $tempCompose $compose -Encoding UTF8
+    
+    # Set terminal title
+    $title = "$titleEmoji $currentDirName [airlock]"
+    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $Host.UI.RawUI.WindowTitle = $title
+    
+    try {
+        Write-Host ""
+        docker compose -f $tempCompose -p $projectName up --abort-on-container-exit --attach app
+    } finally {
+        # Cleanup
+        $Host.UI.RawUI.WindowTitle = $originalTitle
+        Write-Host ""
+        Write-Host "🧹 Cleaning up airlock..."
+        docker compose -f $tempCompose -p $projectName down --volumes 2>$null
+        Remove-Item $tempCompose -ErrorAction SilentlyContinue
+    }
+}
+
 # Helper function for security checks (shared by all variants)
 function Test-CopilotSecurityCheck {
     # Skip in test mode
@@ -841,6 +1088,12 @@ function Invoke-CopilotRun {
 function Update-CopilotScripts {
     Write-Host "📦 Updating copilot_here scripts from GitHub..."
     
+    # Ensure config directory exists
+    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    if (-not (Test-Path $configDir)) {
+        New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+    }
+    
     # Get current version
     $currentVersion = ""
     $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
@@ -878,6 +1131,27 @@ function Update-CopilotScripts {
         # Update the actual file (following symlinks)
         Move-Item $tempScript $targetFile -Force
         Write-Host "✅ Scripts updated successfully!"
+        
+        # Download default network rules
+        Write-Host "📥 Updating default network rules..."
+        $networkRulesFile = "$configDir\default-network-rules.json"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -OutFile $networkRulesFile
+            Write-Host "✅ Network rules updated: $networkRulesFile"
+        } catch {
+            Write-Host "⚠️  Failed to download network rules (non-fatal)" -ForegroundColor Yellow
+        }
+        
+        # Download docker-compose template
+        Write-Host "📥 Updating compose template..."
+        $composeTemplateFile = "$configDir\docker-compose.airlock.yml.template"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $composeTemplateFile
+            Write-Host "✅ Compose template updated: $composeTemplateFile"
+        } catch {
+            Write-Host "⚠️  Failed to download compose template (non-fatal)" -ForegroundColor Yellow
+        }
+        
         Write-Host "🔄 Reloading..."
         . $standalonePath
         Write-Host "✨ Update complete! You're now on version $newVersion"
@@ -917,6 +1191,27 @@ function Update-CopilotScripts {
     }
     
     Remove-Item $tempScript
+    
+    # Download default network rules
+    Write-Host "📥 Updating default network rules..."
+    $networkRulesFile = "$configDir\default-network-rules.json"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -OutFile $networkRulesFile
+        Write-Host "✅ Network rules updated: $networkRulesFile"
+    } catch {
+        Write-Host "⚠️  Failed to download network rules (non-fatal)" -ForegroundColor Yellow
+    }
+    
+    # Download docker-compose template
+    Write-Host "📥 Updating compose template..."
+    $composeTemplateFile = "$configDir\docker-compose.airlock.yml.template"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $composeTemplateFile
+        Write-Host "✅ Compose template updated: $composeTemplateFile"
+    } catch {
+        Write-Host "⚠️  Failed to download compose template (non-fatal)" -ForegroundColor Yellow
+    }
+    
     Write-Host "🔄 Reloading..."
     . $PROFILE
     Write-Host "✨ Update complete! You're now on version $newVersion"
@@ -1010,11 +1305,19 @@ function Copilot-Here {
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
+        [switch]$EnableNetworkProxy,
+        [switch]$EnableGlobalNetworkProxy,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
+
+    # Check for mutually exclusive network proxy flags
+    if ($EnableNetworkProxy -and $EnableGlobalNetworkProxy) {
+        Write-Host "❌ Error: Cannot use both -EnableNetworkProxy and -EnableGlobalNetworkProxy" -ForegroundColor Red
+        return
+    }
 
     # Handle mount management commands
     if ($ListMounts) {
@@ -1096,6 +1399,10 @@ OPTIONS:
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
 
+NETWORK PROXY (EXPERIMENTAL):
+  -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
+  -EnableGlobalNetworkProxy  Enable network proxy with global rules (~/.config/copilot_here/network.json)
+
 MOUNT MANAGEMENT:
   -ListMounts              Show all configured mounts
   -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
@@ -1176,7 +1483,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1198,6 +1505,27 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     # Initialize mount arrays if not provided
     if (-not $Mount) { $Mount = @() }
     if (-not $MountRW) { $MountRW = @() }
+    
+    # Handle network proxy configuration
+    if ($EnableNetworkProxy -or $EnableGlobalNetworkProxy) {
+        $isGlobal = $EnableGlobalNetworkProxy
+        
+        # Ensure config exists (creates if needed, prompts for mode)
+        if (-not (Ensure-NetworkConfig -IsGlobal $isGlobal)) {
+            return
+        }
+        
+        # Determine config file path
+        if ($isGlobal) {
+            $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
+        } else {
+            $configFile = ".copilot_here\network.json"
+        }
+        
+        # Run with airlock
+        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -NetworkConfigFile $configFile -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+        return
+    }
     
     if (Test-CopilotUpdate) { return }
     
@@ -1234,11 +1562,19 @@ function Copilot-Yolo {
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
+        [switch]$EnableNetworkProxy,
+        [switch]$EnableGlobalNetworkProxy,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
+
+    # Check for mutually exclusive network proxy flags
+    if ($EnableNetworkProxy -and $EnableGlobalNetworkProxy) {
+        Write-Host "❌ Error: Cannot use both -EnableNetworkProxy and -EnableGlobalNetworkProxy" -ForegroundColor Red
+        return
+    }
 
     # Handle mount management commands
     if ($ListMounts) {
@@ -1320,6 +1656,10 @@ OPTIONS:
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
 
+NETWORK PROXY (EXPERIMENTAL):
+  -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
+  -EnableGlobalNetworkProxy  Enable network proxy with global rules (~/.config/copilot_here/network.json)
+
 MOUNT MANAGEMENT:
   -ListMounts              Show all configured mounts
   -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
@@ -1388,7 +1728,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
         return
@@ -1410,6 +1750,27 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
     # Initialize mount arrays if not provided
     if (-not $Mount) { $Mount = @() }
     if (-not $MountRW) { $MountRW = @() }
+    
+    # Handle network proxy configuration
+    if ($EnableNetworkProxy -or $EnableGlobalNetworkProxy) {
+        $isGlobal = $EnableGlobalNetworkProxy
+        
+        # Ensure config exists (creates if needed, prompts for mode)
+        if (-not (Ensure-NetworkConfig -IsGlobal $isGlobal)) {
+            return
+        }
+        
+        # Determine config file path
+        if ($isGlobal) {
+            $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
+        } else {
+            $configFile = ".copilot_here\network.json"
+        }
+        
+        # Run with airlock (YOLO mode)
+        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -NetworkConfigFile $configFile -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+        return
+    }
     
     if (Test-CopilotUpdate) { return }
     

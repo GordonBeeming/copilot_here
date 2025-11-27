@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-23
+# Version: 2025-11-27
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -849,6 +849,241 @@ __copilot_run() {
   )
 }
 
+# Helper function to create or load network proxy config
+__copilot_ensure_network_config() {
+  local is_global="$1"
+  local config_file
+  local config_dir
+  
+  if [ "$is_global" = "true" ]; then
+    config_dir="$HOME/.config/copilot_here"
+    config_file="$config_dir/network.json"
+  else
+    config_dir=".copilot_here"
+    config_file="$config_dir/network.json"
+  fi
+  
+  # Check if config already exists
+  if [ -f "$config_file" ]; then
+    echo "✅ Using existing network config: $config_file"
+    return 0
+  fi
+  
+  # Config doesn't exist - ask user about mode and create it
+  echo "📝 Creating network proxy configuration..."
+  echo ""
+  echo "   The network proxy can run in two modes:"
+  echo "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
+  echo "   • [m]onitor - Log all requests but allow everything (useful for testing)"
+  echo ""
+  printf "   Select mode (default: enforce): "
+  read mode_choice
+  
+  local mode="enforce"
+  local lower_choice=$(echo "$mode_choice" | tr '[:upper:]' '[:lower:]')
+  if [ "$lower_choice" = "monitor" ] || [ "$lower_choice" = "m" ]; then
+    mode="monitor"
+  fi
+  
+  # Create config directory
+  if ! mkdir -p "$config_dir" 2>/dev/null; then
+    echo "❌ Error: Failed to create config directory: $config_dir"
+    return 1
+  fi
+  
+  # Load default rules if available
+  local default_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
+  local allowed_rules
+  
+  if [ -f "$default_rules_file" ]; then
+    # Extract just the array value after "allowed_rules":
+    # This handles the JSON structure properly
+    allowed_rules=$(sed -n '/"allowed_rules"/,/^}$/p' "$default_rules_file" | sed '1s/.*\[/[/' | sed '$d')
+  fi
+  
+  # Fallback to inline defaults if not found or empty
+  if [ -z "$allowed_rules" ] || [ "$allowed_rules" = "[" ]; then
+    allowed_rules='[
+    {
+      "host": "api.github.com",
+      "allowed_paths": ["/user", "/graphql"]
+    },
+    {
+      "host": "api.individual.githubcopilot.com",
+      "allowed_paths": ["/models", "/mcp/readonly", "/chat/completions"]
+    }
+  ]'
+  fi
+  
+  # Write config file
+  cat > "$config_file" << EOF
+{
+  "inherit_default_rules": true,
+  "mode": "$mode",
+  "allowed_rules": $allowed_rules
+}
+EOF
+  
+  if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to write config file: $config_file"
+    return 1
+  fi
+  
+  echo ""
+  echo "✅ Created network config: $config_file"
+  echo "   Mode: $mode"
+  echo "   inherit_default_rules: true"
+  echo ""
+  
+  return 0
+}
+
+# Helper function to run with airlock (Docker Compose mode)
+__copilot_run_airlock() {
+  local image_tag="$1"
+  local allow_all_tools="$2"
+  local skip_cleanup="$3"
+  local skip_pull="$4"
+  local network_config_file="$5"
+  shift 5
+  
+  # Collect mount arrays by reference name
+  local -n _mounts_ro_ref=$1
+  local -n _mounts_rw_ref=$2
+  shift 2
+  
+  # Remaining args are copilot arguments
+  local copilot_args=("$@")
+  
+  if ! __copilot_security_check; then return 1; fi
+  
+  local app_image="ghcr.io/gordonbeeming/copilot_here:$image_tag"
+  local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
+  
+  echo "🛡️  Starting in Airlock mode..."
+  echo "   App image: $app_image"
+  echo "   Proxy image: $proxy_image"
+  echo "   Network config: $network_config_file"
+  
+  # Pull images unless skipped
+  if [ "$skip_pull" != "true" ]; then
+    echo "📥 Pulling images..."
+    docker pull "$app_image" || { echo "❌ Failed to pull app image"; return 1; }
+    docker pull "$proxy_image" || { echo "❌ Failed to pull proxy image"; return 1; }
+  fi
+  
+  # Get current directory info for project name (matches terminal title format)
+  local current_dir=$(pwd)
+  local current_dir_name=$(basename "$current_dir")
+  local title_emoji="🤖"
+  if [ "$allow_all_tools" = "true" ]; then
+    title_emoji="🤖⚡️"
+  fi
+  
+  # Generate unique session ID
+  local session_id=$(date +%s%N | sha256sum | head -c 8)
+  
+  # Project name matches the terminal title format: emoji + dirname + session
+  local project_name="${current_dir_name}-${session_id}"
+  
+  # Create temporary compose file
+  local temp_compose=$(mktemp)
+  local template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+  
+  # Download template if not exists
+  if [ ! -f "$template_file" ]; then
+    echo "📥 Downloading compose template..."
+    curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$template_file" || {
+      echo "❌ Failed to download compose template"
+      rm -f "$temp_compose"
+      return 1
+    }
+  fi
+  
+  # Get token
+  local token=$(gh auth token 2>/dev/null)
+  if [ -z "$token" ]; then
+    echo "⚠️  Could not retrieve token using 'gh auth token'." >&2
+  fi
+  
+  # Prepare copilot config path
+  local copilot_config="$HOME/.config/copilot-cli-docker"
+  mkdir -p "$copilot_config"
+  
+  # Container work directory
+  local container_work_dir="/home/appuser/work"
+  
+  # Build extra mounts string
+  local extra_mounts=""
+  
+  # Add read-only mounts
+  for mount_path in "${_mounts_ro_ref[@]}"; do
+    local resolved=$(__copilot_resolve_mount_path "$mount_path")
+    [ -z "$resolved" ] && continue
+    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:ro\n"
+  done
+  
+  # Add read-write mounts
+  for mount_path in "${_mounts_rw_ref[@]}"; do
+    local resolved=$(__copilot_resolve_mount_path "$mount_path")
+    [ -z "$resolved" ] && continue
+    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw\n"
+  done
+  
+  # Build copilot command args
+  local copilot_cmd="[\"copilot\""
+  if [ "$allow_all_tools" = "true" ]; then
+    copilot_cmd="${copilot_cmd}, \"--allow-all-tools\", \"--allow-all-paths\""
+    copilot_cmd="${copilot_cmd}, \"--add-dir\", \"${container_work_dir}\""
+  fi
+  
+  if [ ${#copilot_args[@]} -eq 0 ]; then
+    copilot_cmd="${copilot_cmd}, \"--banner\""
+  else
+    for arg in "${copilot_args[@]}"; do
+      # Escape quotes in argument
+      arg=$(echo "$arg" | sed 's/"/\\"/g')
+      copilot_cmd="${copilot_cmd}, \"${arg}\""
+    done
+  fi
+  copilot_cmd="${copilot_cmd}]"
+  
+  # Generate compose file from template
+  sed -e "s|{{PROJECT_NAME}}|${project_name}|g" \
+      -e "s|{{APP_IMAGE}}|${app_image}|g" \
+      -e "s|{{PROXY_IMAGE}}|${proxy_image}|g" \
+      -e "s|{{WORK_DIR}}|${current_dir}|g" \
+      -e "s|{{CONTAINER_WORK_DIR}}|${container_work_dir}|g" \
+      -e "s|{{COPILOT_CONFIG}}|${copilot_config}|g" \
+      -e "s|{{NETWORK_CONFIG}}|${network_config_file}|g" \
+      -e "s|{{PUID}}|$(id -u)|g" \
+      -e "s|{{PGID}}|$(id -g)|g" \
+      -e "s|{{GITHUB_TOKEN}}|${token}|g" \
+      -e "s|{{EXTRA_MOUNTS}}|${extra_mounts}|g" \
+      -e "s|{{COPILOT_ARGS}}|${copilot_cmd}|g" \
+      "$template_file" > "$temp_compose"
+  
+  # Set terminal title
+  local title="${title_emoji} ${current_dir_name} [proxy]"
+  printf "\033]0;%s\007" "$title"
+  
+  # Cleanup function
+  cleanup() {
+    printf "\033]0;\007"  # Reset title
+    echo ""
+    echo "🧹 Cleaning up airlock..."
+    docker compose -f "$temp_compose" -p "$project_name" down --volumes 2>/dev/null
+    rm -f "$temp_compose"
+  }
+  trap cleanup EXIT INT TERM
+  
+  # Run with docker compose
+  echo ""
+  docker compose -f "$temp_compose" -p "$project_name" up --abort-on-container-exit --attach app
+  
+  # Cleanup is handled by trap
+}
+
 # Helper function to update scripts
 __copilot_update_scripts() {
   echo "📦 Updating copilot_here scripts from GitHub..."
@@ -860,6 +1095,9 @@ __copilot_update_scripts() {
   elif type copilot_here >/dev/null 2>&1; then
     current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
   fi
+  
+  # Ensure config directory exists
+  /bin/mkdir -p "$HOME/.config/copilot_here"
   
   # Check if using standalone file installation
   if [ -f ~/.copilot_here.sh ]; then
@@ -889,6 +1127,25 @@ __copilot_update_scripts() {
     # Update the actual file (following symlinks)
     mv "$temp_script" "$target_file"
     echo "✅ Scripts updated successfully!"
+    
+    # Download default network rules
+    echo "📥 Updating default network rules..."
+    local network_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
+    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -o "$network_rules_file"; then
+      echo "✅ Network rules updated: $network_rules_file"
+    else
+      echo "⚠️  Failed to download network rules (non-fatal)"
+    fi
+    
+    # Download docker-compose template
+    echo "📥 Updating compose template..."
+    local compose_template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$compose_template_file"; then
+      echo "✅ Compose template updated: $compose_template_file"
+    else
+      echo "⚠️  Failed to download compose template (non-fatal)"
+    fi
+    
     echo "🔄 Reloading..."
     source ~/.copilot_here.sh
     echo "✨ Update complete! You're now on version $new_version"
@@ -942,6 +1199,25 @@ __copilot_update_scripts() {
   fi
   
   rm -f "$temp_script"
+  
+  # Download default network rules
+  echo "📥 Updating default network rules..."
+  local network_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
+  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -o "$network_rules_file"; then
+    echo "✅ Network rules updated: $network_rules_file"
+  else
+    echo "⚠️  Failed to download network rules (non-fatal)"
+  fi
+  
+  # Download docker-compose template
+  echo "📥 Updating compose template..."
+  local compose_template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$compose_template_file"; then
+    echo "✅ Compose template updated: $compose_template_file"
+  else
+    echo "⚠️  Failed to download compose template (non-fatal)"
+  fi
+  
   echo "🔄 Reloading..."
   source "$config_file"
   echo "✨ Update complete! You're now on version $new_version"
@@ -996,6 +1272,8 @@ copilot_here() {
   local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
+  local enable_network_proxy="false"
+  local network_proxy_global="false"
   local args=()
   local mounts_ro=()
   local mounts_rw=()
@@ -1029,6 +1307,10 @@ OPTIONS:
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+
+NETWORK PROXY (EXPERIMENTAL):
+  --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
+  --enable-global-network-proxy Enable network proxy with global rules (~/.config/copilot_here/network.json)
 
 MOUNT MANAGEMENT:
   --list-mounts             Show all configured mounts
@@ -1110,7 +1392,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1226,6 +1508,24 @@ EOF
         skip_pull="true"
         shift
         ;;
+      --enable-network-proxy)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="false"
+        shift
+        ;;
+      --enable-global-network-proxy)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="true"
+        shift
+        ;;
       --update-scripts|--upgrade-scripts)
         __copilot_update_scripts
         return $?
@@ -1237,6 +1537,26 @@ EOF
     esac
   done
   
+  # Handle network proxy configuration
+  if [ "$enable_network_proxy" = "true" ]; then
+    # Ensure config exists (creates if needed, prompts for mode)
+    if ! __copilot_ensure_network_config "$network_proxy_global"; then
+      return 1
+    fi
+    
+    # Determine config file path
+    local config_file
+    if [ "$network_proxy_global" = "true" ]; then
+      config_file="$HOME/.config/copilot_here/network.json"
+    else
+      config_file=".copilot_here/network.json"
+    fi
+    
+    # Run with airlock
+    __copilot_run_airlock "$image_tag" "false" "$skip_cleanup" "$skip_pull" "$config_file" mounts_ro mounts_rw "${args[@]}"
+    return $?
+  fi
+  
   __copilot_check_for_updates || return 0
   
   __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
@@ -1247,6 +1567,8 @@ copilot_yolo() {
   local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
+  local enable_network_proxy="false"
+  local network_proxy_global="false"
   local args=()
   local mounts_ro=()
   local mounts_rw=()
@@ -1280,6 +1602,10 @@ OPTIONS:
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+
+NETWORK PROXY (EXPERIMENTAL):
+  --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
+  --enable-global-network-proxy Enable network proxy with global rules (~/.config/copilot_here/network.json)
 
 MOUNT MANAGEMENT:
   --list-mounts             Show all configured mounts
@@ -1345,7 +1671,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 
 ================================================================================
@@ -1461,6 +1787,24 @@ EOF
         skip_pull="true"
         shift
         ;;
+      --enable-network-proxy)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="false"
+        shift
+        ;;
+      --enable-global-network-proxy)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="true"
+        shift
+        ;;
       --update-scripts|--upgrade-scripts)
         __copilot_update_scripts
         return $?
@@ -1471,6 +1815,26 @@ EOF
         ;;
     esac
   done
+  
+  # Handle network proxy configuration
+  if [ "$enable_network_proxy" = "true" ]; then
+    # Ensure config exists (creates if needed, prompts for mode)
+    if ! __copilot_ensure_network_config "$network_proxy_global"; then
+      return 1
+    fi
+    
+    # Determine config file path
+    local config_file
+    if [ "$network_proxy_global" = "true" ]; then
+      config_file="$HOME/.config/copilot_here/network.json"
+    else
+      config_file=".copilot_here/network.json"
+    fi
+    
+    # Run with airlock (YOLO mode)
+    __copilot_run_airlock "$image_tag" "true" "$skip_cleanup" "$skip_pull" "$config_file" mounts_ro mounts_rw "${args[@]}"
+    return $?
+  fi
   
   __copilot_check_for_updates || return 0
   
