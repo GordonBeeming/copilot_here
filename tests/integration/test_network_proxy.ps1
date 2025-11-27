@@ -346,4 +346,125 @@ if ($templateContent -match "{{NETWORK_CONFIG}}") {
     Test-Fail "Compose template missing network config mount"
 }
 
+# Test 28: -DisableAirlock parameter exists in Copilot-Here
+Test-Start "Check -DisableAirlock parameter exists in Copilot-Here"
+if ($params.ContainsKey("DisableAirlock")) {
+    Test-Pass "-DisableAirlock parameter exists"
+} else {
+    Test-Fail "-DisableAirlock parameter not found"
+}
+
+# Test 29: -DisableGlobalAirlock parameter exists
+Test-Start "Check -DisableGlobalAirlock parameter exists in Copilot-Here"
+if ($params.ContainsKey("DisableGlobalAirlock")) {
+    Test-Pass "-DisableGlobalAirlock parameter exists"
+} else {
+    Test-Fail "-DisableGlobalAirlock parameter not found"
+}
+
+# Test 30: -DisableAirlock documented in help
+Test-Start "Check -DisableAirlock in help text"
+if ($helpOutput -match "DisableAirlock") {
+    Test-Pass "-DisableAirlock documented in help"
+} else {
+    Test-Fail "-DisableAirlock not in help output"
+}
+
+# Test 31: -DisableGlobalAirlock documented in help
+Test-Start "Check -DisableGlobalAirlock in help text"
+if ($helpOutput -match "DisableGlobalAirlock") {
+    Test-Pass "-DisableGlobalAirlock documented in help"
+} else {
+    Test-Fail "-DisableGlobalAirlock not in help output"
+}
+
+# Test 32: Default rules JSON has enabled field
+Test-Start "Check default-network-rules.json has enabled field"
+if ($defaultRulesContent -match "enabled") {
+    Test-Pass "default-network-rules.json has enabled field"
+} else {
+    Test-Fail "default-network-rules.json missing enabled field"
+}
+
+# Test 33: -EnableAirlock enables existing config
+Test-Start "Check -EnableAirlock enables existing config"
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir4 = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+$configDir4 = New-Item -ItemType Directory -Path (Join-Path $testDir4 ".copilot_here") -Force
+$configFile4 = Join-Path $configDir4 "network.json"
+@{
+    enabled = $false
+    inherit_default_rules = $true
+    mode = "enforce"
+    allowed_rules = @()
+} | ConvertTo-Json | Set-Content $configFile4
+
+Push-Location $testDir4
+try {
+    Copilot-Here -EnableAirlock 2>&1 | Out-Null
+    $updatedContent = Get-Content $configFile4 -Raw | ConvertFrom-Json
+    if ($updatedContent.enabled -eq $true) {
+        Test-Pass "-EnableAirlock set enabled to true"
+    } else {
+        Test-Fail "-EnableAirlock did not set enabled to true"
+    }
+} finally {
+    Pop-Location
+    Remove-Item $testDir4 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Test 34: -DisableAirlock disables config
+Test-Start "Check -DisableAirlock disables config"
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir5 = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+$configDir5 = New-Item -ItemType Directory -Path (Join-Path $testDir5 ".copilot_here") -Force
+$configFile5 = Join-Path $configDir5 "network.json"
+@{
+    enabled = $true
+    inherit_default_rules = $true
+    mode = "enforce"
+    allowed_rules = @()
+} | ConvertTo-Json | Set-Content $configFile5
+
+Push-Location $testDir5
+try {
+    Copilot-Here -DisableAirlock 2>&1 | Out-Null
+    $updatedContent = Get-Content $configFile5 -Raw | ConvertFrom-Json
+    if ($updatedContent.enabled -eq $false) {
+        Test-Pass "-DisableAirlock set enabled to false"
+    } else {
+        Test-Fail "-DisableAirlock did not set enabled to false"
+    }
+} finally {
+    Pop-Location
+    Remove-Item $testDir5 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Test 35: -EnableAirlock creates new config when none exists
+Test-Start "Check -EnableAirlock creates new config"
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir6 = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+
+Push-Location $testDir6
+try {
+    # Ensure no config exists
+    Remove-Item ".copilot_here" -Recurse -Force -ErrorAction SilentlyContinue
+    # Run enable with simulated 'e' input for enforce mode
+    "e" | Copilot-Here -EnableAirlock 2>&1 | Out-Null
+    $configFile6 = Join-Path ".copilot_here" "network.json"
+    if (Test-Path $configFile6) {
+        $newContent = Get-Content $configFile6 -Raw | ConvertFrom-Json
+        if ($newContent.enabled -eq $true) {
+            Test-Pass "-EnableAirlock created new config with enabled=true"
+        } else {
+            Test-Fail "New config missing enabled=true"
+        }
+    } else {
+        Test-Fail "-EnableAirlock did not create network.json"
+    }
+} finally {
+    Pop-Location
+    Remove-Item $testDir6 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Print-Summary

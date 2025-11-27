@@ -514,22 +514,38 @@ function Ensure-NetworkConfig {
     
     # Check if config already exists
     if (Test-Path $configFile) {
-        Write-Host "✅ Using existing network config: $configFile"
+        # Config exists - just enable it
+        try {
+            $config = Get-Content $configFile -Raw | ConvertFrom-Json
+            $currentEnabled = if ($null -eq $config.enabled) { $true } else { $config.enabled }
+            
+            if ($currentEnabled -eq $true) {
+                Write-Host "✅ Airlock already enabled: $configFile"
+            } else {
+                $config.enabled = $true
+                $config | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+                Write-Host "✅ Airlock enabled: $configFile"
+            }
+        } catch {
+            Write-Host "⚠️  Warning: Could not update config, file may be malformed: $configFile" -ForegroundColor Yellow
+        }
         return $true
     }
     
     # Config doesn't exist - ask user about mode and create it
-    Write-Host "📝 Creating network proxy configuration..."
+    Write-Host "📝 Creating Airlock configuration..."
     Write-Host ""
-    Write-Host "   The network proxy can run in two modes:"
+    Write-Host "   The Airlock proxy can run in two modes:"
     Write-Host "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
     Write-Host "   • [m]onitor - Log all requests but allow everything (useful for testing)"
     Write-Host ""
     $modeChoice = Read-Host "   Select mode (default: enforce)"
     
     $mode = "enforce"
+    $enableLogging = $false
     if ($modeChoice.ToLower() -eq "monitor" -or $modeChoice.ToLower() -eq "m") {
         $mode = "monitor"
+        $enableLogging = $true
     }
     
     # Create config directory
@@ -569,10 +585,12 @@ function Ensure-NetworkConfig {
         )
     }
     
-    # Create config object
+    # Create config object with enabled: true
     $config = @{
+        enabled = $true
         inherit_default_rules = $true
         mode = $mode
+        enable_logging = $enableLogging
         allowed_rules = $allowedRules
     }
     
@@ -585,10 +603,49 @@ function Ensure-NetworkConfig {
     }
     
     Write-Host ""
-    Write-Host "✅ Created network config: $configFile" -ForegroundColor Green
+    Write-Host "✅ Created Airlock config: $configFile" -ForegroundColor Green
     Write-Host "   Mode: $mode"
     Write-Host "   inherit_default_rules: true"
     Write-Host ""
+    
+    return $true
+}
+
+# Helper function to disable Airlock
+function Disable-Airlock {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
+    } else {
+        $configFile = ".copilot_here\network.json"
+    }
+    
+    if (-not (Test-Path $configFile)) {
+        Write-Host "ℹ️  No Airlock config found: $configFile"
+        return $true
+    }
+    
+    try {
+        $config = Get-Content $configFile -Raw | ConvertFrom-Json
+        $currentEnabled = if ($null -eq $config.enabled) { $true } else { $config.enabled }
+        
+        if ($currentEnabled -eq $false) {
+            Write-Host "ℹ️  Airlock already disabled: $configFile"
+        } else {
+            # Convert to hashtable for modification
+            $configHash = @{}
+            $config.PSObject.Properties | ForEach-Object { $configHash[$_.Name] = $_.Value }
+            $configHash.enabled = $false
+            $configHash | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+            Write-Host "✅ Airlock disabled: $configFile"
+        }
+    } catch {
+        Write-Host "⚠️  Warning: Could not update config: $configFile" -ForegroundColor Yellow
+        return $false
+    }
     
     return $true
 }
@@ -1415,6 +1472,8 @@ OPTIONS:
 NETWORK (AIRLOCK):
   -EnableAirlock             Enable Airlock with local rules (.copilot_here/network.json)
   -EnableGlobalAirlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
+  -DisableAirlock            Disable Airlock for local config
+  -DisableGlobalAirlock      Disable Airlock for global config
   -ShowNetworkRules          Show current network proxy rules
   -EditNetworkRules          Edit local network rules in `$env:EDITOR
   -EditGlobalNetworkRules    Edit global network rules in `$env:EDITOR
@@ -1540,6 +1599,8 @@ function Invoke-CopilotMain {
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,
@@ -1567,6 +1628,16 @@ function Invoke-CopilotMain {
     
     if ($EditGlobalNetworkRules) {
         Edit-NetworkRules -IsGlobal $true
+        return
+    }
+    
+    if ($DisableAirlock) {
+        Disable-Airlock -IsGlobal $false
+        return
+    }
+    
+    if ($DisableGlobalAirlock) {
+        Disable-Airlock -IsGlobal $true
         return
     }
 
@@ -1689,6 +1760,8 @@ function Copilot-Here {
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,
@@ -1734,6 +1807,8 @@ function Copilot-Yolo {
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,

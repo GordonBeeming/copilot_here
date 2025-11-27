@@ -356,4 +356,92 @@ else
   test_fail "Compose template missing network config mount"
 fi
 
+# Test 27: --disable-airlock documented in help
+test_start "Check --disable-airlock documented"
+if echo "$HELP_CHECK" | grep -q "disable-airlock"; then
+  test_pass "--disable-airlock documented in help"
+else
+  test_fail "--disable-airlock not documented in help"
+fi
+
+# Test 28: --disable-global-airlock documented in help
+test_start "Check --disable-global-airlock documented"
+if echo "$HELP_CHECK" | grep -q "disable-global-airlock"; then
+  test_pass "--disable-global-airlock documented in help"
+else
+  test_fail "--disable-global-airlock not documented in help"
+fi
+
+# Test 29: Default rules JSON has enabled field
+test_start "Check default-network-rules.json has enabled field"
+if grep -q '"enabled"' "$SCRIPT_DIR/default-network-rules.json"; then
+  test_pass "default-network-rules.json has enabled field"
+else
+  test_fail "default-network-rules.json missing enabled field"
+fi
+
+# Test 30: --enable-airlock on existing config just enables
+test_start "Check --enable-airlock enables existing config"
+mkdir -p "$TEST_DIR/.copilot_here"
+cat > "$TEST_DIR/.copilot_here/network.json" << 'EOF'
+{
+  "enabled": false,
+  "inherit_default_rules": true,
+  "mode": "enforce",
+  "allowed_rules": []
+}
+EOF
+cd "$TEST_DIR"
+copilot_here --enable-airlock > /dev/null 2>&1 || true
+CONTENT=$(cat ".copilot_here/network.json")
+if echo "$CONTENT" | grep -q '"enabled"[[:space:]]*:[[:space:]]*true'; then
+  test_pass "--enable-airlock set enabled to true"
+else
+  test_fail "--enable-airlock did not set enabled to true"
+fi
+cd - > /dev/null
+
+# Test 31: --disable-airlock sets enabled to false
+test_start "Check --disable-airlock disables config"
+mkdir -p "$TEST_DIR/.copilot_here"
+cat > "$TEST_DIR/.copilot_here/network.json" << 'EOF'
+{
+  "enabled": true,
+  "inherit_default_rules": true,
+  "mode": "enforce",
+  "allowed_rules": []
+}
+EOF
+cd "$TEST_DIR"
+copilot_here --disable-airlock > /dev/null 2>&1 || true
+CONTENT=$(cat ".copilot_here/network.json")
+if echo "$CONTENT" | grep -q '"enabled"[[:space:]]*:[[:space:]]*false'; then
+  test_pass "--disable-airlock set enabled to false"
+else
+  test_fail "--disable-airlock did not set enabled to false"
+fi
+cd - > /dev/null
+
+# Test 32: --enable-airlock creates new config when none exists
+test_start "Check --enable-airlock creates new config"
+NEW_CONFIG_DIR=$(mktemp -d)
+mkdir -p "$NEW_CONFIG_DIR"
+cd "$NEW_CONFIG_DIR"
+# Ensure no config exists
+rm -rf ".copilot_here" 2>/dev/null || true
+# Run enable (this will prompt for mode, we simulate enforce with 'e')
+echo "e" | copilot_here --enable-airlock > /dev/null 2>&1 || true
+if [ -f ".copilot_here/network.json" ]; then
+  CONTENT=$(cat ".copilot_here/network.json")
+  if echo "$CONTENT" | grep -q '"enabled"[[:space:]]*:[[:space:]]*true'; then
+    test_pass "--enable-airlock created new config with enabled=true"
+  else
+    test_fail "New config missing enabled=true"
+  fi
+else
+  test_fail "--enable-airlock did not create network.json"
+fi
+cd - > /dev/null
+rm -rf "$NEW_CONFIG_DIR"
+
 print_summary

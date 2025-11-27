@@ -865,14 +865,35 @@ __copilot_ensure_network_config() {
   
   # Check if config already exists
   if [ -f "$config_file" ]; then
-    echo "✅ Using existing network config: $config_file"
+    # Config exists - just enable it
+    if command -v jq &> /dev/null; then
+      local current_enabled=$(jq -r '.enabled // true' "$config_file")
+      if [ "$current_enabled" = "true" ]; then
+        echo "✅ Airlock already enabled: $config_file"
+      else
+        # Update enabled to true
+        local temp_file=$(mktemp)
+        jq '.enabled = true' "$config_file" > "$temp_file" && mv "$temp_file" "$config_file"
+        echo "✅ Airlock enabled: $config_file"
+      fi
+    else
+      # No jq - check with grep
+      if grep -q '"enabled"[[:space:]]*:[[:space:]]*false' "$config_file"; then
+        # Use sed to update enabled to true
+        sed -i.bak 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
+        rm -f "${config_file}.bak"
+        echo "✅ Airlock enabled: $config_file"
+      else
+        echo "✅ Airlock already enabled: $config_file"
+      fi
+    fi
     return 0
   fi
   
   # Config doesn't exist - ask user about mode and create it
-  echo "📝 Creating network proxy configuration..."
+  echo "📝 Creating Airlock configuration..."
   echo ""
-  echo "   The network proxy can run in two modes:"
+  echo "   The Airlock proxy can run in two modes:"
   echo "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
   echo "   • [m]onitor - Log all requests but allow everything (useful for testing)"
   echo ""
@@ -880,9 +901,11 @@ __copilot_ensure_network_config() {
   read mode_choice
   
   local mode="enforce"
+  local enable_logging="false"
   local lower_choice=$(echo "$mode_choice" | tr '[:upper:]' '[:lower:]')
   if [ "$lower_choice" = "monitor" ] || [ "$lower_choice" = "m" ]; then
     mode="monitor"
+    enable_logging="true"
   fi
   
   # Create config directory
@@ -915,11 +938,13 @@ __copilot_ensure_network_config() {
   ]'
   fi
   
-  # Write config file
+  # Write config file with enabled: true
   cat > "$config_file" << EOF
 {
+  "enabled": true,
   "inherit_default_rules": true,
   "mode": "$mode",
+  "enable_logging": $enable_logging,
   "allowed_rules": $allowed_rules
 }
 EOF
@@ -930,10 +955,55 @@ EOF
   fi
   
   echo ""
-  echo "✅ Created network config: $config_file"
+  echo "✅ Created Airlock config: $config_file"
   echo "   Mode: $mode"
   echo "   inherit_default_rules: true"
   echo ""
+  
+  return 0
+}
+
+# Helper function to disable Airlock
+__copilot_disable_airlock() {
+  local is_global="$1"
+  local config_file
+  
+  if [ "$is_global" = "true" ]; then
+    config_file="$HOME/.config/copilot_here/network.json"
+  else
+    config_file=".copilot_here/network.json"
+  fi
+  
+  if [ ! -f "$config_file" ]; then
+    echo "ℹ️  No Airlock config found: $config_file"
+    return 0
+  fi
+  
+  if command -v jq &> /dev/null; then
+    local current_enabled=$(jq -r '.enabled // true' "$config_file")
+    if [ "$current_enabled" = "false" ]; then
+      echo "ℹ️  Airlock already disabled: $config_file"
+    else
+      # Update enabled to false
+      local temp_file=$(mktemp)
+      jq '.enabled = false' "$config_file" > "$temp_file" && mv "$temp_file" "$config_file"
+      echo "✅ Airlock disabled: $config_file"
+    fi
+  else
+    # No jq - check with grep and use sed
+    if grep -q '"enabled"[[:space:]]*:[[:space:]]*true' "$config_file"; then
+      sed -i.bak 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
+      rm -f "${config_file}.bak"
+      echo "✅ Airlock disabled: $config_file"
+    elif grep -q '"enabled"' "$config_file"; then
+      echo "ℹ️  Airlock already disabled: $config_file"
+    else
+      # No enabled field - add it as false at the beginning
+      sed -i.bak 's/^{/{\n  "enabled": false,/' "$config_file"
+      rm -f "${config_file}.bak"
+      echo "✅ Airlock disabled: $config_file"
+    fi
+  fi
   
   return 0
 }
@@ -1405,6 +1475,8 @@ OPTIONS:
 NETWORK (AIRLOCK):
   --enable-airlock              Enable Airlock with local rules (.copilot_here/network.json)
   --enable-global-airlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
+  --disable-airlock             Disable Airlock for local config
+  --disable-global-airlock      Disable Airlock for global config
   --show-network-rules          Show current network proxy rules
   --edit-network-rules          Edit local network rules in \$EDITOR
   --edit-global-network-rules   Edit global network rules in \$EDITOR
@@ -1656,6 +1728,14 @@ __copilot_main() {
         enable_network_proxy="true"
         network_proxy_global="true"
         shift
+        ;;
+      --disable-airlock)
+        __copilot_disable_airlock "false"
+        return $?
+        ;;
+      --disable-global-airlock)
+        __copilot_disable_airlock "true"
+        return $?
         ;;
       --show-network-rules)
         __copilot_show_network_rules
