@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-27
+# Version: 2025-11-27.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -824,8 +824,15 @@ function Invoke-CopilotAirlock {
         New-Item -ItemType Directory -Path $copilotConfig -Force | Out-Null
     }
     
-    # Container work directory
+    # Container work directory - use same path mapping as non-airlock mode
+    # Windows paths get mapped to /home/appuser/work for consistency
     $containerWorkDir = "/home/appuser/work"
+    $userHome = $env:USERPROFILE.Replace('\', '/')
+    $currentDirUnix = $currentDir.Replace('\', '/')
+    if ($currentDirUnix.StartsWith($userHome)) {
+        $relativePath = $currentDirUnix.Substring($userHome.Length)
+        $containerWorkDir = "/home/appuser$relativePath"
+    }
     
     # Check if logging is enabled in network config (also enabled automatically for monitor mode)
     $logsMount = ""
@@ -861,6 +868,10 @@ function Invoke-CopilotAirlock {
         if ($resolved) {
             $extraMounts += "      - ${resolved}:${resolved}:rw`n"
         }
+    }
+    # Trim trailing newline to prevent empty line after insertion
+    if ($extraMounts) {
+        $extraMounts = $extraMounts.TrimEnd()
     }
     
     # Build copilot command args as JSON array
@@ -898,22 +909,31 @@ function Invoke-CopilotAirlock {
     
     Set-Content $tempCompose $compose -Encoding UTF8
     
+    # Cleanup orphaned networks before starting
+    Clear-OrphanedNetworks
+    
     # Set terminal title
-    $title = "$titleEmoji $currentDirName [airlock]"
+    $title = "$titleEmoji $currentDirName 🛡️"
     $originalTitle = $Host.UI.RawUI.WindowTitle
     $Host.UI.RawUI.WindowTitle = $title
     
     try {
         Write-Host ""
         # Pass GITHUB_TOKEN via environment, not written to compose file for security
+        # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
+        # Using 'run -i' for proper TTY/stdin handling (compose file has tty: true)
         $env:GITHUB_TOKEN = $token
-        docker compose -f $tempCompose -p $projectName up --abort-on-container-exit --attach app
+        $env:COMPOSE_MENU = "0"
+        docker compose -f $tempCompose -p $projectName run -i --rm --service-ports app
     } finally {
         # Cleanup
         $Host.UI.RawUI.WindowTitle = $originalTitle
         Write-Host ""
         Write-Host "🧹 Cleaning up airlock..."
-        docker compose -f $tempCompose -p $projectName down --volumes 2>$null
+        docker compose -f $tempCompose -p $projectName down --volumes --remove-orphans 2>$null
+        # Explicitly remove networks in case compose down didn't fully clean up
+        docker network rm "${projectName}_airlock" 2>$null
+        docker network rm "${projectName}_bridge" 2>$null
         Remove-Item $tempCompose -ErrorAction SilentlyContinue
     }
 }
@@ -1004,6 +1024,36 @@ function Remove-UnusedCopilotImages {
         Write-Host "  ✓ No old images to clean up"
     } else {
         Write-Host "  ✓ Cleaned up $count old image(s)"
+    }
+}
+
+# Helper function to cleanup orphaned copilot_here networks
+function Clear-OrphanedNetworks {
+    # Find orphaned copilot_here networks (not attached to any containers)
+    $orphanedNetworks = docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>$null
+    
+    if (-not $orphanedNetworks) {
+        return
+    }
+    
+    $count = 0
+    foreach ($networkName in $orphanedNetworks) {
+        if (-not $networkName) { continue }
+        
+        # Check if network has any attached containers
+        $containers = docker network inspect $networkName --format '{{len .Containers}}' 2>$null
+        
+        if ($containers -eq "0") {
+            $result = docker network rm $networkName 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  🗑️  Removed orphaned network: $networkName"
+                $count++
+            }
+        }
+    }
+    
+    if ($count -gt 0) {
+        Write-Host "  ✓ Cleaned up $count orphaned network(s)"
     }
 }
 
@@ -1540,7 +1590,7 @@ OPTIONS:
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
   -NoCleanup               Skip cleanup of unused Docker images
-  -NoPull                  Skip pulling the latest image
+  -NoPull, -SkipPull       Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
@@ -1632,7 +1682,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-27
+VERSION: 2025-11-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }
@@ -1673,6 +1723,7 @@ function Invoke-CopilotMain {
         [switch]$ClearImage,
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
+        [Alias("SkipPull")]
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,
@@ -1834,6 +1885,7 @@ function Copilot-Here {
         [switch]$ClearImage,
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
+        [Alias("SkipPull")]
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,
@@ -1881,6 +1933,7 @@ function Copilot-Yolo {
         [switch]$ClearImage,
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
+        [Alias("SkipPull")]
         [switch]$NoPull,
         [switch]$EnableAirlock,
         [switch]$EnableGlobalAirlock,

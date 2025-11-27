@@ -54,10 +54,8 @@ print_summary() {
 
 # Cleanup function
 cleanup() {
+  # Only clean up the temp test directory - never touch repo files
   rm -rf "$TEST_DIR"
-  # Remove test network config if created
-  rm -f ".copilot_here/network.json" 2>/dev/null || true
-  rmdir ".copilot_here" 2>/dev/null || true
 }
 
 # Setup

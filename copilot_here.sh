@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-27
+# Version: 2025-11-27.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -564,6 +564,35 @@ __copilot_cleanup_images() {
     echo "  ✓ No old images to clean up"
   else
     echo "  ✓ Cleaned up $count old image(s)"
+  fi
+}
+
+# Helper function to cleanup orphaned copilot_here networks
+__copilot_cleanup_orphaned_networks() {
+  # Find orphaned copilot_here networks (not attached to any containers)
+  local orphaned_networks=$(docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>/dev/null || true)
+  
+  if [ -z "$orphaned_networks" ]; then
+    return 0
+  fi
+  
+  local count=0
+  while IFS= read -r network_name; do
+    [ -z "$network_name" ] && continue
+    
+    # Check if network has any attached containers
+    local containers=$(docker network inspect "$network_name" --format '{{len .Containers}}' 2>/dev/null || echo "0")
+    
+    if [ "$containers" = "0" ]; then
+      if docker network rm "$network_name" 2>/dev/null; then
+        echo "  🗑️  Removed orphaned network: $network_name"
+        count=$((count + 1))
+      fi
+    fi
+  done <<< "$orphaned_networks"
+  
+  if [ "$count" -gt 0 ]; then
+    echo "  ✓ Cleaned up $count orphaned network(s)"
   fi
 }
 
@@ -1278,8 +1307,13 @@ __copilot_run_airlock() {
   local copilot_config="$HOME/.config/copilot-cli-docker"
   mkdir -p "$copilot_config"
   
-  # Container work directory
-  local container_work_dir="/home/appuser/work"
+  # Container work directory - use same path mapping as non-airlock mode
+  local container_work_dir="$current_dir"
+  if [[ "$current_dir" == "$HOME"* ]]; then
+    # Path is under user's home directory - map to container's home
+    local relative_path="${current_dir#$HOME}"
+    container_work_dir="/home/appuser${relative_path}"
+  fi
   
   # Check if logging is enabled in network config (also enabled automatically for monitor mode)
   local logs_mount=""
@@ -1317,6 +1351,11 @@ __copilot_run_airlock() {
     extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw${newline}"
   done
   
+  # Remove trailing newline to prevent empty line after insertion
+  if [ -n "$extra_mounts" ]; then
+    extra_mounts="${extra_mounts%$newline}"
+  fi
+  
   # Build copilot command args
   local copilot_cmd="[\"copilot\""
   if [ "$allow_all_tools" = "true" ]; then
@@ -1336,37 +1375,73 @@ __copilot_run_airlock() {
   copilot_cmd="${copilot_cmd}]"
   
   # Generate compose file from template
-  # Use awk for reliable multiline substitution (works on macOS and Linux)
-  awk -v project_name="$project_name" \
-      -v app_image="$app_image" \
-      -v proxy_image="$proxy_image" \
-      -v work_dir="$current_dir" \
-      -v container_work_dir="$container_work_dir" \
-      -v copilot_config="$copilot_config" \
-      -v network_config="$network_config_file" \
-      -v logs_mount="$logs_mount" \
-      -v puid="$(id -u)" \
-      -v pgid="$(id -g)" \
-      -v extra_mounts="$extra_mounts" \
-      -v copilot_args="$copilot_cmd" \
-      '{
-        gsub(/\{\{PROJECT_NAME\}\}/, project_name);
-        gsub(/\{\{APP_IMAGE\}\}/, app_image);
-        gsub(/\{\{PROXY_IMAGE\}\}/, proxy_image);
-        gsub(/\{\{WORK_DIR\}\}/, work_dir);
-        gsub(/\{\{CONTAINER_WORK_DIR\}\}/, container_work_dir);
-        gsub(/\{\{COPILOT_CONFIG\}\}/, copilot_config);
-        gsub(/\{\{NETWORK_CONFIG\}\}/, network_config);
-        gsub(/\{\{LOGS_MOUNT\}\}/, logs_mount);
-        gsub(/\{\{PUID\}\}/, puid);
-        gsub(/\{\{PGID\}\}/, pgid);
-        gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
-        gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
-        print
-      }' "$template_file" > "$temp_compose"
+  # Use sed for reliable substitution (works on macOS and Linux)
+  # Write multiline content to temp files to avoid awk newline issues on macOS
+  local temp_extra_mounts=$(mktemp)
+  local temp_logs_mount=$(mktemp)
+  if [ -n "$extra_mounts" ]; then
+    printf '%s' "$extra_mounts" > "$temp_extra_mounts"
+  fi
+  if [ -n "$logs_mount" ]; then
+    printf '%s' "$logs_mount" > "$temp_logs_mount"
+  fi
+  
+  # Copy template and do simple substitutions with sed
+  cp "$template_file" "$temp_compose"
+  sed -i.bak "s|{{PROJECT_NAME}}|$project_name|g" "$temp_compose"
+  sed -i.bak "s|{{APP_IMAGE}}|$app_image|g" "$temp_compose"
+  sed -i.bak "s|{{PROXY_IMAGE}}|$proxy_image|g" "$temp_compose"
+  sed -i.bak "s|{{WORK_DIR}}|$current_dir|g" "$temp_compose"
+  sed -i.bak "s|{{CONTAINER_WORK_DIR}}|$container_work_dir|g" "$temp_compose"
+  sed -i.bak "s|{{COPILOT_CONFIG}}|$copilot_config|g" "$temp_compose"
+  sed -i.bak "s|{{NETWORK_CONFIG}}|$network_config_file|g" "$temp_compose"
+  sed -i.bak "s|{{PUID}}|$(id -u)|g" "$temp_compose"
+  sed -i.bak "s|{{PGID}}|$(id -g)|g" "$temp_compose"
+  sed -i.bak "s|{{COPILOT_ARGS}}|$copilot_cmd|g" "$temp_compose"
+  
+  # Handle multiline substitutions using temp files
+  # This approach avoids passing newlines through awk -v which breaks on macOS
+  # For LOGS_MOUNT - replace placeholder line with file contents or remove if empty
+  if [ -s "$temp_logs_mount" ]; then
+    # Read line by line and replace the placeholder line with file contents
+    # cat outputs without final newline, so we need to add one
+    # Only replace if line is NOT a comment (doesn't start with #)
+    while IFS= read -r line || [ -n "$line" ]; do
+      if echo "$line" | grep -q '^{{LOGS_MOUNT}}'; then
+        cat "$temp_logs_mount"
+        echo ""
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  else
+    # Remove the placeholder line if empty (only non-comment lines)
+    grep -v '^{{LOGS_MOUNT}}' "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  fi
+  
+  # For EXTRA_MOUNTS - replace placeholder line with file contents or remove if empty
+  if [ -s "$temp_extra_mounts" ]; then
+    # Read line by line and replace the placeholder line with file contents
+    # cat outputs without final newline, so we need to add one
+    # Only replace if line is NOT a comment (doesn't start with #)
+    while IFS= read -r line || [ -n "$line" ]; do
+      if echo "$line" | grep -q '^{{EXTRA_MOUNTS}}'; then
+        cat "$temp_extra_mounts"
+        echo ""
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  else
+    # Remove the placeholder line if empty (only non-comment lines)
+    grep -v '^{{EXTRA_MOUNTS}}' "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  fi
+  
+  # Cleanup temp files
+  rm -f "$temp_extra_mounts" "$temp_logs_mount" "${temp_compose}.bak"
   
   # Set terminal title
-  local title="${title_emoji} ${current_dir_name} [proxy]"
+  local title="${title_emoji} ${current_dir_name} 🛡️"
   printf "\033]0;%s\007" "$title"
   
   # Cleanup function
@@ -1374,14 +1449,22 @@ __copilot_run_airlock() {
     printf "\033]0;\007"  # Reset title
     echo ""
     echo "🧹 Cleaning up airlock..."
-    docker compose -f "$temp_compose" -p "$project_name" down --volumes 2>/dev/null
+    docker compose -f "$temp_compose" -p "$project_name" down --volumes --remove-orphans 2>/dev/null
+    # Explicitly remove networks in case compose down didn't fully clean up
+    docker network rm "${project_name}_airlock" 2>/dev/null || true
+    docker network rm "${project_name}_bridge" 2>/dev/null || true
     rm -f "$temp_compose"
   }
   trap cleanup EXIT INT TERM
   
-  # Run with docker compose (GITHUB_TOKEN is passed via environment, not written to file)
+  # Cleanup orphaned copilot_here networks from previous failed runs
+  __copilot_cleanup_orphaned_networks
+  
+  # Start proxy service first, then run app interactively
+  # Using 'run -i' for proper TTY/stdin handling (compose file has tty: true)
+  # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
   echo ""
-  GITHUB_TOKEN="$token" docker compose -f "$temp_compose" -p "$project_name" up --abort-on-container-exit --attach app
+  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" run -i --rm --service-ports app
   
   # Cleanup is handled by trap
 }
@@ -1598,7 +1681,7 @@ OPTIONS:
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
   --no-cleanup              Skip cleanup of unused Docker images
-  --no-pull                 Skip pulling the latest image
+  --no-pull, --skip-pull    Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
@@ -1690,7 +1773,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-27
+VERSION: 2025-11-27.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }
@@ -1839,7 +1922,7 @@ __copilot_main() {
        skip_cleanup="true"
        shift
        ;;
-     --no-pull)
+     --no-pull|--skip-pull)
        skip_pull="true"
        shift
        ;;
