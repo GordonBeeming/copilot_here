@@ -4,11 +4,19 @@
   "allowed_rules": [
     {
       "host": "api.github.com",
-      "allowed_paths": ["/user", "/graphql"]
+      "allowed_paths": [
+        "/user",
+        "/graphql"
+      ]
     },
     {
       "host": "api.individual.githubcopilot.com",
-      "allowed_paths": ["/models", "/mcp/readonly", "/chat/completions"]
+      "allowed_paths": [
+        "/models",
+        "/mcp/readonly",
+        "/chat/completions",
+        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}"
+      ]
     }
   ]
 }

@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-27.6
+# Version: 2025-11-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -741,9 +741,17 @@ function Invoke-CopilotAirlock {
     
     if (-not (Test-CopilotSecurityCheck)) { return }
     
+    # Process network config file to replace placeholders
+    $processedConfigFile = Get-ProcessedNetworkConfig -ConfigFile $NetworkConfigFile
+    if (-not $processedConfigFile) {
+        Write-Host "❌ Failed to process network config file" -ForegroundColor Red
+        return
+    }
+    
     # Skip actual container launch in test mode
     if ($env:COPILOT_HERE_TEST_MODE -eq "true") {
         Write-Host "🧪 Test mode: skipping container launch"
+        Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
         return
     }
     
@@ -761,6 +769,7 @@ function Invoke-CopilotAirlock {
         docker pull $appImage
         if ($LASTEXITCODE -ne 0) {
             Write-Host "❌ Failed to pull app image" -ForegroundColor Red
+            Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
             return
         }
         # Try to pull proxy image, but don't fail if it exists locally (for local dev)
@@ -776,6 +785,7 @@ function Invoke-CopilotAirlock {
                 } else {
                     Write-Host "   The proxy image is not yet available in the registry" -ForegroundColor Yellow
                 }
+                Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
                 return
             }
         }
@@ -857,16 +867,23 @@ function Invoke-CopilotAirlock {
     
     # Build extra mounts string
     $extraMounts = ""
-    foreach ($mountPath in $MountsRO) {
-        $resolved = Resolve-MountPath $mountPath
-        if ($resolved) {
-            $extraMounts += "      - ${resolved}:${resolved}:ro`n"
+    # Build extra mounts string (format: host_path:container_path)
+    foreach ($mountSpec in $MountsRO) {
+        # Parse host_path:container_path format
+        $parts = $mountSpec -split ':', 2
+        $hostPath = $parts[0]
+        $containerPath = if ($parts.Count -gt 1) { $parts[1] } else { $hostPath }
+        if ($hostPath) {
+            $extraMounts += "      - ${hostPath}:${containerPath}:ro`n"
         }
     }
-    foreach ($mountPath in $MountsRW) {
-        $resolved = Resolve-MountPath $mountPath
-        if ($resolved) {
-            $extraMounts += "      - ${resolved}:${resolved}:rw`n"
+    foreach ($mountSpec in $MountsRW) {
+        # Parse host_path:container_path format
+        $parts = $mountSpec -split ':', 2
+        $hostPath = $parts[0]
+        $containerPath = if ($parts.Count -gt 1) { $parts[1] } else { $hostPath }
+        if ($hostPath) {
+            $extraMounts += "      - ${hostPath}:${containerPath}:rw`n"
         }
     }
     # Trim trailing newline to prevent empty line after insertion
@@ -900,7 +917,7 @@ function Invoke-CopilotAirlock {
         -replace '\{\{WORK_DIR\}\}', ($currentDir -replace '\\', '/') `
         -replace '\{\{CONTAINER_WORK_DIR\}\}', $containerWorkDir `
         -replace '\{\{COPILOT_CONFIG\}\}', ($copilotConfig -replace '\\', '/') `
-        -replace '\{\{NETWORK_CONFIG\}\}', ($NetworkConfigFile -replace '\\', '/') `
+        -replace '\{\{NETWORK_CONFIG\}\}', ($processedConfigFile -replace '\\', '/') `
         -replace '\{\{LOGS_MOUNT\}\}', $logsMount `
         -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
         -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
@@ -935,6 +952,7 @@ function Invoke-CopilotAirlock {
         docker network rm "${projectName}_airlock" 2>$null
         docker network rm "${projectName}_bridge" 2>$null
         Remove-Item $tempCompose -ErrorAction SilentlyContinue
+        Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
     }
 }
 
@@ -964,6 +982,73 @@ function Test-CopilotSecurityCheck {
     }
     Write-Host "✅ Security checks passed."
     return $true
+}
+
+# Helper function to get GitHub owner and repo from git remote
+function Get-GitHubInfo {
+    try {
+        $remoteUrl = git remote get-url origin 2>$null
+        if (-not $remoteUrl) {
+            return $null
+        }
+        
+        # Parse owner and repo from various URL formats:
+        # git@github.com:owner/repo.git
+        # https://github.com/owner/repo.git
+        # https://github.com/owner/repo
+        if ($remoteUrl -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
+            $owner = $Matches[1]
+            $repo = $Matches[2]
+            return @{
+                Owner = $owner
+                Repo = $repo
+            }
+        }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
+# Helper function to process network config with placeholders
+function Get-ProcessedNetworkConfig {
+    param([string]$ConfigFile)
+    
+    if (-not (Test-Path $ConfigFile)) {
+        return $null
+    }
+    
+    # Get GitHub owner and repo
+    $githubInfo = Get-GitHubInfo
+    $githubOwner = ""
+    $githubRepo = ""
+    
+    if ($githubInfo) {
+        $githubOwner = $githubInfo.Owner
+        $githubRepo = $githubInfo.Repo
+    }
+    
+    # Read and process the config file, replacing placeholders
+    $content = Get-Content $ConfigFile -Raw
+    
+    # Replace placeholders
+    $content = $content -replace '\{\{GITHUB_OWNER\}\}', $githubOwner
+    $content = $content -replace '\{\{GITHUB_REPO\}\}', $githubRepo
+    
+    # Write to temp file in a location Docker can access (user's config dir)
+    # Fall back to system temp if config dir creation fails
+    $tempDir = "$env:USERPROFILE\.config\copilot_here\tmp"
+    try {
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Path $tempDir -Force -ErrorAction Stop | Out-Null
+        }
+    } catch {
+        $tempDir = [System.IO.Path]::GetTempPath()
+    }
+    $tempFile = Join-Path $tempDir "network-$([System.DateTimeOffset]::Now.ToUnixTimeMilliseconds()).json"
+    Set-Content -Path $tempFile -Value $content -Encoding UTF8
+    
+    return $tempFile
 }
 
 # Helper function to cleanup unused copilot_here images
@@ -1159,6 +1244,10 @@ function Invoke-CopilotRun {
     # Initialize seenPaths with current directory to avoid duplicates
     $seenPaths = @{$currentDir = "mounted"}
     
+    # Arrays to collect all resolved mounts (for passing to airlock)
+    $allResolvedMountsRO = @()
+    $allResolvedMountsRW = @()
+    
     # Add current working directory to display
     $mountDisplay += "📁 $containerWorkDir"
     
@@ -1187,6 +1276,13 @@ function Invoke-CopilotRun {
         $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
         $allMountPaths += $resolvedPath
         
+        # Store resolved mount for airlock (host_path:container_path format)
+        if ($mountMode -eq "rw") {
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
+        } else {
+            $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
+        }
+        
         # Determine source for display
         $sourceIcon = if (Test-EmojiSupport) {
             if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "🌍" } else { "📍" }
@@ -1212,6 +1308,7 @@ function Invoke-CopilotRun {
         
         $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):ro"
         $allMountPaths += $resolvedPath
+        $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
         
         $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
         $mountDisplay += "   $icon $resolvedPath (ro)"
@@ -1234,10 +1331,14 @@ function Invoke-CopilotRun {
                     break
                 }
             }
+            # Also update resolved mounts arrays - move from ro to rw
+            $allResolvedMountsRO = $allResolvedMountsRO | Where-Object { $_ -ne "$($resolvedPath):$($resolvedPath)" }
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
         } else {
             $seenPaths[$resolvedPath] = "rw"
             $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):rw"
             $allMountPaths += $resolvedPath
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
         }
         
         $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
@@ -1306,10 +1407,11 @@ function Invoke-CopilotRun {
         }
         
         # Call airlock mode instead of normal docker run
+        # Pass resolved mount arrays (all config + CLI mounts already processed)
         Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools:$AllowAllTools `
             -SkipCleanup:$SkipCleanup -SkipPull:$SkipPull `
             -NetworkConfigFile $networkConfigFile `
-            -MountsRo $mountsRo -MountsRw $mountsRw -Arguments $Arguments
+            -MountsRo $allResolvedMountsRO -MountsRw $allResolvedMountsRW -Arguments $Arguments
         return
     } else {
         if ((Test-Path $localNetworkConfig) -or (Test-Path $globalNetworkConfig)) {
@@ -1682,7 +1784,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-27.6
+VERSION: 2025-11-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }

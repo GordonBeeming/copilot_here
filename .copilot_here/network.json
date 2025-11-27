@@ -17,7 +17,7 @@
         "/models",
         "/mcp/readonly",
         "/chat/completions",
-        "/agents/swe/custom-agents/GordonBeeming/copilot_here"
+        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}"
       ]
     }
   ]

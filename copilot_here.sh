@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-27.6
+# Version: 2025-11-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -523,6 +523,79 @@ __copilot_security_check() {
   return 0
 }
 
+# Helper function to get GitHub owner and repo from git remote
+__copilot_get_github_info() {
+  local remote_url=$(git remote get-url origin 2>/dev/null)
+  
+  if [ -z "$remote_url" ]; then
+    echo ""
+    return 1
+  fi
+  
+  # Parse owner and repo from various URL formats:
+  # git@github.com:owner/repo.git
+  # https://github.com/owner/repo.git
+  # https://github.com/owner/repo
+  local owner=""
+  local repo=""
+  
+  # Use sed for portable parsing (works in both bash and zsh)
+  # Extract the part after github.com: or github.com/
+  local path_part=$(echo "$remote_url" | sed -n 's/.*github\.com[:/]\([^/]*\/[^/]*\).*/\1/p')
+  
+  if [ -n "$path_part" ]; then
+    # Split by / and remove .git suffix
+    owner=$(echo "$path_part" | cut -d'/' -f1)
+    repo=$(echo "$path_part" | cut -d'/' -f2 | sed 's/\.git$//')
+  fi
+  
+  if [ -n "$owner" ] && [ -n "$repo" ]; then
+    echo "${owner}|${repo}"
+    return 0
+  fi
+  
+  echo ""
+  return 1
+}
+
+# Helper function to process network config with placeholders
+__copilot_process_network_config() {
+  local config_file="$1"
+  
+  # Create temp file in a location Docker can access (user's config dir)
+  # Fall back to system temp if config dir creation fails
+  local temp_dir="$HOME/.config/copilot_here/tmp"
+  if ! mkdir -p "$temp_dir" 2>/dev/null; then
+    temp_dir="${TMPDIR:-/tmp}"
+  fi
+  local temp_file="${temp_dir}/network-$(date +%s%N).json"
+  
+  # Get GitHub owner and repo
+  local github_info=$(__copilot_get_github_info)
+  local github_owner=""
+  local github_repo=""
+  
+  if [ -n "$github_info" ]; then
+    github_owner="${github_info%|*}"
+    github_repo="${github_info#*|}"
+  fi
+  
+  # Read and process the config file, replacing placeholders
+  if [ -f "$config_file" ]; then
+    local content=$(cat "$config_file")
+    
+    # Replace placeholders
+    content="${content//\{\{GITHUB_OWNER\}\}/$github_owner}"
+    content="${content//\{\{GITHUB_REPO\}\}/$github_repo}"
+    
+    echo "$content" > "$temp_file"
+    echo "$temp_file"
+  else
+    rm -f "$temp_file"
+    echo ""
+  fi
+}
+
 # Helper function to cleanup unused copilot_here images
 __copilot_cleanup_images() {
   local keep_image="$1"
@@ -697,6 +770,10 @@ __copilot_run() {
   local all_mount_paths=()
   local mount_display=()
   
+  # Arrays to collect all resolved mounts (for passing to airlock)
+  local all_resolved_mounts_ro=()
+  local all_resolved_mounts_rw=()
+  
   # Add current working directory to display
   mount_display+=("📁 $container_work_dir")
   
@@ -733,6 +810,13 @@ __copilot_run() {
     
     docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
     all_mount_paths+=("$container_path")
+    
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
+    else
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
     
     # Global mount icon
     if __copilot_supports_emoji; then
@@ -774,6 +858,13 @@ __copilot_run() {
     docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
     all_mount_paths+=("$container_path")
     
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
+    else
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
+    
     # Local mount icon
     if __copilot_supports_emoji; then
       mount_display+=("   📍 $container_path ($mount_mode)")
@@ -805,6 +896,7 @@ __copilot_run() {
     
     docker_args+=(-v "$resolved_path:$container_path:ro")
     all_mount_paths+=("$container_path")
+    all_resolved_mounts_ro+=("$resolved_path:$container_path")
     
     if __copilot_supports_emoji; then
       mount_display+=("   🔧 $container_path (ro)")
@@ -853,6 +945,17 @@ __copilot_run() {
           prev_arg="$arg"
         done
         docker_args=("${new_docker_args[@]}")
+        
+        # Also update resolved mounts arrays - move from ro to rw
+        local new_resolved_ro=()
+        for m in "${all_resolved_mounts_ro[@]}"; do
+          if [ "$m" != "$resolved_path:$container_path" ]; then
+            new_resolved_ro+=("$m")
+          fi
+        done
+        all_resolved_mounts_ro=("${new_resolved_ro[@]}")
+        all_resolved_mounts_rw+=("$resolved_path:$container_path")
+        
         break
       fi
     done
@@ -861,6 +964,7 @@ __copilot_run() {
       seen_paths+=("$resolved_path")
       docker_args+=(-v "$resolved_path:$container_path:rw")
       all_mount_paths+=("$container_path")
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
     fi
     
     if __copilot_supports_emoji; then
@@ -922,8 +1026,9 @@ __copilot_run() {
     fi
     
     # Call airlock mode instead of normal docker run
+    # Pass resolved mount arrays (all config + CLI mounts already processed)
     __copilot_run_airlock "$image_tag" "$allow_all_tools" "$skip_cleanup" "$skip_pull" \
-      "$network_config_file" "mounts_ro" "mounts_rw" "$@"
+      "$network_config_file" "all_resolved_mounts_ro" "all_resolved_mounts_rw" "$@"
     return $?
   else
     if [ -f "$local_network_config" ] || [ -f "$global_network_config" ]; then
@@ -1235,9 +1340,17 @@ __copilot_run_airlock() {
   
   if ! __copilot_security_check; then return 1; fi
   
+  # Process network config file to replace placeholders
+  local processed_config_file=$(__copilot_process_network_config "$network_config_file")
+  if [ -z "$processed_config_file" ]; then
+    echo "❌ Failed to process network config file"
+    return 1
+  fi
+  
   # Skip actual container launch in test mode
   if [ "$COPILOT_HERE_TEST_MODE" = "true" ]; then
     echo "🧪 Test mode: skipping container launch"
+    rm -f "$processed_config_file"
     return 0
   fi
   
@@ -1335,20 +1448,24 @@ __copilot_run_airlock() {
   local extra_mounts=""
   local newline=$'\n'
   
-  # Add read-only mounts (using eval to access array by name)
+  # Add read-only mounts (format: host_path:container_path)
   eval "local _mounts_ro=(\"\${${mounts_ro_name}[@]}\")"
-  for mount_path in "${_mounts_ro[@]}"; do
-    local resolved=$(__copilot_resolve_mount_path "$mount_path")
-    [ -z "$resolved" ] && continue
-    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:ro${newline}"
+  for mount_spec in "${_mounts_ro[@]}"; do
+    # Parse host_path:container_path format
+    local host_path="${mount_spec%%:*}"
+    local container_path="${mount_spec#*:}"
+    [ -z "$host_path" ] && continue
+    extra_mounts="${extra_mounts}      - ${host_path}:${container_path}:ro${newline}"
   done
   
-  # Add read-write mounts (using eval to access array by name)
+  # Add read-write mounts (format: host_path:container_path)
   eval "local _mounts_rw=(\"\${${mounts_rw_name}[@]}\")"
-  for mount_path in "${_mounts_rw[@]}"; do
-    local resolved=$(__copilot_resolve_mount_path "$mount_path")
-    [ -z "$resolved" ] && continue
-    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw${newline}"
+  for mount_spec in "${_mounts_rw[@]}"; do
+    # Parse host_path:container_path format
+    local host_path="${mount_spec%%:*}"
+    local container_path="${mount_spec#*:}"
+    [ -z "$host_path" ] && continue
+    extra_mounts="${extra_mounts}      - ${host_path}:${container_path}:rw${newline}"
   done
   
   # Remove trailing newline to prevent empty line after insertion
@@ -1394,7 +1511,7 @@ __copilot_run_airlock() {
   sed -i.bak "s|{{WORK_DIR}}|$current_dir|g" "$temp_compose"
   sed -i.bak "s|{{CONTAINER_WORK_DIR}}|$container_work_dir|g" "$temp_compose"
   sed -i.bak "s|{{COPILOT_CONFIG}}|$copilot_config|g" "$temp_compose"
-  sed -i.bak "s|{{NETWORK_CONFIG}}|$network_config_file|g" "$temp_compose"
+  sed -i.bak "s|{{NETWORK_CONFIG}}|$processed_config_file|g" "$temp_compose"
   sed -i.bak "s|{{PUID}}|$(id -u)|g" "$temp_compose"
   sed -i.bak "s|{{PGID}}|$(id -g)|g" "$temp_compose"
   sed -i.bak "s|{{COPILOT_ARGS}}|$copilot_cmd|g" "$temp_compose"
@@ -1454,6 +1571,7 @@ __copilot_run_airlock() {
     docker network rm "${project_name}_airlock" 2>/dev/null || true
     docker network rm "${project_name}_bridge" 2>/dev/null || true
     rm -f "$temp_compose"
+    rm -f "$processed_config_file"
   }
   trap cleanup EXIT INT TERM
   
@@ -1773,7 +1891,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-27.6
+VERSION: 2025-11-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }
