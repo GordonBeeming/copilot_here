@@ -3,8 +3,27 @@
 
 set -e
 
+# Setup test directory to isolate from production configs
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEST_DIR=$(mktemp -d)
+TEST_WORK_DIR="$TEST_DIR/work"
+TEST_HOME="$TEST_DIR/home"
+mkdir -p "$TEST_WORK_DIR"
+mkdir -p "$TEST_HOME/.config/copilot_here"
+
+cleanup() {
+  rm -rf "$TEST_DIR"
+}
+trap cleanup EXIT
+
+# Override HOME to use test directory
+export HOME="$TEST_HOME"
+
 # Source the script to test
-source ./copilot_here.sh
+source "$SCRIPT_DIR/copilot_here.sh"
+
+# Change to test work directory
+cd "$TEST_WORK_DIR"
 
 # Mock docker to avoid actual execution
 docker() {
