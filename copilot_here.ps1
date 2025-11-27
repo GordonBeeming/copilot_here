@@ -593,6 +593,82 @@ function Ensure-NetworkConfig {
     return $true
 }
 
+# Helper function to show network rules
+function Show-NetworkRules {
+    $localConfig = ".copilot_here\network.json"
+    $globalConfig = "$env:USERPROFILE\.config\copilot_here\network.json"
+    $defaultRules = "$env:USERPROFILE\.config\copilot_here\default-network-rules.json"
+    
+    Write-Host "📋 Network Proxy Rules"
+    Write-Host "======================"
+    Write-Host ""
+    
+    # Show default rules
+    if (Test-Path $defaultRules) {
+        Write-Host "📦 Default Rules:"
+        Write-Host "   $defaultRules"
+        Get-Content $defaultRules | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "📦 Default Rules: Not found"
+        Write-Host ""
+    }
+    
+    # Show global config
+    if (Test-Path $globalConfig) {
+        Write-Host "🌐 Global Config:"
+        Write-Host "   $globalConfig"
+        Get-Content $globalConfig | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "🌐 Global Config: Not configured"
+        Write-Host ""
+    }
+    
+    # Show local config
+    if (Test-Path $localConfig) {
+        Write-Host "📁 Local Config:"
+        Write-Host "   $localConfig"
+        Get-Content $localConfig | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "📁 Local Config: Not configured"
+        Write-Host ""
+    }
+}
+
+# Helper function to edit network rules
+function Edit-NetworkRules {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configFile = "$configDir\network.json"
+    } else {
+        $configDir = ".copilot_here"
+        $configFile = "$configDir\network.json"
+    }
+    
+    # Create config if it doesn't exist
+    if (-not (Test-Path $configFile)) {
+        Write-Host "📝 Config file doesn't exist. Creating it first..."
+        $result = Ensure-NetworkConfig -IsGlobal $IsGlobal
+        if (-not $result) {
+            return
+        }
+    }
+    
+    # Determine editor
+    $editor = $env:EDITOR
+    if (-not $editor) { $editor = $env:VISUAL }
+    if (-not $editor) { $editor = "notepad" }
+    
+    Write-Host "📝 Opening $configFile with $editor..."
+    & $editor $configFile
+}
+
 # Helper function to run with airlock (Docker Compose mode)
 function Invoke-CopilotAirlock {
     param(
@@ -1317,6 +1393,9 @@ OPTIONS:
 NETWORK PROXY (EXPERIMENTAL):
   -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
   -EnableGlobalNetworkProxy  Enable network proxy with global rules (~/.config/copilot_here/network.json)
+  -ShowNetworkRules          Show current network proxy rules
+  -EditNetworkRules          Edit local network rules in `$env:EDITOR
+  -EditGlobalNetworkRules    Edit global network rules in `$env:EDITOR
 
 MOUNT MANAGEMENT:
   -ListMounts              Show all configured mounts
@@ -1439,6 +1518,9 @@ function Invoke-CopilotMain {
         [switch]$NoPull,
         [switch]$EnableNetworkProxy,
         [switch]$EnableGlobalNetworkProxy,
+        [switch]$ShowNetworkRules,
+        [switch]$EditNetworkRules,
+        [switch]$EditGlobalNetworkRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [string[]]$Prompt
@@ -1447,6 +1529,22 @@ function Invoke-CopilotMain {
     # Check for mutually exclusive network proxy flags
     if ($EnableNetworkProxy -and $EnableGlobalNetworkProxy) {
         Write-Host "❌ Error: Cannot use both -EnableNetworkProxy and -EnableGlobalNetworkProxy" -ForegroundColor Red
+        return
+    }
+
+    # Handle network rules management commands
+    if ($ShowNetworkRules) {
+        Show-NetworkRules
+        return
+    }
+    
+    if ($EditNetworkRules) {
+        Edit-NetworkRules -IsGlobal $false
+        return
+    }
+    
+    if ($EditGlobalNetworkRules) {
+        Edit-NetworkRules -IsGlobal $true
         return
     }
 
@@ -1569,6 +1667,9 @@ function Copilot-Here {
         [switch]$NoPull,
         [switch]$EnableNetworkProxy,
         [switch]$EnableGlobalNetworkProxy,
+        [switch]$ShowNetworkRules,
+        [switch]$EditNetworkRules,
+        [switch]$EditGlobalNetworkRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -1611,6 +1712,9 @@ function Copilot-Yolo {
         [switch]$NoPull,
         [switch]$EnableNetworkProxy,
         [switch]$EnableGlobalNetworkProxy,
+        [switch]$ShowNetworkRules,
+        [switch]$EditNetworkRules,
+        [switch]$EditGlobalNetworkRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]

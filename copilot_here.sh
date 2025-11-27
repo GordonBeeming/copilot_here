@@ -938,6 +938,84 @@ EOF
   return 0
 }
 
+# Helper function to show network rules
+__copilot_show_network_rules() {
+  local local_config=".copilot_here/network.json"
+  local global_config="$HOME/.config/copilot_here/network.json"
+  local default_rules="$HOME/.config/copilot_here/default-network-rules.json"
+  
+  echo "📋 Network Proxy Rules"
+  echo "======================"
+  echo ""
+  
+  # Show default rules
+  if [ -f "$default_rules" ]; then
+    echo "📦 Default Rules:"
+    echo "   $default_rules"
+    cat "$default_rules" | sed 's/^/   /'
+    echo ""
+  else
+    echo "📦 Default Rules: Not found"
+    echo ""
+  fi
+  
+  # Show global config
+  if [ -f "$global_config" ]; then
+    echo "🌐 Global Config:"
+    echo "   $global_config"
+    cat "$global_config" | sed 's/^/   /'
+    echo ""
+  else
+    echo "🌐 Global Config: Not configured"
+    echo ""
+  fi
+  
+  # Show local config
+  if [ -f "$local_config" ]; then
+    echo "📁 Local Config:"
+    echo "   $local_config"
+    cat "$local_config" | sed 's/^/   /'
+    echo ""
+  else
+    echo "📁 Local Config: Not configured"
+    echo ""
+  fi
+  
+  return 0
+}
+
+# Helper function to edit network rules
+__copilot_edit_network_rules() {
+  local is_global="$1"
+  local config_file
+  local config_dir
+  
+  if [ "$is_global" = "true" ]; then
+    config_dir="$HOME/.config/copilot_here"
+    config_file="$config_dir/network.json"
+  else
+    config_dir=".copilot_here"
+    config_file="$config_dir/network.json"
+  fi
+  
+  # Create config if it doesn't exist
+  if [ ! -f "$config_file" ]; then
+    echo "📝 Config file doesn't exist. Creating it first..."
+    __copilot_ensure_network_config "$is_global"
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  fi
+  
+  # Determine editor
+  local editor="${EDITOR:-${VISUAL:-vi}}"
+  
+  echo "📝 Opening $config_file with $editor..."
+  "$editor" "$config_file"
+  
+  return $?
+}
+
 # Helper function to run with airlock (Docker Compose mode)
 __copilot_run_airlock() {
   local image_tag="$1"
@@ -1310,6 +1388,9 @@ OPTIONS:
 NETWORK PROXY (EXPERIMENTAL):
   --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
   --enable-global-network-proxy Enable network proxy with global rules (~/.config/copilot_here/network.json)
+  --show-network-rules          Show current network proxy rules
+  --edit-network-rules          Edit local network rules in \$EDITOR
+  --edit-global-network-rules   Edit global network rules in \$EDITOR
 
 MOUNT MANAGEMENT:
   --list-mounts             Show all configured mounts
@@ -1558,6 +1639,18 @@ __copilot_main() {
         enable_network_proxy="true"
         network_proxy_global="true"
         shift
+        ;;
+      --show-network-rules)
+        __copilot_show_network_rules
+        return $?
+        ;;
+      --edit-network-rules)
+        __copilot_edit_network_rules "false"
+        return $?
+        ;;
+      --edit-global-network-rules)
+        __copilot_edit_network_rules "true"
+        return $?
         ;;
       --update-scripts|--upgrade-scripts)
         __copilot_update_scripts
