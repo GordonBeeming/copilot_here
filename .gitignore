@@ -1,3 +1,6 @@
 # Blog post (personal copy, not part of repository)
 blog.md
 StartupProfileData-NonInteractive
+
+# Rust build artifacts
+proxy/target/

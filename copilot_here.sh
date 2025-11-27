@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-23
+# Version: 2025-11-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -13,7 +13,8 @@ __copilot_supports_emoji() {
 # Helper function to load mounts from config file
 __copilot_load_mounts() {
   local config_file="$1"
-  local var_name="$2"
+  local ro_var_name="$2"
+  local rw_var_name="$3"
   local actual_file="$config_file"
   
   # Follow symlink if config file is a symlink
@@ -25,7 +26,24 @@ __copilot_load_mounts() {
     while IFS= read -r line || [ -n "$line" ]; do
       # Skip empty lines, whitespace-only lines, and comments
       [[ -z "$line" || "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
-      eval "${var_name}+=(\"\$line\")"
+      
+      # Trim leading and trailing whitespace
+      line="${line#"${line%%[![:space:]]*}"}"  # Trim leading
+      line="${line%"${line##*[![:space:]]}"}"  # Trim trailing
+      
+      # Check for :rw suffix to determine read-write vs read-only
+      if [[ "$line" == *":rw" ]]; then
+        # Read-write mount - strip the :rw suffix
+        local mount_path="${line%:rw}"
+        eval "${rw_var_name}+=(\"\$mount_path\")"
+      elif [[ "$line" == *":ro" ]]; then
+        # Read-only mount - strip the :ro suffix
+        local mount_path="${line%:ro}"
+        eval "${ro_var_name}+=(\"\$mount_path\")"
+      else
+        # No suffix - default to read-only
+        eval "${ro_var_name}+=(\"\$line\")"
+      fi
     done < "$actual_file"
   fi
 }
@@ -73,6 +91,29 @@ __copilot_resolve_mount_path() {
   echo "$resolved_path"
 }
 
+# Helper function to load raw mounts from config (for display purposes)
+__copilot_load_raw_mounts() {
+  local config_file="$1"
+  local var_name="$2"
+  local actual_file="$config_file"
+  
+  # Follow symlink if config file is a symlink
+  if [ -L "$config_file" ]; then
+    actual_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+  fi
+  
+  if [ -f "$actual_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      # Skip empty lines, whitespace-only lines, and comments
+      [[ -z "$line" || "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+      # Trim leading and trailing whitespace
+      line="${line#"${line%%[![:space:]]*}"}"  # Trim leading
+      line="${line%"${line##*[![:space:]]}"}"  # Trim trailing
+      eval "${var_name}+=(\"\$line\")"
+    done < "$actual_file"
+  fi
+}
+
 # Helper function to display mounts list
 __copilot_list_mounts() {
   local global_config="$HOME/.config/copilot_here/mounts.conf"
@@ -81,8 +122,8 @@ __copilot_list_mounts() {
   local global_mounts=()
   local local_mounts=()
   
-  __copilot_load_mounts "$global_config" global_mounts
-  __copilot_load_mounts "$local_config" local_mounts
+  __copilot_load_raw_mounts "$global_config" global_mounts
+  __copilot_load_raw_mounts "$local_config" local_mounts
   
   if [ ${#global_mounts[@]} -eq 0 ] && [ ${#local_mounts[@]} -eq 0 ]; then
     echo "📂 No saved mounts configured"
@@ -482,6 +523,79 @@ __copilot_security_check() {
   return 0
 }
 
+# Helper function to get GitHub owner and repo from git remote
+__copilot_get_github_info() {
+  local remote_url=$(git remote get-url origin 2>/dev/null)
+  
+  if [ -z "$remote_url" ]; then
+    echo ""
+    return 1
+  fi
+  
+  # Parse owner and repo from various URL formats:
+  # git@github.com:owner/repo.git
+  # https://github.com/owner/repo.git
+  # https://github.com/owner/repo
+  local owner=""
+  local repo=""
+  
+  # Use sed for portable parsing (works in both bash and zsh)
+  # Extract the part after github.com: or github.com/
+  local path_part=$(echo "$remote_url" | sed -n 's/.*github\.com[:/]\([^/]*\/[^/]*\).*/\1/p')
+  
+  if [ -n "$path_part" ]; then
+    # Split by / and remove .git suffix
+    owner=$(echo "$path_part" | cut -d'/' -f1)
+    repo=$(echo "$path_part" | cut -d'/' -f2 | sed 's/\.git$//')
+  fi
+  
+  if [ -n "$owner" ] && [ -n "$repo" ]; then
+    echo "${owner}|${repo}"
+    return 0
+  fi
+  
+  echo ""
+  return 1
+}
+
+# Helper function to process network config with placeholders
+__copilot_process_network_config() {
+  local config_file="$1"
+  
+  # Create temp file in a location Docker can access (user's config dir)
+  # Fall back to system temp if config dir creation fails
+  local temp_dir="$HOME/.config/copilot_here/tmp"
+  if ! mkdir -p "$temp_dir" 2>/dev/null; then
+    temp_dir="${TMPDIR:-/tmp}"
+  fi
+  local temp_file="${temp_dir}/network-$(date +%s%N).json"
+  
+  # Get GitHub owner and repo
+  local github_info=$(__copilot_get_github_info)
+  local github_owner=""
+  local github_repo=""
+  
+  if [ -n "$github_info" ]; then
+    github_owner="${github_info%|*}"
+    github_repo="${github_info#*|}"
+  fi
+  
+  # Read and process the config file, replacing placeholders
+  if [ -f "$config_file" ]; then
+    local content=$(cat "$config_file")
+    
+    # Replace placeholders
+    content="${content//\{\{GITHUB_OWNER\}\}/$github_owner}"
+    content="${content//\{\{GITHUB_REPO\}\}/$github_repo}"
+    
+    echo "$content" > "$temp_file"
+    echo "$temp_file"
+  else
+    rm -f "$temp_file"
+    echo ""
+  fi
+}
+
 # Helper function to cleanup unused copilot_here images
 __copilot_cleanup_images() {
   local keep_image="$1"
@@ -523,6 +637,49 @@ __copilot_cleanup_images() {
     echo "  ✓ No old images to clean up"
   else
     echo "  ✓ Cleaned up $count old image(s)"
+  fi
+}
+
+# Helper function to cleanup orphaned copilot_here networks
+__copilot_cleanup_orphaned_networks() {
+  # First, stop and remove any orphaned copilot_here containers
+  local orphaned_containers=$(docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>/dev/null || true)
+  
+  if [ -n "$orphaned_containers" ]; then
+    while IFS= read -r container_name; do
+      [ -z "$container_name" ] && continue
+      
+      # Stop and remove the container
+      if docker rm -f "$container_name" 2>/dev/null; then
+        echo "  🗑️  Removed orphaned container: $container_name"
+      fi
+    done <<< "$orphaned_containers"
+  fi
+  
+  # Find orphaned copilot_here networks (not attached to any containers)
+  local orphaned_networks=$(docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>/dev/null || true)
+  
+  if [ -z "$orphaned_networks" ]; then
+    return 0
+  fi
+  
+  local count=0
+  while IFS= read -r network_name; do
+    [ -z "$network_name" ] && continue
+    
+    # Check if network has any attached containers
+    local containers=$(docker network inspect "$network_name" --format '{{len .Containers}}' 2>/dev/null || echo "0")
+    
+    if [ "$containers" = "0" ]; then
+      if docker network rm "$network_name" 2>/dev/null; then
+        echo "  🗑️  Removed orphaned network: $network_name"
+        count=$((count + 1))
+      fi
+    fi
+  done <<< "$orphaned_networks"
+  
+  if [ "$count" -gt 0 ]; then
+    echo "  ✓ Cleaned up $count orphaned network(s)"
   fi
 }
 
@@ -614,18 +771,22 @@ __copilot_run() {
     -e GITHUB_TOKEN="$token"
   )
 
-  # Load mounts from config files
+  # Load mounts from config files (raw for the old processing loop)
   local global_config="$HOME/.config/copilot_here/mounts.conf"
   local local_config=".copilot_here/mounts.conf"
   local global_mounts=()
   local local_mounts=()
   
-  __copilot_load_mounts "$global_config" global_mounts
-  __copilot_load_mounts "$local_config" local_mounts
+  __copilot_load_raw_mounts "$global_config" global_mounts
+  __copilot_load_raw_mounts "$local_config" local_mounts
   
   # Track all mounted paths for display and --add-dir
   local all_mount_paths=()
   local mount_display=()
+  
+  # Arrays to collect all resolved mounts (for passing to airlock)
+  local all_resolved_mounts_ro=()
+  local all_resolved_mounts_rw=()
   
   # Add current working directory to display
   mount_display+=("📁 $container_work_dir")
@@ -663,6 +824,13 @@ __copilot_run() {
     
     docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
     all_mount_paths+=("$container_path")
+    
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
+    else
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
     
     # Global mount icon
     if __copilot_supports_emoji; then
@@ -704,6 +872,13 @@ __copilot_run() {
     docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
     all_mount_paths+=("$container_path")
     
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
+    else
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
+    
     # Local mount icon
     if __copilot_supports_emoji; then
       mount_display+=("   📍 $container_path ($mount_mode)")
@@ -735,6 +910,7 @@ __copilot_run() {
     
     docker_args+=(-v "$resolved_path:$container_path:ro")
     all_mount_paths+=("$container_path")
+    all_resolved_mounts_ro+=("$resolved_path:$container_path")
     
     if __copilot_supports_emoji; then
       mount_display+=("   🔧 $container_path (ro)")
@@ -783,6 +959,17 @@ __copilot_run() {
           prev_arg="$arg"
         done
         docker_args=("${new_docker_args[@]}")
+        
+        # Also update resolved mounts arrays - move from ro to rw
+        local new_resolved_ro=()
+        for m in "${all_resolved_mounts_ro[@]}"; do
+          if [ "$m" != "$resolved_path:$container_path" ]; then
+            new_resolved_ro+=("$m")
+          fi
+        done
+        all_resolved_mounts_ro=("${new_resolved_ro[@]}")
+        all_resolved_mounts_rw+=("$resolved_path:$container_path")
+        
         break
       fi
     done
@@ -791,6 +978,7 @@ __copilot_run() {
       seen_paths+=("$resolved_path")
       docker_args+=(-v "$resolved_path:$container_path:rw")
       all_mount_paths+=("$container_path")
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
     fi
     
     if __copilot_supports_emoji; then
@@ -806,6 +994,60 @@ __copilot_run() {
     for display in "${mount_display[@]}"; do
       echo "$display"
     done
+  fi
+  
+  # Display Airlock status
+  local current_dir=$(pwd)
+  local local_network_config="${current_dir}/.copilot_here/network.json"
+  local global_network_config="$HOME/.config/copilot_here/network.json"
+  local airlock_enabled="false"
+  local airlock_source=""
+  local airlock_mode=""
+  
+  # Check local config first (takes precedence)
+  if [ -f "$local_network_config" ]; then
+    local enabled_val=$(grep -o '"enabled"[[:space:]]*:[[:space:]]*[a-z]*' "$local_network_config" 2>/dev/null | grep -o 'true\|false' | head -1)
+    if [ "$enabled_val" = "true" ]; then
+      airlock_enabled="true"
+      airlock_source="local (.copilot_here/network.json)"
+      airlock_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"[^"]*"' "$local_network_config" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | head -1)
+    fi
+  fi
+  
+  # Check global config if local not enabled
+  if [ "$airlock_enabled" = "false" ] && [ -f "$global_network_config" ]; then
+    local enabled_val=$(grep -o '"enabled"[[:space:]]*:[[:space:]]*[a-z]*' "$global_network_config" 2>/dev/null | grep -o 'true\|false' | head -1)
+    if [ "$enabled_val" = "true" ]; then
+      airlock_enabled="true"
+      airlock_source="global (~/.config/copilot_here/network.json)"
+      airlock_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"[^"]*"' "$global_network_config" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | head -1)
+    fi
+  fi
+  
+  if [ "$airlock_enabled" = "true" ]; then
+    local mode_display=""
+    if [ "$airlock_mode" = "monitor" ]; then
+      mode_display=" (monitor mode)"
+    elif [ "$airlock_mode" = "enforce" ]; then
+      mode_display=" (enforce mode)"
+    fi
+    echo "🛡️  Airlock: enabled${mode_display} - ${airlock_source}"
+    
+    # Determine which config file to use
+    local network_config_file="$local_network_config"
+    if [ "$airlock_source" = "global (~/.config/copilot_here/network.json)" ]; then
+      network_config_file="$global_network_config"
+    fi
+    
+    # Call airlock mode instead of normal docker run
+    # Pass resolved mount arrays (all config + CLI mounts already processed)
+    __copilot_run_airlock "$image_tag" "$allow_all_tools" "$skip_cleanup" "$skip_pull" \
+      "$network_config_file" "all_resolved_mounts_ro" "all_resolved_mounts_rw" "$@"
+    return $?
+  else
+    if [ -f "$local_network_config" ] || [ -f "$global_network_config" ]; then
+      echo "🔓 Airlock: disabled"
+    fi
   fi
   
   docker_args+=("$image_name")
@@ -849,6 +1091,511 @@ __copilot_run() {
   )
 }
 
+# Helper function to create or load network proxy config
+__copilot_ensure_network_config() {
+  local is_global="$1"
+  local config_file
+  local config_dir
+  
+  if [ "$is_global" = "true" ]; then
+    config_dir="$HOME/.config/copilot_here"
+    config_file="$config_dir/network.json"
+  else
+    config_dir=".copilot_here"
+    config_file="$config_dir/network.json"
+  fi
+  
+  # Check if config already exists
+  if [ -f "$config_file" ]; then
+    # Config exists - just enable it
+    if command -v jq >/dev/null 2>&1; then
+      local current_enabled=$(jq -r 'if has("enabled") then .enabled else true end' "$config_file")
+      if [ "$current_enabled" = "true" ]; then
+        echo "✅ Airlock already enabled: $config_file"
+      else
+        # Update enabled to true
+        local temp_file=$(mktemp)
+        jq '.enabled = true' "$config_file" > "$temp_file" && mv "$temp_file" "$config_file"
+        echo "✅ Airlock enabled: $config_file"
+      fi
+    else
+      # No jq - check with grep
+      if grep -q '"enabled"[[:space:]]*:[[:space:]]*false' "$config_file"; then
+        # Use sed to update enabled to true (cross-platform)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          sed -i '' 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
+        else
+          sed -i 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
+        fi
+        echo "✅ Airlock enabled: $config_file"
+      else
+        echo "✅ Airlock already enabled: $config_file"
+      fi
+    fi
+    return 0
+  fi
+  
+  # Config doesn't exist - ask user about mode and create it
+  echo "📝 Creating Airlock configuration..."
+  echo ""
+  echo "   The Airlock proxy can run in two modes:"
+  echo "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
+  echo "   • [m]onitor - Log all requests but allow everything (useful for testing)"
+  echo ""
+  printf "   Select mode (default: enforce): "
+  read mode_choice
+  
+  local mode="enforce"
+  local enable_logging="false"
+  local lower_choice=$(echo "$mode_choice" | tr '[:upper:]' '[:lower:]')
+  if [ "$lower_choice" = "monitor" ] || [ "$lower_choice" = "m" ]; then
+    mode="monitor"
+    enable_logging="true"
+  fi
+  
+  # Create config directory
+  if ! mkdir -p "$config_dir" 2>/dev/null; then
+    echo "❌ Error: Failed to create config directory: $config_dir"
+    return 1
+  fi
+  
+  # Load default rules if available
+  local default_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
+  local allowed_rules
+  
+  if [ -f "$default_rules_file" ]; then
+    # Extract just the array value after "allowed_rules":
+    # This handles the JSON structure properly
+    allowed_rules=$(sed -n '/"allowed_rules"/,/^}$/p' "$default_rules_file" | sed '1s/.*\[/[/' | sed '$d')
+  fi
+  
+  # Fallback to inline defaults if not found or empty
+  if [ -z "$allowed_rules" ] || [ "$allowed_rules" = "[" ]; then
+    allowed_rules='[
+    {
+      "host": "api.github.com",
+      "allowed_paths": ["/user", "/graphql"]
+    },
+    {
+      "host": "api.individual.githubcopilot.com",
+      "allowed_paths": ["/models", "/mcp/readonly", "/chat/completions"]
+    }
+  ]'
+  fi
+  
+  # Write config file with enabled: true
+  cat > "$config_file" << EOF
+{
+  "enabled": true,
+  "inherit_default_rules": true,
+  "mode": "$mode",
+  "enable_logging": $enable_logging,
+  "allowed_rules": $allowed_rules
+}
+EOF
+  
+  if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to write config file: $config_file"
+    return 1
+  fi
+  
+  echo ""
+  echo "✅ Created Airlock config: $config_file"
+  echo "   Mode: $mode"
+  echo "   inherit_default_rules: true"
+  echo ""
+  
+  return 0
+}
+
+# Helper function to disable Airlock
+__copilot_disable_airlock() {
+  local is_global="$1"
+  local config_file
+  
+  if [ "$is_global" = "true" ]; then
+    config_file="$HOME/.config/copilot_here/network.json"
+  else
+    config_file=".copilot_here/network.json"
+  fi
+  
+  if [ ! -f "$config_file" ]; then
+    echo "ℹ️  No Airlock config found: $config_file"
+    return 0
+  fi
+  
+  if command -v jq >/dev/null 2>&1; then
+    local current_enabled=$(jq -r 'if has("enabled") then .enabled else true end' "$config_file")
+    if [ "$current_enabled" = "false" ]; then
+      echo "ℹ️  Airlock already disabled: $config_file"
+    else
+      # Update enabled to false
+      local temp_file=$(mktemp)
+      jq '.enabled = false' "$config_file" > "$temp_file" && mv "$temp_file" "$config_file"
+      echo "✅ Airlock disabled: $config_file"
+    fi
+  else
+    # No jq - check with grep and use sed
+    if grep -q '"enabled"[[:space:]]*:[[:space:]]*true' "$config_file"; then
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
+      else
+        sed -i 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
+      fi
+      echo "✅ Airlock disabled: $config_file"
+    elif grep -q '"enabled"' "$config_file"; then
+      echo "ℹ️  Airlock already disabled: $config_file"
+    else
+      # No enabled field - add it as false at the beginning
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/^{/{\
+  "enabled": false,/' "$config_file"
+      else
+        sed -i 's/^{/{\n  "enabled": false,/' "$config_file"
+      fi
+      echo "✅ Airlock disabled: $config_file"
+    fi
+  fi
+  
+  return 0
+}
+
+# Helper function to show Airlock rules
+__copilot_show_airlock_rules() {
+  local local_config=".copilot_here/network.json"
+  local global_config="$HOME/.config/copilot_here/network.json"
+  local default_rules="$HOME/.config/copilot_here/default-airlock-rules.json"
+  
+  echo "📋 Airlock Proxy Rules"
+  echo "======================"
+  echo ""
+  
+  # Show default rules
+  if [ -f "$default_rules" ]; then
+    echo "📦 Default Rules:"
+    echo "   $default_rules"
+    cat "$default_rules" | sed 's/^/   /'
+    echo ""
+  else
+    echo "📦 Default Rules: Not found"
+    echo ""
+  fi
+  
+  # Show global config
+  if [ -f "$global_config" ]; then
+    echo "🌐 Global Config:"
+    echo "   $global_config"
+    cat "$global_config" | sed 's/^/   /'
+    echo ""
+  else
+    echo "🌐 Global Config: Not configured"
+    echo ""
+  fi
+  
+  # Show local config
+  if [ -f "$local_config" ]; then
+    echo "📁 Local Config:"
+    echo "   $local_config"
+    cat "$local_config" | sed 's/^/   /'
+    echo ""
+  else
+    echo "📁 Local Config: Not configured"
+    echo ""
+  fi
+  
+  return 0
+}
+
+# Helper function to edit Airlock rules
+__copilot_edit_airlock_rules() {
+  local is_global="$1"
+  local config_file
+  local config_dir
+  
+  if [ "$is_global" = "true" ]; then
+    config_dir="$HOME/.config/copilot_here"
+    config_file="$config_dir/network.json"
+  else
+    config_dir=".copilot_here"
+    config_file="$config_dir/network.json"
+  fi
+  
+  # Create config if it doesn't exist
+  if [ ! -f "$config_file" ]; then
+    echo "📝 Config file doesn't exist. Creating it first..."
+    __copilot_ensure_network_config "$is_global"
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  fi
+  
+  # Determine editor
+  local editor="${EDITOR:-${VISUAL:-vi}}"
+  
+  echo "📝 Opening $config_file with $editor..."
+  "$editor" "$config_file"
+  
+  return $?
+}
+
+# Helper function to run with airlock (Docker Compose mode)
+__copilot_run_airlock() {
+  local image_tag="$1"
+  local allow_all_tools="$2"
+  local skip_cleanup="$3"
+  local skip_pull="$4"
+  local network_config_file="$5"
+  local mounts_ro_name="$6"
+  local mounts_rw_name="$7"
+  shift 7
+  
+  # Remaining args are copilot arguments
+  local copilot_args=("$@")
+  
+  if ! __copilot_security_check; then return 1; fi
+  
+  # Process network config file to replace placeholders
+  local processed_config_file=$(__copilot_process_network_config "$network_config_file")
+  if [ -z "$processed_config_file" ]; then
+    echo "❌ Failed to process network config file"
+    return 1
+  fi
+  
+  # Skip actual container launch in test mode
+  if [ "$COPILOT_HERE_TEST_MODE" = "true" ]; then
+    echo "🧪 Test mode: skipping container launch"
+    rm -f "$processed_config_file"
+    return 0
+  fi
+  
+  # Cleanup orphaned containers and networks from previous failed runs FIRST
+  # This ensures we have available subnets before trying to create new networks
+  __copilot_cleanup_orphaned_networks
+  
+  local app_image="ghcr.io/gordonbeeming/copilot_here:$image_tag"
+  local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
+  
+  echo "🛡️  Starting in Airlock mode..."
+  echo "   App image: $app_image"
+  echo "   Proxy image: $proxy_image"
+  echo "   Network config: $network_config_file"
+  
+  # Pull images unless skipped
+  if [ "$skip_pull" != "true" ]; then
+    echo "📥 Pulling images..."
+    docker pull "$app_image" || { echo "❌ Failed to pull app image"; return 1; }
+    # Try to pull proxy image, but don't fail if it exists locally (for local dev)
+    if ! docker pull "$proxy_image" 2>/dev/null; then
+      if docker image inspect "$proxy_image" >/dev/null 2>&1; then
+        echo "   Using local proxy image (not available in registry)"
+      else
+        echo "❌ Failed to pull proxy image and no local image found"
+        if [ -f "./dev-build.sh" ]; then
+          echo "   Run ./dev-build.sh to build the proxy image locally"
+        else
+          echo "   The proxy image is not yet available in the registry"
+        fi
+        return 1
+      fi
+    fi
+  fi
+  
+  # Get current directory info for project name (matches terminal title format)
+  local current_dir=$(pwd)
+  local current_dir_name=$(basename "$current_dir")
+  local title_emoji="🤖"
+  if [ "$allow_all_tools" = "true" ]; then
+    title_emoji="🤖⚡️"
+  fi
+  
+  # Generate unique session ID
+  local session_id=$(date +%s%N | sha256sum | head -c 8)
+  
+  # Project name matches the terminal title format: emoji + dirname + session
+  local project_name="${current_dir_name}-${session_id}"
+  
+  # Create temporary compose file
+  local temp_compose=$(mktemp)
+  local template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+  
+  # Download template if not exists
+  if [ ! -f "$template_file" ]; then
+    echo "📥 Downloading compose template..."
+    curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$template_file" || {
+      echo "❌ Failed to download compose template"
+      rm -f "$temp_compose"
+      return 1
+    }
+  fi
+  
+  # Get token
+  local token=$(gh auth token 2>/dev/null)
+  if [ -z "$token" ]; then
+    echo "⚠️  Could not retrieve token using 'gh auth token'." >&2
+  fi
+  
+  # Prepare copilot config path
+  local copilot_config="$HOME/.config/copilot-cli-docker"
+  mkdir -p "$copilot_config"
+  
+  # Container work directory - use same path mapping as non-airlock mode
+  local container_work_dir="$current_dir"
+  if [[ "$current_dir" == "$HOME"* ]]; then
+    # Path is under user's home directory - map to container's home
+    local relative_path="${current_dir#$HOME}"
+    container_work_dir="/home/appuser${relative_path}"
+  fi
+  
+  # Check if logging is enabled in network config (also enabled automatically for monitor mode)
+  local logs_mount=""
+  local enable_logging=$(grep -o '"enable_logging"[[:space:]]*:[[:space:]]*true' "$network_config_file" 2>/dev/null)
+  local is_monitor_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"monitor"' "$network_config_file" 2>/dev/null)
+  if [ -n "$enable_logging" ] || [ -n "$is_monitor_mode" ]; then
+    local logs_dir="${current_dir}/.copilot_here/logs"
+    mkdir -p "$logs_dir"
+    # Create gitignore to prevent committing logs
+    if [ ! -f "${current_dir}/.copilot_here/logs/.gitignore" ]; then
+      echo "# Ignore all log files - may contain sensitive information" > "${current_dir}/.copilot_here/logs/.gitignore"
+      echo "*" >> "${current_dir}/.copilot_here/logs/.gitignore"
+      echo "!.gitignore" >> "${current_dir}/.copilot_here/logs/.gitignore"
+    fi
+    logs_mount="      - ${logs_dir}:/logs"
+  fi
+  
+  # Build extra mounts string (using actual newlines, not \n)
+  local extra_mounts=""
+  local newline=$'\n'
+  
+  # Add read-only mounts (format: host_path:container_path)
+  eval "local _mounts_ro=(\"\${${mounts_ro_name}[@]}\")"
+  for mount_spec in "${_mounts_ro[@]}"; do
+    # Parse host_path:container_path format
+    local host_path="${mount_spec%%:*}"
+    local container_path="${mount_spec#*:}"
+    [ -z "$host_path" ] && continue
+    extra_mounts="${extra_mounts}      - ${host_path}:${container_path}:ro${newline}"
+  done
+  
+  # Add read-write mounts (format: host_path:container_path)
+  eval "local _mounts_rw=(\"\${${mounts_rw_name}[@]}\")"
+  for mount_spec in "${_mounts_rw[@]}"; do
+    # Parse host_path:container_path format
+    local host_path="${mount_spec%%:*}"
+    local container_path="${mount_spec#*:}"
+    [ -z "$host_path" ] && continue
+    extra_mounts="${extra_mounts}      - ${host_path}:${container_path}:rw${newline}"
+  done
+  
+  # Remove trailing newline to prevent empty line after insertion
+  if [ -n "$extra_mounts" ]; then
+    extra_mounts="${extra_mounts%$newline}"
+  fi
+  
+  # Build copilot command args
+  local copilot_cmd="[\"copilot\""
+  if [ "$allow_all_tools" = "true" ]; then
+    copilot_cmd="${copilot_cmd}, \"--allow-all-tools\", \"--allow-all-paths\""
+    copilot_cmd="${copilot_cmd}, \"--add-dir\", \"${container_work_dir}\""
+  fi
+  
+  if [ ${#copilot_args[@]} -eq 0 ]; then
+    copilot_cmd="${copilot_cmd}, \"--banner\""
+  else
+    for arg in "${copilot_args[@]}"; do
+      # Escape quotes in argument
+      arg=$(echo "$arg" | sed 's/"/\\"/g')
+      copilot_cmd="${copilot_cmd}, \"${arg}\""
+    done
+  fi
+  copilot_cmd="${copilot_cmd}]"
+  
+  # Generate compose file from template
+  # Use sed for reliable substitution (works on macOS and Linux)
+  # Write multiline content to temp files to avoid awk newline issues on macOS
+  local temp_extra_mounts=$(mktemp)
+  local temp_logs_mount=$(mktemp)
+  if [ -n "$extra_mounts" ]; then
+    printf '%s' "$extra_mounts" > "$temp_extra_mounts"
+  fi
+  if [ -n "$logs_mount" ]; then
+    printf '%s' "$logs_mount" > "$temp_logs_mount"
+  fi
+  
+  # Copy template and do simple substitutions with sed
+  cp "$template_file" "$temp_compose"
+  sed -i.bak "s|{{PROJECT_NAME}}|$project_name|g" "$temp_compose"
+  sed -i.bak "s|{{APP_IMAGE}}|$app_image|g" "$temp_compose"
+  sed -i.bak "s|{{PROXY_IMAGE}}|$proxy_image|g" "$temp_compose"
+  sed -i.bak "s|{{WORK_DIR}}|$current_dir|g" "$temp_compose"
+  sed -i.bak "s|{{CONTAINER_WORK_DIR}}|$container_work_dir|g" "$temp_compose"
+  sed -i.bak "s|{{COPILOT_CONFIG}}|$copilot_config|g" "$temp_compose"
+  sed -i.bak "s|{{NETWORK_CONFIG}}|$processed_config_file|g" "$temp_compose"
+  sed -i.bak "s|{{PUID}}|$(id -u)|g" "$temp_compose"
+  sed -i.bak "s|{{PGID}}|$(id -g)|g" "$temp_compose"
+  sed -i.bak "s|{{COPILOT_ARGS}}|$copilot_cmd|g" "$temp_compose"
+  
+  # Handle multiline substitutions using temp files
+  # This approach avoids passing newlines through awk -v which breaks on macOS
+  # For LOGS_MOUNT - replace placeholder line with file contents or remove if empty
+  if [ -s "$temp_logs_mount" ]; then
+    # Read line by line and replace the placeholder line with file contents
+    # cat outputs without final newline, so we need to add one
+    # Only replace if line is NOT a comment (doesn't start with #)
+    while IFS= read -r line || [ -n "$line" ]; do
+      if echo "$line" | grep -q '^{{LOGS_MOUNT}}'; then
+        cat "$temp_logs_mount"
+        echo ""
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  else
+    # Remove the placeholder line if empty (only non-comment lines)
+    grep -v '^{{LOGS_MOUNT}}' "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  fi
+  
+  # For EXTRA_MOUNTS - replace placeholder line with file contents or remove if empty
+  if [ -s "$temp_extra_mounts" ]; then
+    # Read line by line and replace the placeholder line with file contents
+    # cat outputs without final newline, so we need to add one
+    # Only replace if line is NOT a comment (doesn't start with #)
+    while IFS= read -r line || [ -n "$line" ]; do
+      if echo "$line" | grep -q '^{{EXTRA_MOUNTS}}'; then
+        cat "$temp_extra_mounts"
+        echo ""
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  else
+    # Remove the placeholder line if empty (only non-comment lines)
+    grep -v '^{{EXTRA_MOUNTS}}' "$temp_compose" > "${temp_compose}.tmp" && mv "${temp_compose}.tmp" "$temp_compose"
+  fi
+  
+  # Cleanup temp files
+  rm -f "$temp_extra_mounts" "$temp_logs_mount" "${temp_compose}.bak"
+  
+  # Set terminal title
+  local title="${title_emoji} ${current_dir_name} 🛡️"
+  printf "\033]0;%s\007" "$title"
+  
+  # Set trap with values baked in (local variables may not be accessible in trap function)
+  trap "printf '\033]0;\007'; echo ''; echo '🧹 Cleaning up airlock...'; docker stop '${project_name}-proxy' 2>/dev/null; docker rm '${project_name}-proxy' 2>/dev/null; docker network rm '${project_name}_airlock' 2>/dev/null; docker network rm '${project_name}_bridge' 2>/dev/null; docker volume rm '${project_name}_proxy-ca' 2>/dev/null; rm -f '$temp_compose' '$processed_config_file'" EXIT INT TERM
+  
+  # Start proxy service in background, then run app interactively
+  # We use 'up -d' for proxy, then 'run' for interactive app
+  # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
+  echo ""
+  
+  # Start proxy first
+  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" up -d proxy
+  
+  # Run app interactively (--rm removes it on exit)
+  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" run -i --rm app
+  
+  # Cleanup is handled by trap
+}
+
 # Helper function to update scripts
 __copilot_update_scripts() {
   echo "📦 Updating copilot_here scripts from GitHub..."
@@ -860,6 +1607,9 @@ __copilot_update_scripts() {
   elif type copilot_here >/dev/null 2>&1; then
     current_version=$(type copilot_here | /usr/bin/grep "# Version:" | head -1 | sed 's/.*# Version: //')
   fi
+  
+  # Ensure config directory exists
+  /bin/mkdir -p "$HOME/.config/copilot_here"
   
   # Check if using standalone file installation
   if [ -f ~/.copilot_here.sh ]; then
@@ -889,6 +1639,25 @@ __copilot_update_scripts() {
     # Update the actual file (following symlinks)
     mv "$temp_script" "$target_file"
     echo "✅ Scripts updated successfully!"
+    
+    # Download default airlock rules
+    echo "📥 Updating default Airlock rules..."
+    local airlock_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
+    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -o "$airlock_rules_file"; then
+      echo "✅ Airlock rules updated: $airlock_rules_file"
+    else
+      echo "⚠️  Failed to download Airlock rules (non-fatal)"
+    fi
+    
+    # Download docker-compose template
+    echo "📥 Updating compose template..."
+    local compose_template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$compose_template_file"; then
+      echo "✅ Compose template updated: $compose_template_file"
+    else
+      echo "⚠️  Failed to download compose template (non-fatal)"
+    fi
+    
     echo "🔄 Reloading..."
     source ~/.copilot_here.sh
     echo "✨ Update complete! You're now on version $new_version"
@@ -942,6 +1711,25 @@ __copilot_update_scripts() {
   fi
   
   rm -f "$temp_script"
+  
+  # Download default airlock rules
+  echo "📥 Updating default Airlock rules..."
+  local airlock_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
+  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -o "$airlock_rules_file"; then
+    echo "✅ Airlock rules updated: $airlock_rules_file"
+  else
+    echo "⚠️  Failed to download Airlock rules (non-fatal)"
+  fi
+  
+  # Download docker-compose template
+  echo "📥 Updating compose template..."
+  local compose_template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -o "$compose_template_file"; then
+    echo "✅ Compose template updated: $compose_template_file"
+  else
+    echo "⚠️  Failed to download compose template (non-fatal)"
+  fi
+  
   echo "🔄 Reloading..."
   source "$config_file"
   echo "✨ Update complete! You're now on version $new_version"
@@ -991,29 +1779,24 @@ __copilot_check_for_updates() {
   return 0
 }
 
-# Safe Mode: Asks for confirmation before executing
-copilot_here() {
-  local image_tag=$(__copilot_get_default_image)
-  local skip_cleanup="false"
-  local skip_pull="false"
-  local args=()
-  local mounts_ro=()
-  local mounts_rw=()
+# Common help function for both copilot_here and copilot_yolo
+__copilot_show_help() {
+  local is_yolo="$1"
+  local cmd_name="copilot_here"
+  local mode_desc="Safe Mode"
   
-  # Parse arguments for image variant and control flags
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-     -h|--help)
-       cat << 'EOF'
-================================================================================
-COPILOT_HERE WRAPPER - HELP
-================================================================================
-copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+  if [ "$is_yolo" = "true" ]; then
+    cmd_name="copilot_yolo"
+    mode_desc="YOLO Mode"
+  fi
+  
+  cat << EOF
+$cmd_name - GitHub Copilot CLI in a secure Docker container ($mode_desc)
 
 USAGE:
-  copilot_here [OPTIONS] [COPILOT_ARGS]
-  copilot_here [MOUNT_MANAGEMENT]
-  copilot_here [IMAGE_MANAGEMENT]
+  $cmd_name [OPTIONS] [COPILOT_ARGS]
+  $cmd_name [MOUNT_MANAGEMENT]
+  $cmd_name [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant (all versions)
@@ -1025,10 +1808,20 @@ OPTIONS:
   --mount <path>            Mount additional directory (read-only)
   --mount-rw <path>         Mount additional directory (read-write)
   --no-cleanup              Skip cleanup of unused Docker images
-  --no-pull                 Skip pulling the latest image
+  --no-pull, --skip-pull    Skip pulling the latest image
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+  --help2                   Show GitHub Copilot CLI native help
+
+NETWORK (AIRLOCK):
+  --enable-airlock              Enable Airlock with local rules (.copilot_here/network.json)
+  --enable-global-airlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
+  --disable-airlock             Disable Airlock for local config
+  --disable-global-airlock      Disable Airlock for global config
+  --show-airlock-rules          Show current Airlock proxy rules
+  --edit-airlock-rules          Edit local Airlock rules in \$EDITOR
+  --edit-global-airlock-rules   Edit global Airlock rules in \$EDITOR
 
 MOUNT MANAGEMENT:
   --list-mounts             Show all configured mounts
@@ -1037,8 +1830,8 @@ MOUNT MANAGEMENT:
   --remove-mount <path>     Remove mount from configs
   
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- copilot_here --save-mount ~/notes:rw
- copilot_here --save-mount-global ~/data:rw
+ $cmd_name --save-mount ~/notes:rw
+ $cmd_name --save-mount-global ~/data:rw
 
 IMAGE MANAGEMENT:
   --list-images     List all available Docker images
@@ -1069,293 +1862,84 @@ COPILOT_ARGS:
  --add-dir <directory>   Add directory to allowed list
  --allow-tool <tools>    Allow specific tools
  --deny-tool <tools>     Deny specific tools
- ... and more (see GitHub Copilot CLI help below)
+ ... and more (run $cmd_name --help2 for full copilot help)
 
 EXAMPLES:
   # Interactive mode
-  copilot_here
+  $cmd_name
   
   # Mount additional directories
-  copilot_here --mount ../investigations -p "analyze these files"
-  copilot_here --mount-rw ~/notes --mount /data/research
+  $cmd_name --mount ../investigations -p "analyze these files"
+  $cmd_name --mount-rw ~/notes --mount /data/research
   
   # Save mounts for reuse
-  copilot_here --save-mount ~/investigations
-  copilot_here --save-mount-global ~/common-data
-  copilot_here --list-mounts
+  $cmd_name --save-mount ~/investigations
+  $cmd_name --save-mount-global ~/common-data
+  $cmd_name --list-mounts
   
   # Set default image
-  copilot_here --set-image dotnet
-  copilot_here --set-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  $cmd_name --set-image dotnet
+  $cmd_name --set-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
   
   # Ask a question (short syntax)
-  copilot_here -p "how do I list files in bash?"
+  $cmd_name -p "how do I list files in bash?"
   
   # Use specific AI model
-  copilot_here --model gpt-5 -p "explain this code"
+  $cmd_name --model gpt-5 -p "explain this code"
   
   # Resume previous session
-  copilot_here --continue
+  $cmd_name --continue
   
   # Use .NET image with custom log level
-  copilot_here -d --log-level debug -p "build this .NET project"
-  
-  # Use .NET 9 image
-  copilot_here -d9 -p "build this .NET 9 project"
+  $cmd_name -d --log-level debug -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  copilot_here --no-cleanup --no-pull -p "quick question"
+  $cmd_name --no-cleanup --no-pull -p "quick question"
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
-
-================================================================================
-GITHUB COPILOT CLI - NATIVE HELP
-================================================================================
 EOF
-       # Run copilot --help to show native help
-       local empty_mounts_ro=()
-       local empty_mounts_rw=()
-       __copilot_run "$image_tag" "false" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
-       return 0
-       ;;
-     --list-mounts)
-       __copilot_list_mounts
-       return 0
-       ;;
-     --save-mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --save-mount requires a path argument"
-         return 1
-       fi
-       __copilot_save_mount "$1" "false"
-       return 0
-       ;;
-     --save-mount-global)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --save-mount-global requires a path argument"
-         return 1
-       fi
-       __copilot_save_mount "$1" "true"
-       return 0
-       ;;
-     --remove-mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --remove-mount requires a path argument"
-         return 1
-       fi
-       __copilot_remove_mount "$1"
-       return 0
-       ;;
-     --list-images)
-       __copilot_list_images
-       return 0
-       ;;
-     --show-image)
-       __copilot_show_default_image
-       return 0
-       ;;
-     --set-image)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --set-image requires an image tag argument"
-         return 1
-       fi
-       __copilot_save_image_config "$1" "false"
-       return 0
-       ;;
-     --set-image-global)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --set-image-global requires an image tag argument"
-         return 1
-       fi
-       __copilot_save_image_config "$1" "true"
-       return 0
-       ;;
-     --mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount requires a path argument"
-         return 1
-       fi
-       mounts_ro+=("$1")
-       shift
-       ;;
-     --mount-rw)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount-rw requires a path argument"
-         return 1
-       fi
-       mounts_rw+=("$1")
-       shift
-       ;;
-      -d|--dotnet)
-        image_tag="dotnet"
-        shift
-        ;;
-      -d8|--dotnet8)
-        image_tag="dotnet-8"
-        shift
-        ;;
-      -d9|--dotnet9)
-        image_tag="dotnet-9"
-        shift
-        ;;
-      -d10|--dotnet10)
-        image_tag="dotnet-10"
-        shift
-        ;;
-      -dp|--dotnet-playwright)
-        image_tag="dotnet-playwright"
-        shift
-        ;;
-      --no-cleanup)
-        skip_cleanup="true"
-        shift
-        ;;
-      --no-pull)
-        skip_pull="true"
-        shift
-        ;;
-      --update-scripts|--upgrade-scripts)
-        __copilot_update_scripts
-        return $?
-        ;;
-      *)
-        args+=("$1")
-        shift
-        ;;
-    esac
-  done
-  
-  __copilot_check_for_updates || return 0
-  
-  __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
 }
 
-# YOLO Mode: Auto-approves all tool usage
-copilot_yolo() {
+# Show native copilot help
+__copilot_show_native_help() {
+  local image_tag=$(__copilot_get_default_image)
+  local empty_mounts_ro=()
+  local empty_mounts_rw=()
+  __copilot_run "$image_tag" "false" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
+}
+
+# Common main function for both copilot_here and copilot_yolo
+__copilot_main() {
+  local is_yolo="$1"
+  shift
+  
   local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
+  local enable_network_proxy="false"
+  local network_proxy_global="false"
   local args=()
   local mounts_ro=()
   local mounts_rw=()
   
-  # Parse arguments for image variant and control flags
+  # Load saved mounts
+  __copilot_load_mounts "$HOME/.config/copilot_here/mounts.conf" mounts_ro mounts_rw
+  __copilot_load_mounts ".copilot_here/mounts.conf" mounts_ro mounts_rw
+
+  # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
      -h|--help)
-       cat << 'EOF'
-================================================================================
-COPILOT_YOLO WRAPPER - HELP
-================================================================================
-copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
-
-USAGE:
-  copilot_yolo [OPTIONS] [COPILOT_ARGS]
-  copilot_yolo [MOUNT_MANAGEMENT]
-  copilot_yolo [IMAGE_MANAGEMENT]
-
-OPTIONS:
-  -d, --dotnet              Use .NET image variant (all versions)
-  -d8, --dotnet8            Use .NET 8 image variant
-  -d9, --dotnet9            Use .NET 9 image variant
-  -d10, --dotnet10          Use .NET 10 image variant
-  -pw, --playwright         Use Playwright image variant
-  -dp, --dotnet-playwright  Use .NET + Playwright image variant
-  --mount <path>            Mount additional directory (read-only)
-  --mount-rw <path>         Mount additional directory (read-write)
-  --no-cleanup              Skip cleanup of unused Docker images
-  --no-pull                 Skip pulling the latest image
-  --update-scripts          Update scripts from GitHub repository
-  --upgrade-scripts         Alias for --update-scripts
-  -h, --help                Show this help message
-
-MOUNT MANAGEMENT:
-  --list-mounts             Show all configured mounts
-  --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
-  --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
-  --remove-mount <path>     Remove mount from configs
-  
-  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- copilot_yolo --save-mount ~/notes:rw
- copilot_yolo --save-mount-global ~/data:rw
-
-IMAGE MANAGEMENT:
-  --list-images     List all available Docker images
-  --show-image      Show current default image configuration
-  --set-image <tag> Set default image in local config
-  --set-image-global <tag> Set default image in global config
-  --clear-image     Clear default image from local config
-  --clear-image-global Clear default image from global config
-
-COPILOT_ARGS:
-  All standard GitHub Copilot CLI arguments are supported:
- -p, --prompt <text>     Execute a prompt directly
- --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
- --continue              Resume most recent session
- --resume [sessionId]    Resume from a previous session
- --log-level <level>     Set log level (none, error, warning, info, debug)
- --add-dir <directory>   Add directory to allowed list
- --allow-tool <tools>    Allow specific tools
- --deny-tool <tools>     Deny specific tools
- ... and more (see GitHub Copilot CLI help below)
-
-EXAMPLES:
-  # Interactive mode (auto-approves all)
-  copilot_yolo
-  
-  # Execute without confirmation
-  copilot_yolo -p "run the tests and fix failures"
-  
-  # Mount additional directories
-  copilot_yolo --mount ../data -p "analyze all data"
-  
-  # Use specific model
-  copilot_yolo --model gpt-5 -p "optimize this code"
-  
-  # Resume session
-  copilot_yolo --continue
-  
-  # Use .NET + Playwright image
-  copilot_yolo -dp -p "write playwright tests"
-  
-  # Use .NET 10 image
-  copilot_yolo -d10 -p "explore .NET 10 features"
-  
-  # Fast mode (skip cleanup)
-  copilot_yolo --no-cleanup -p "generate README"
-
-WARNING:
-  YOLO mode automatically approves ALL tool usage without confirmation AND
-  disables file path verification (--allow-all-tools + --allow-all-paths).
-  Use with caution and only in trusted environments.
-
-MODES:
-  copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
-
-VERSION: 2025-11-23
-REPOSITORY: https://github.com/GordonBeeming/copilot_here
-
-================================================================================
-GITHUB COPILOT CLI - NATIVE HELP
-================================================================================
-EOF
-       # Run copilot --help to show native help
-       local empty_mounts_ro=()
-       local empty_mounts_rw=()
-       __copilot_run "$image_tag" "true" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
+       __copilot_show_help "$is_yolo"
+       return 0
+       ;;
+     --help2)
+       __copilot_show_native_help
        return 0
        ;;
      --list-mounts)
@@ -1369,7 +1953,7 @@ EOF
          return 1
        fi
        __copilot_save_mount "$1" "false"
-       return 0
+       return $?
        ;;
      --save-mount-global)
        shift
@@ -1378,7 +1962,7 @@ EOF
          return 1
        fi
        __copilot_save_mount "$1" "true"
-       return 0
+       return $?
        ;;
      --remove-mount)
        shift
@@ -1387,79 +1971,125 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
-       return 0
+       return $?
        ;;
      --list-images)
        __copilot_list_images
        return 0
        ;;
      --show-image)
-       __copilot_show_default_image
+       __copilot_show_image
        return 0
        ;;
      --set-image)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-image requires an image tag argument"
+         echo "❌ Error: --set-image requires a tag argument"
          return 1
        fi
-       __copilot_save_image_config "$1" "false"
-       return 0
+       __copilot_set_image "$1" "false"
+       return $?
        ;;
      --set-image-global)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-image-global requires an image tag argument"
+         echo "❌ Error: --set-image-global requires a tag argument"
          return 1
        fi
-       __copilot_save_image_config "$1" "true"
-       return 0
+       __copilot_set_image "$1" "true"
+       return $?
+       ;;
+     --clear-image)
+       __copilot_clear_image "false"
+       return $?
+       ;;
+     --clear-image-global)
+       __copilot_clear_image "true"
+       return $?
+       ;;
+     -d|--dotnet)
+       image_tag="dotnet"
+       shift
+       ;;
+     -d8|--dotnet8)
+       image_tag="dotnet8"
+       shift
+       ;;
+     -d9|--dotnet9)
+       image_tag="dotnet9"
+       shift
+       ;;
+     -d10|--dotnet10)
+       image_tag="dotnet10"
+       shift
+       ;;
+     -pw|--playwright)
+       image_tag="playwright"
+       shift
+       ;;
+     -dp|--dotnet-playwright)
+       image_tag="dotnet-playwright"
+       shift
        ;;
      --mount)
        shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount requires a path argument"
-         return 1
+       if [ -n "$1" ]; then
+         mounts_ro+=("$1")
        fi
-       mounts_ro+=("$1")
        shift
        ;;
      --mount-rw)
        shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount-rw requires a path argument"
-         return 1
+       if [ -n "$1" ]; then
+         mounts_rw+=("$1")
        fi
-       mounts_rw+=("$1")
        shift
        ;;
-      -d|--dotnet)
-        image_tag="dotnet"
+     --no-cleanup)
+       skip_cleanup="true"
+       shift
+       ;;
+     --no-pull|--skip-pull)
+       skip_pull="true"
+       shift
+       ;;
+      --enable-airlock)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-airlock and --enable-global-airlock"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="false"
         shift
         ;;
-      -d8|--dotnet8)
-        image_tag="dotnet-8"
+      --enable-global-airlock)
+        if [ "$enable_network_proxy" = "true" ]; then
+          echo "❌ Error: Cannot use both --enable-airlock and --enable-global-airlock"
+          return 1
+        fi
+        enable_network_proxy="true"
+        network_proxy_global="true"
         shift
         ;;
-      -d9|--dotnet9)
-        image_tag="dotnet-9"
-        shift
+      --disable-airlock)
+        __copilot_disable_airlock "false"
+        return $?
         ;;
-      -d10|--dotnet10)
-        image_tag="dotnet-10"
-        shift
+      --disable-global-airlock)
+        __copilot_disable_airlock "true"
+        return $?
         ;;
-      -dp|--dotnet-playwright)
-        image_tag="dotnet-playwright"
-        shift
+      --show-airlock-rules)
+        __copilot_show_airlock_rules
+        return $?
         ;;
-      --no-cleanup)
-        skip_cleanup="true"
-        shift
+      --edit-airlock-rules)
+        __copilot_edit_airlock_rules "false"
+        return $?
         ;;
-      --no-pull)
-        skip_pull="true"
-        shift
+      --edit-global-airlock-rules)
+        __copilot_edit_airlock_rules "true"
+        return $?
         ;;
       --update-scripts|--upgrade-scripts)
         __copilot_update_scripts
@@ -1472,7 +2102,23 @@ EOF
     esac
   done
   
+  # Handle network proxy configuration
+  if [ "$enable_network_proxy" = "true" ]; then
+    __copilot_ensure_network_config "$network_proxy_global"
+    return $?
+  fi
+  
   __copilot_check_for_updates || return 0
   
-  __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
+  __copilot_run "$image_tag" "$is_yolo" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
+}
+
+# Safe Mode: Asks for confirmation before executing
+copilot_here() {
+  __copilot_main "false" "$@"
+}
+
+# YOLO Mode: Auto-approves all tool usage
+copilot_yolo() {
+  __copilot_main "true" "$@"
 }

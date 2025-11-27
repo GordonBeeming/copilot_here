@@ -121,7 +121,7 @@ echo "/test/path2" >> "$TEST_CONFIG"
 
 # Zsh arrays
 typeset -a mounts
-__copilot_load_mounts "$TEST_CONFIG" "mounts"
+__copilot_load_raw_mounts "$TEST_CONFIG" "mounts"
 
 if [ ${#mounts[@]} -eq 2 ]; then
   test_pass "Config file loaded 2 mounts correctly in Zsh"

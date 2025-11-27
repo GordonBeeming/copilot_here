@@ -1,8 +1,9 @@
 #!/bin/bash
-# devtest.sh - Quick script to test copilot_here changes locally
-# Usage: source ./devtest.sh  OR  . ./devtest.sh
+# dev-scripts.sh - Copy copilot_here scripts to local config for testing
+# Usage: source ./dev-scripts.sh  OR  . ./dev-scripts.sh
 #
 # This script must be sourced (not executed) to reload functions in current shell
+# For full local dev including Docker builds, use ./dev-build.sh instead
 
 # Check if being sourced or executed
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
@@ -69,6 +70,30 @@ fi
 echo "✅ Copied copilot_here.sh to:"
 echo "   $TARGET_FILE"
 echo ""
+
+# Copy network rules file (simulates what --update-scripts does)
+CONFIG_DIR="$HOME/.config/copilot_here"
+/bin/mkdir -p "$CONFIG_DIR"
+if [ -f "default-airlock-rules.json" ]; then
+    if cp default-airlock-rules.json "$CONFIG_DIR/default-airlock-rules.json"; then
+        echo "✅ Copied default-airlock-rules.json to:"
+        echo "   $CONFIG_DIR/default-airlock-rules.json"
+        echo ""
+    else
+        echo "⚠️  Failed to copy default-airlock-rules.json"
+    fi
+fi
+
+# Copy docker-compose template (simulates what --update-scripts does)
+if [ -f "docker-compose.airlock.yml.template" ]; then
+    if cp docker-compose.airlock.yml.template "$CONFIG_DIR/docker-compose.airlock.yml.template"; then
+        echo "✅ Copied docker-compose.airlock.yml.template to:"
+        echo "   $CONFIG_DIR/docker-compose.airlock.yml.template"
+        echo ""
+    else
+        echo "⚠️  Failed to copy docker-compose.airlock.yml.template"
+    fi
+fi
 
 # Check if already sourced in config
 if grep -q "source.*\.copilot_here\.sh" "$CONFIG_FILE" 2>/dev/null; then

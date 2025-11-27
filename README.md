@@ -96,7 +96,61 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 - Global: `~/.config/copilot_here/image.conf`
 - Local: `.copilot_here/image.conf`
 
+### 🛡️ Airlock (Network Isolation)
 
+Airlock provides an additional layer of security by routing all network traffic from the Copilot CLI through a proxy that enforces an allowlist of permitted hosts and paths. This ensures that the AI can only communicate with approved endpoints.
+
+**Key Features:**
+- **Enforce Mode**: Blocks all network requests not matching the allowlist
+- **Monitor Mode**: Logs all network activity without blocking (useful for auditing)
+- **Configurable Rules**: Define allowed hosts and paths per-project or globally
+- **Automatic Logging**: Monitor mode automatically enables request logging
+- **Inherit Default Rules**: Optionally inherit rules from updates for easier maintenance
+
+**Setup Commands:**
+- `--enable-airlock` - Enable Airlock for current project (Bash/Zsh) or `-EnableAirlock` (PowerShell)
+- `--enable-global-airlock` - Enable Airlock globally (Bash/Zsh) or `-EnableGlobalAirlock` (PowerShell)
+- `--disable-airlock` - Disable Airlock for current project (Bash/Zsh) or `-DisableAirlock` (PowerShell)
+- `--disable-global-airlock` - Disable Airlock globally (Bash/Zsh) or `-DisableGlobalAirlock` (PowerShell)
+
+**Management Commands:**
+- `--show-airlock-rules` - Display current Airlock configuration (Bash/Zsh) or `-ShowAirlockRules` (PowerShell)
+- `--edit-airlock-rules` - Edit local Airlock rules (Bash/Zsh) or `-EditAirlockRules` (PowerShell)
+- `--edit-global-airlock-rules` - Edit global Airlock rules (Bash/Zsh) or `-EditGlobalAirlockRules` (PowerShell)
+
+**Configuration Files:**
+- Global: `~/.config/copilot_here/network.json`
+- Local: `.copilot_here/network.json`
+- Default Rules: `~/.config/copilot_here/default-airlock-rules.json` (updated with script updates)
+
+**Example Configuration:**
+```json
+{
+  "enabled": true,
+  "inherit_default_rules": true,
+  "mode": "enforce",
+  "enable_logging": false,
+  "allowed_rules": [
+    {
+      "host": "api.github.com",
+      "allowed_paths": ["/user", "/graphql"]
+    },
+    {
+      "host": "api.individual.githubcopilot.com",
+      "allowed_paths": ["/models", "/mcp/readonly", "/chat/completions"]
+    }
+  ]
+}
+```
+
+**Modes:**
+- **enforce** (`e`): Blocks requests not matching the allowlist
+- **monitor** (`m`): Allows all requests but logs them for review
+
+When enabling Airlock for the first time, you'll be prompted to choose between enforce and monitor mode.
+
+**Logging:**
+When `enable_logging` is true (or in monitor mode), request logs are saved to `.copilot_here/logs/` (excluded from git by default).
 
 ### For Linux/macOS (Bash/Zsh)
 
