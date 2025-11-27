@@ -209,6 +209,31 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
           cache-to: type=inline
 
+      # Step 11a: Extract metadata for Proxy image
+      - name: Extract metadata for Proxy image
+        id: meta-proxy
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=proxy
+            type=raw,value=proxy-sha-${{ github.sha }}
+
+      # Step 11b: Build and push Proxy image (Rust-based network proxy for Airlock mode)
+      - name: Build and push Proxy image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.proxy
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-proxy.outputs.tags }}
+          labels: |
+            ${{ steps.meta-proxy.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy,mode=max
+          cache-to: type=inline
+
       # Step 12: Extract metadata for .NET image
       - name: Extract metadata for .NET image
         id: meta-dotnet
@@ -397,6 +422,7 @@ jobs:
           if [[ "${{ steps.push_decision.outputs.push_needed }}" == "true" ]]; then
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:proxy\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-8\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-9\`" >> $GITHUB_STEP_SUMMARY
