@@ -68,15 +68,12 @@ jobs:
 
   # Airlock integration tests - runs after images are built
   # Tests actual Docker Compose airlock functionality
+  # Note: Only runs on ubuntu-latest as Docker images are Linux-based
   test-airlock:
-    name: Test Airlock on ${{ matrix.os }}
+    name: Test Airlock
     needs: [build-and-publish]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
       - name: Checkout repository
@@ -89,61 +86,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Make test script executable (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Make test script executable
         run: chmod +x tests/integration/test_airlock.sh
         
-      - name: Run airlock integration tests (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Run airlock integration tests
         run: ./tests/integration/test_airlock.sh
-        
-      - name: Run airlock integration tests (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: pwsh tests/integration/test_airlock.ps1
 
   # Airlock integration tests for PRs - builds images locally first
+  # Note: Only runs on ubuntu-latest as Docker images are Linux-based
+  # (macOS runners don't have Docker, Windows Docker can't run Linux containers)
   test-airlock-pr:
-    name: Test Airlock (PR) on ${{ matrix.os }}
+    name: Test Airlock (PR)
     needs: [test-bash-zsh, test-windows]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Build images locally (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Build images locally
         run: |
           chmod +x ./dev-build.sh
           ./dev-build.sh
-          
-      - name: Build images locally (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          # Build proxy image
-          docker build -t ghcr.io/gordonbeeming/copilot_here:proxy -f docker/Dockerfile.proxy .
-          # Build base image
-          docker build -t ghcr.io/gordonbeeming/copilot_here:latest -f docker/Dockerfile.base .
         
-      - name: Make test script executable (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Make test script executable
         run: chmod +x tests/integration/test_airlock.sh
         
-      - name: Run airlock integration tests (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Run airlock integration tests
         run: ./tests/integration/test_airlock.sh --use-local
-        
-      - name: Run airlock integration tests (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: pwsh tests/integration/test_airlock.ps1 -Local
 
   build-and-publish:
     name: Build and Publish Images
