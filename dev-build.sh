@@ -62,9 +62,9 @@ if [ -f "${SCRIPT_DIR}/copilot_here.sh" ]; then
   cp "${SCRIPT_DIR}/copilot_here.sh" "$HOME/.copilot_here.sh"
   echo "   ✓ Copied copilot_here.sh"
 fi
-if [ -f "${SCRIPT_DIR}/default-network-rules.json" ]; then
-  cp "${SCRIPT_DIR}/default-network-rules.json" "$CONFIG_DIR/"
-  echo "   ✓ Copied default-network-rules.json"
+if [ -f "${SCRIPT_DIR}/default-airlock-rules.json" ]; then
+  cp "${SCRIPT_DIR}/default-airlock-rules.json" "$CONFIG_DIR/"
+  echo "   ✓ Copied default-airlock-rules.json"
 fi
 if [ -f "${SCRIPT_DIR}/docker-compose.airlock.yml.template" ]; then
   cp "${SCRIPT_DIR}/docker-compose.airlock.yml.template" "$CONFIG_DIR/"

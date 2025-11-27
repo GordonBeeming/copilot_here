@@ -74,13 +74,13 @@ echo ""
 # Copy network rules file (simulates what --update-scripts does)
 CONFIG_DIR="$HOME/.config/copilot_here"
 /bin/mkdir -p "$CONFIG_DIR"
-if [ -f "default-network-rules.json" ]; then
-    if cp default-network-rules.json "$CONFIG_DIR/default-network-rules.json"; then
-        echo "✅ Copied default-network-rules.json to:"
-        echo "   $CONFIG_DIR/default-network-rules.json"
+if [ -f "default-airlock-rules.json" ]; then
+    if cp default-airlock-rules.json "$CONFIG_DIR/default-airlock-rules.json"; then
+        echo "✅ Copied default-airlock-rules.json to:"
+        echo "   $CONFIG_DIR/default-airlock-rules.json"
         echo ""
     else
-        echo "⚠️  Failed to copy default-network-rules.json"
+        echo "⚠️  Failed to copy default-airlock-rules.json"
     fi
 fi
 

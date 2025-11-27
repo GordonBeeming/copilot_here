@@ -866,8 +866,8 @@ __copilot_ensure_network_config() {
   # Check if config already exists
   if [ -f "$config_file" ]; then
     # Config exists - just enable it
-    if command -v jq &> /dev/null; then
-      local current_enabled=$(jq -r '.enabled // true' "$config_file")
+    if command -v jq >/dev/null 2>&1; then
+      local current_enabled=$(jq -r 'if has("enabled") then .enabled else true end' "$config_file")
       if [ "$current_enabled" = "true" ]; then
         echo "✅ Airlock already enabled: $config_file"
       else
@@ -879,9 +879,12 @@ __copilot_ensure_network_config() {
     else
       # No jq - check with grep
       if grep -q '"enabled"[[:space:]]*:[[:space:]]*false' "$config_file"; then
-        # Use sed to update enabled to true
-        sed -i.bak 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
-        rm -f "${config_file}.bak"
+        # Use sed to update enabled to true (cross-platform)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          sed -i '' 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
+        else
+          sed -i 's/"enabled"[[:space:]]*:[[:space:]]*false/"enabled": true/' "$config_file"
+        fi
         echo "✅ Airlock enabled: $config_file"
       else
         echo "✅ Airlock already enabled: $config_file"
@@ -915,7 +918,7 @@ __copilot_ensure_network_config() {
   fi
   
   # Load default rules if available
-  local default_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
+  local default_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
   local allowed_rules
   
   if [ -f "$default_rules_file" ]; then
@@ -979,8 +982,8 @@ __copilot_disable_airlock() {
     return 0
   fi
   
-  if command -v jq &> /dev/null; then
-    local current_enabled=$(jq -r '.enabled // true' "$config_file")
+  if command -v jq >/dev/null 2>&1; then
+    local current_enabled=$(jq -r 'if has("enabled") then .enabled else true end' "$config_file")
     if [ "$current_enabled" = "false" ]; then
       echo "ℹ️  Airlock already disabled: $config_file"
     else
@@ -992,15 +995,22 @@ __copilot_disable_airlock() {
   else
     # No jq - check with grep and use sed
     if grep -q '"enabled"[[:space:]]*:[[:space:]]*true' "$config_file"; then
-      sed -i.bak 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
-      rm -f "${config_file}.bak"
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
+      else
+        sed -i 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/' "$config_file"
+      fi
       echo "✅ Airlock disabled: $config_file"
     elif grep -q '"enabled"' "$config_file"; then
       echo "ℹ️  Airlock already disabled: $config_file"
     else
       # No enabled field - add it as false at the beginning
-      sed -i.bak 's/^{/{\n  "enabled": false,/' "$config_file"
-      rm -f "${config_file}.bak"
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/^{/{\
+  "enabled": false,/' "$config_file"
+      else
+        sed -i 's/^{/{\n  "enabled": false,/' "$config_file"
+      fi
       echo "✅ Airlock disabled: $config_file"
     fi
   fi
@@ -1008,13 +1018,13 @@ __copilot_disable_airlock() {
   return 0
 }
 
-# Helper function to show network rules
-__copilot_show_network_rules() {
+# Helper function to show Airlock rules
+__copilot_show_airlock_rules() {
   local local_config=".copilot_here/network.json"
   local global_config="$HOME/.config/copilot_here/network.json"
-  local default_rules="$HOME/.config/copilot_here/default-network-rules.json"
+  local default_rules="$HOME/.config/copilot_here/default-airlock-rules.json"
   
-  echo "📋 Network Proxy Rules"
+  echo "📋 Airlock Proxy Rules"
   echo "======================"
   echo ""
   
@@ -1054,8 +1064,8 @@ __copilot_show_network_rules() {
   return 0
 }
 
-# Helper function to edit network rules
-__copilot_edit_network_rules() {
+# Helper function to edit Airlock rules
+__copilot_edit_airlock_rules() {
   local is_global="$1"
   local config_file
   local config_dir
@@ -1298,13 +1308,13 @@ __copilot_update_scripts() {
     mv "$temp_script" "$target_file"
     echo "✅ Scripts updated successfully!"
     
-    # Download default network rules
-    echo "📥 Updating default network rules..."
-    local network_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
-    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -o "$network_rules_file"; then
-      echo "✅ Network rules updated: $network_rules_file"
+    # Download default airlock rules
+    echo "📥 Updating default Airlock rules..."
+    local airlock_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
+    if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -o "$airlock_rules_file"; then
+      echo "✅ Airlock rules updated: $airlock_rules_file"
     else
-      echo "⚠️  Failed to download network rules (non-fatal)"
+      echo "⚠️  Failed to download Airlock rules (non-fatal)"
     fi
     
     # Download docker-compose template
@@ -1370,13 +1380,13 @@ __copilot_update_scripts() {
   
   rm -f "$temp_script"
   
-  # Download default network rules
-  echo "📥 Updating default network rules..."
-  local network_rules_file="$HOME/.config/copilot_here/default-network-rules.json"
-  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -o "$network_rules_file"; then
-    echo "✅ Network rules updated: $network_rules_file"
+  # Download default airlock rules
+  echo "📥 Updating default Airlock rules..."
+  local airlock_rules_file="$HOME/.config/copilot_here/default-airlock-rules.json"
+  if curl -fsSL "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -o "$airlock_rules_file"; then
+    echo "✅ Airlock rules updated: $airlock_rules_file"
   else
-    echo "⚠️  Failed to download network rules (non-fatal)"
+    echo "⚠️  Failed to download Airlock rules (non-fatal)"
   fi
   
   # Download docker-compose template
@@ -1477,9 +1487,9 @@ NETWORK (AIRLOCK):
   --enable-global-airlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
   --disable-airlock             Disable Airlock for local config
   --disable-global-airlock      Disable Airlock for global config
-  --show-network-rules          Show current network proxy rules
-  --edit-network-rules          Edit local network rules in \$EDITOR
-  --edit-global-network-rules   Edit global network rules in \$EDITOR
+  --show-airlock-rules          Show current Airlock proxy rules
+  --edit-airlock-rules          Edit local Airlock rules in \$EDITOR
+  --edit-global-airlock-rules   Edit global Airlock rules in \$EDITOR
 
 MOUNT MANAGEMENT:
   --list-mounts             Show all configured mounts
@@ -1737,16 +1747,16 @@ __copilot_main() {
         __copilot_disable_airlock "true"
         return $?
         ;;
-      --show-network-rules)
-        __copilot_show_network_rules
+      --show-airlock-rules)
+        __copilot_show_airlock_rules
         return $?
         ;;
-      --edit-network-rules)
-        __copilot_edit_network_rules "false"
+      --edit-airlock-rules)
+        __copilot_edit_airlock_rules "false"
         return $?
         ;;
-      --edit-global-network-rules)
-        __copilot_edit_network_rules "true"
+      --edit-global-airlock-rules)
+        __copilot_edit_airlock_rules "true"
         return $?
         ;;
       --update-scripts|--upgrade-scripts)

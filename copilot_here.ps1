@@ -559,7 +559,7 @@ function Ensure-NetworkConfig {
     }
     
     # Load default rules if available
-    $defaultRulesFile = "$env:USERPROFILE\.config\copilot_here\default-network-rules.json"
+    $defaultRulesFile = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
     $allowedRules = $null
     
     if (Test-Path $defaultRulesFile) {
@@ -651,12 +651,12 @@ function Disable-Airlock {
 }
 
 # Helper function to show network rules
-function Show-NetworkRules {
+function Show-AirlockRules {
     $localConfig = ".copilot_here\network.json"
     $globalConfig = "$env:USERPROFILE\.config\copilot_here\network.json"
-    $defaultRules = "$env:USERPROFILE\.config\copilot_here\default-network-rules.json"
+    $defaultRules = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
     
-    Write-Host "📋 Network Proxy Rules"
+    Write-Host "📋 Airlock Proxy Rules"
     Write-Host "======================"
     Write-Host ""
     
@@ -694,8 +694,8 @@ function Show-NetworkRules {
     }
 }
 
-# Helper function to edit network rules
-function Edit-NetworkRules {
+# Helper function to edit Airlock rules
+function Edit-AirlockRules {
     param(
         [bool]$IsGlobal
     )
@@ -1293,14 +1293,14 @@ function Update-CopilotScripts {
         Move-Item $tempScript $targetFile -Force
         Write-Host "✅ Scripts updated successfully!"
         
-        # Download default network rules
-        Write-Host "📥 Updating default network rules..."
-        $networkRulesFile = "$configDir\default-network-rules.json"
+        # Download default airlock rules
+        Write-Host "📥 Updating default Airlock rules..."
+        $airlockRulesFile = "$configDir\default-airlock-rules.json"
         try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -OutFile $networkRulesFile
-            Write-Host "✅ Network rules updated: $networkRulesFile"
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -OutFile $airlockRulesFile
+            Write-Host "✅ Airlock rules updated: $airlockRulesFile"
         } catch {
-            Write-Host "⚠️  Failed to download network rules (non-fatal)" -ForegroundColor Yellow
+            Write-Host "⚠️  Failed to download Airlock rules (non-fatal)" -ForegroundColor Yellow
         }
         
         # Download docker-compose template
@@ -1353,14 +1353,14 @@ function Update-CopilotScripts {
     
     Remove-Item $tempScript
     
-    # Download default network rules
-    Write-Host "📥 Updating default network rules..."
-    $networkRulesFile = "$configDir\default-network-rules.json"
+    # Download default airlock rules
+    Write-Host "📥 Updating default Airlock rules..."
+    $airlockRulesFile = "$configDir\default-airlock-rules.json"
     try {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-network-rules.json" -OutFile $networkRulesFile
-        Write-Host "✅ Network rules updated: $networkRulesFile"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -OutFile $airlockRulesFile
+        Write-Host "✅ Airlock rules updated: $airlockRulesFile"
     } catch {
-        Write-Host "⚠️  Failed to download network rules (non-fatal)" -ForegroundColor Yellow
+        Write-Host "⚠️  Failed to download Airlock rules (non-fatal)" -ForegroundColor Yellow
     }
     
     # Download docker-compose template
@@ -1474,9 +1474,9 @@ NETWORK (AIRLOCK):
   -EnableGlobalAirlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
   -DisableAirlock            Disable Airlock for local config
   -DisableGlobalAirlock      Disable Airlock for global config
-  -ShowNetworkRules          Show current network proxy rules
-  -EditNetworkRules          Edit local network rules in `$env:EDITOR
-  -EditGlobalNetworkRules    Edit global network rules in `$env:EDITOR
+  -ShowAirlockRules          Show current Airlock proxy rules
+  -EditAirlockRules          Edit local Airlock rules in `$env:EDITOR
+  -EditGlobalAirlockRules    Edit global Airlock rules in `$env:EDITOR
 
 MOUNT MANAGEMENT:
   -ListMounts              Show all configured mounts
@@ -1601,9 +1601,9 @@ function Invoke-CopilotMain {
         [switch]$EnableGlobalAirlock,
         [switch]$DisableAirlock,
         [switch]$DisableGlobalAirlock,
-        [switch]$ShowNetworkRules,
-        [switch]$EditNetworkRules,
-        [switch]$EditGlobalNetworkRules,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [string[]]$Prompt
@@ -1615,19 +1615,19 @@ function Invoke-CopilotMain {
         return
     }
 
-    # Handle network rules management commands
-    if ($ShowNetworkRules) {
-        Show-NetworkRules
+    # Handle Airlock rules management commands
+    if ($ShowAirlockRules) {
+        Show-AirlockRules
         return
     }
     
-    if ($EditNetworkRules) {
-        Edit-NetworkRules -IsGlobal $false
+    if ($EditAirlockRules) {
+        Edit-AirlockRules -IsGlobal $false
         return
     }
     
-    if ($EditGlobalNetworkRules) {
-        Edit-NetworkRules -IsGlobal $true
+    if ($EditGlobalAirlockRules) {
+        Edit-AirlockRules -IsGlobal $true
         return
     }
     
@@ -1762,9 +1762,9 @@ function Copilot-Here {
         [switch]$EnableGlobalAirlock,
         [switch]$DisableAirlock,
         [switch]$DisableGlobalAirlock,
-        [switch]$ShowNetworkRules,
-        [switch]$EditNetworkRules,
-        [switch]$EditGlobalNetworkRules,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
@@ -1809,9 +1809,9 @@ function Copilot-Yolo {
         [switch]$EnableGlobalAirlock,
         [switch]$DisableAirlock,
         [switch]$DisableGlobalAirlock,
-        [switch]$ShowNetworkRules,
-        [switch]$EditNetworkRules,
-        [switch]$EditGlobalNetworkRules,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
         [Parameter(ValueFromRemainingArguments=$true)]
