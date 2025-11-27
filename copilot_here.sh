@@ -642,6 +642,20 @@ __copilot_cleanup_images() {
 
 # Helper function to cleanup orphaned copilot_here networks
 __copilot_cleanup_orphaned_networks() {
+  # First, stop and remove any orphaned copilot_here containers
+  local orphaned_containers=$(docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>/dev/null || true)
+  
+  if [ -n "$orphaned_containers" ]; then
+    while IFS= read -r container_name; do
+      [ -z "$container_name" ] && continue
+      
+      # Stop and remove the container
+      if docker rm -f "$container_name" 2>/dev/null; then
+        echo "  🗑️  Removed orphaned container: $container_name"
+      fi
+    done <<< "$orphaned_containers"
+  fi
+  
   # Find orphaned copilot_here networks (not attached to any containers)
   local orphaned_networks=$(docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>/dev/null || true)
   
@@ -1354,6 +1368,10 @@ __copilot_run_airlock() {
     return 0
   fi
   
+  # Cleanup orphaned containers and networks from previous failed runs FIRST
+  # This ensures we have available subnets before trying to create new networks
+  __copilot_cleanup_orphaned_networks
+  
   local app_image="ghcr.io/gordonbeeming/copilot_here:$image_tag"
   local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
   
@@ -1561,28 +1579,19 @@ __copilot_run_airlock() {
   local title="${title_emoji} ${current_dir_name} 🛡️"
   printf "\033]0;%s\007" "$title"
   
-  # Cleanup function
-  cleanup() {
-    printf "\033]0;\007"  # Reset title
-    echo ""
-    echo "🧹 Cleaning up airlock..."
-    docker compose -f "$temp_compose" -p "$project_name" down --volumes --remove-orphans 2>/dev/null
-    # Explicitly remove networks in case compose down didn't fully clean up
-    docker network rm "${project_name}_airlock" 2>/dev/null || true
-    docker network rm "${project_name}_bridge" 2>/dev/null || true
-    rm -f "$temp_compose"
-    rm -f "$processed_config_file"
-  }
-  trap cleanup EXIT INT TERM
+  # Set trap with values baked in (local variables may not be accessible in trap function)
+  trap "printf '\033]0;\007'; echo ''; echo '🧹 Cleaning up airlock...'; docker stop '${project_name}-proxy' 2>/dev/null; docker rm '${project_name}-proxy' 2>/dev/null; docker network rm '${project_name}_airlock' 2>/dev/null; docker network rm '${project_name}_bridge' 2>/dev/null; docker volume rm '${project_name}_proxy-ca' 2>/dev/null; rm -f '$temp_compose' '$processed_config_file'" EXIT INT TERM
   
-  # Cleanup orphaned copilot_here networks from previous failed runs
-  __copilot_cleanup_orphaned_networks
-  
-  # Start proxy service first, then run app interactively
-  # Using 'run -i' for proper TTY/stdin handling (compose file has tty: true)
+  # Start proxy service in background, then run app interactively
+  # We use 'up -d' for proxy, then 'run' for interactive app
   # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
   echo ""
-  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" run -i --rm --service-ports app
+  
+  # Start proxy first
+  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" up -d proxy
+  
+  # Run app interactively (--rm removes it on exit)
+  GITHUB_TOKEN="$token" COMPOSE_MENU=0 docker compose -f "$temp_compose" -p "$project_name" run -i --rm app
   
   # Cleanup is handled by trap
 }

@@ -755,6 +755,10 @@ function Invoke-CopilotAirlock {
         return
     }
     
+    # Cleanup orphaned containers and networks from previous failed runs FIRST
+    # This ensures we have available subnets before trying to create new networks
+    Clear-OrphanedNetworks
+    
     $appImage = "ghcr.io/gordonbeeming/copilot_here:$ImageTag"
     $proxyImage = "ghcr.io/gordonbeeming/copilot_here:proxy"
     
@@ -926,9 +930,6 @@ function Invoke-CopilotAirlock {
     
     Set-Content $tempCompose $compose -Encoding UTF8
     
-    # Cleanup orphaned networks before starting
-    Clear-OrphanedNetworks
-    
     # Set terminal title
     $title = "$titleEmoji $currentDirName 🛡️"
     $originalTitle = $Host.UI.RawUI.WindowTitle
@@ -938,19 +939,27 @@ function Invoke-CopilotAirlock {
         Write-Host ""
         # Pass GITHUB_TOKEN via environment, not written to compose file for security
         # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
-        # Using 'run -i' for proper TTY/stdin handling (compose file has tty: true)
         $env:GITHUB_TOKEN = $token
         $env:COMPOSE_MENU = "0"
-        docker compose -f $tempCompose -p $projectName run -i --rm --service-ports app
+        
+        # Start proxy first
+        docker compose -f $tempCompose -p $projectName up -d proxy
+        
+        # Run app interactively (--rm removes it on exit)
+        docker compose -f $tempCompose -p $projectName run -i --rm app
     } finally {
         # Cleanup
         $Host.UI.RawUI.WindowTitle = $originalTitle
         Write-Host ""
         Write-Host "🧹 Cleaning up airlock..."
-        docker compose -f $tempCompose -p $projectName down --volumes --remove-orphans 2>$null
-        # Explicitly remove networks in case compose down didn't fully clean up
+        # Stop and remove containers directly by name
+        docker stop "${projectName}-proxy" 2>$null
+        docker rm "${projectName}-proxy" 2>$null
+        # Remove networks
         docker network rm "${projectName}_airlock" 2>$null
         docker network rm "${projectName}_bridge" 2>$null
+        # Remove volume
+        docker volume rm "${projectName}_proxy-ca" 2>$null
         Remove-Item $tempCompose -ErrorAction SilentlyContinue
         Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
     }
@@ -1114,6 +1123,21 @@ function Remove-UnusedCopilotImages {
 
 # Helper function to cleanup orphaned copilot_here networks
 function Clear-OrphanedNetworks {
+    # First, stop and remove any orphaned copilot_here containers
+    $orphanedContainers = docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>$null
+    
+    if ($orphanedContainers) {
+        foreach ($containerName in $orphanedContainers) {
+            if (-not $containerName) { continue }
+            
+            # Stop and remove the container
+            $result = docker rm -f $containerName 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  🗑️  Removed orphaned container: $containerName"
+            }
+        }
+    }
+    
     # Find orphaned copilot_here networks (not attached to any containers)
     $orphanedNetworks = docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>$null
     
