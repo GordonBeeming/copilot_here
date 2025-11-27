@@ -1272,31 +1272,24 @@ __copilot_check_for_updates() {
   return 0
 }
 
-# Safe Mode: Asks for confirmation before executing
-copilot_here() {
-  local image_tag=$(__copilot_get_default_image)
-  local skip_cleanup="false"
-  local skip_pull="false"
-  local enable_network_proxy="false"
-  local network_proxy_global="false"
-  local args=()
-  local mounts_ro=()
-  local mounts_rw=()
+# Common help function for both copilot_here and copilot_yolo
+__copilot_show_help() {
+  local is_yolo="$1"
+  local cmd_name="copilot_here"
+  local mode_desc="Safe Mode"
   
-  # Parse arguments for image variant and control flags
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-     -h|--help)
-       cat << 'EOF'
-================================================================================
-COPILOT_HERE WRAPPER - HELP
-================================================================================
-copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+  if [ "$is_yolo" = "true" ]; then
+    cmd_name="copilot_yolo"
+    mode_desc="YOLO Mode"
+  fi
+  
+  cat << EOF
+$cmd_name - GitHub Copilot CLI in a secure Docker container ($mode_desc)
 
 USAGE:
-  copilot_here [OPTIONS] [COPILOT_ARGS]
-  copilot_here [MOUNT_MANAGEMENT]
-  copilot_here [IMAGE_MANAGEMENT]
+  $cmd_name [OPTIONS] [COPILOT_ARGS]
+  $cmd_name [MOUNT_MANAGEMENT]
+  $cmd_name [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, --dotnet              Use .NET image variant (all versions)
@@ -1312,6 +1305,7 @@ OPTIONS:
   --update-scripts          Update scripts from GitHub repository
   --upgrade-scripts         Alias for --update-scripts
   -h, --help                Show this help message
+  --help2                   Show GitHub Copilot CLI native help
 
 NETWORK PROXY (EXPERIMENTAL):
   --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
@@ -1324,8 +1318,8 @@ MOUNT MANAGEMENT:
   --remove-mount <path>     Remove mount from configs
   
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- copilot_here --save-mount ~/notes:rw
- copilot_here --save-mount-global ~/data:rw
+ $cmd_name --save-mount ~/notes:rw
+ $cmd_name --save-mount-global ~/data:rw
 
 IMAGE MANAGEMENT:
   --list-images     List all available Docker images
@@ -1356,42 +1350,39 @@ COPILOT_ARGS:
  --add-dir <directory>   Add directory to allowed list
  --allow-tool <tools>    Allow specific tools
  --deny-tool <tools>     Deny specific tools
- ... and more (see GitHub Copilot CLI help below)
+ ... and more (run $cmd_name --help2 for full copilot help)
 
 EXAMPLES:
   # Interactive mode
-  copilot_here
+  $cmd_name
   
   # Mount additional directories
-  copilot_here --mount ../investigations -p "analyze these files"
-  copilot_here --mount-rw ~/notes --mount /data/research
+  $cmd_name --mount ../investigations -p "analyze these files"
+  $cmd_name --mount-rw ~/notes --mount /data/research
   
   # Save mounts for reuse
-  copilot_here --save-mount ~/investigations
-  copilot_here --save-mount-global ~/common-data
-  copilot_here --list-mounts
+  $cmd_name --save-mount ~/investigations
+  $cmd_name --save-mount-global ~/common-data
+  $cmd_name --list-mounts
   
   # Set default image
-  copilot_here --set-image dotnet
-  copilot_here --set-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  $cmd_name --set-image dotnet
+  $cmd_name --set-image-global dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
   
   # Ask a question (short syntax)
-  copilot_here -p "how do I list files in bash?"
+  $cmd_name -p "how do I list files in bash?"
   
   # Use specific AI model
-  copilot_here --model gpt-5 -p "explain this code"
+  $cmd_name --model gpt-5 -p "explain this code"
   
   # Resume previous session
-  copilot_here --continue
+  $cmd_name --continue
   
   # Use .NET image with custom log level
-  copilot_here -d --log-level debug -p "build this .NET project"
-  
-  # Use .NET 9 image
-  copilot_here -d9 -p "build this .NET 9 project"
+  $cmd_name -d --log-level debug -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  copilot_here --no-cleanup --no-pull -p "quick question"
+  $cmd_name --no-cleanup --no-pull -p "quick question"
 
 MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
@@ -1399,163 +1390,22 @@ MODES:
 
 VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
-
-================================================================================
-GITHUB COPILOT CLI - NATIVE HELP
-================================================================================
 EOF
-       # Run copilot --help to show native help
-       local empty_mounts_ro=()
-       local empty_mounts_rw=()
-       __copilot_run "$image_tag" "false" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
-       return 0
-       ;;
-     --list-mounts)
-       __copilot_list_mounts
-       return 0
-       ;;
-     --save-mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --save-mount requires a path argument"
-         return 1
-       fi
-       __copilot_save_mount "$1" "false"
-       return 0
-       ;;
-     --save-mount-global)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --save-mount-global requires a path argument"
-         return 1
-       fi
-       __copilot_save_mount "$1" "true"
-       return 0
-       ;;
-     --remove-mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --remove-mount requires a path argument"
-         return 1
-       fi
-       __copilot_remove_mount "$1"
-       return 0
-       ;;
-     --list-images)
-       __copilot_list_images
-       return 0
-       ;;
-     --show-image)
-       __copilot_show_default_image
-       return 0
-       ;;
-     --set-image)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --set-image requires an image tag argument"
-         return 1
-       fi
-       __copilot_save_image_config "$1" "false"
-       return 0
-       ;;
-     --set-image-global)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --set-image-global requires an image tag argument"
-         return 1
-       fi
-       __copilot_save_image_config "$1" "true"
-       return 0
-       ;;
-     --mount)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount requires a path argument"
-         return 1
-       fi
-       mounts_ro+=("$1")
-       shift
-       ;;
-     --mount-rw)
-       shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount-rw requires a path argument"
-         return 1
-       fi
-       mounts_rw+=("$1")
-       shift
-       ;;
-      -d|--dotnet)
-        image_tag="dotnet"
-        shift
-        ;;
-      -d8|--dotnet8)
-        image_tag="dotnet-8"
-        shift
-        ;;
-      -d9|--dotnet9)
-        image_tag="dotnet-9"
-        shift
-        ;;
-      -d10|--dotnet10)
-        image_tag="dotnet-10"
-        shift
-        ;;
-      -dp|--dotnet-playwright)
-        image_tag="dotnet-playwright"
-        shift
-        ;;
-      --no-cleanup)
-        skip_cleanup="true"
-        shift
-        ;;
-      --no-pull)
-        skip_pull="true"
-        shift
-        ;;
-      --enable-network-proxy)
-        if [ "$enable_network_proxy" = "true" ]; then
-          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
-          return 1
-        fi
-        enable_network_proxy="true"
-        network_proxy_global="false"
-        shift
-        ;;
-      --enable-global-network-proxy)
-        if [ "$enable_network_proxy" = "true" ]; then
-          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
-          return 1
-        fi
-        enable_network_proxy="true"
-        network_proxy_global="true"
-        shift
-        ;;
-      --update-scripts|--upgrade-scripts)
-        __copilot_update_scripts
-        return $?
-        ;;
-      *)
-        args+=("$1")
-        shift
-        ;;
-    esac
-  done
-  
-  # Handle network proxy configuration
-  if [ "$enable_network_proxy" = "true" ]; then
-    # Ensure config exists (creates if needed, prompts for mode)
-    __copilot_ensure_network_config "$network_proxy_global"
-    return $?
-  fi
-  
-  __copilot_check_for_updates || return 0
-  
-  __copilot_run "$image_tag" "false" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
 }
 
-# YOLO Mode: Auto-approves all tool usage
-copilot_yolo() {
+# Show native copilot help
+__copilot_show_native_help() {
+  local image_tag=$(__copilot_get_default_image)
+  local empty_mounts_ro=()
+  local empty_mounts_rw=()
+  __copilot_run "$image_tag" "false" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
+}
+
+# Common main function for both copilot_here and copilot_yolo
+__copilot_main() {
+  local is_yolo="$1"
+  shift
+  
   local image_tag=$(__copilot_get_default_image)
   local skip_cleanup="false"
   local skip_pull="false"
@@ -1565,115 +1415,19 @@ copilot_yolo() {
   local mounts_ro=()
   local mounts_rw=()
   
-  # Parse arguments for image variant and control flags
+  # Load saved mounts
+  __copilot_load_mounts "$HOME/.config/copilot_here/mounts.conf" mounts_ro mounts_rw
+  __copilot_load_mounts ".copilot_here/mounts.conf" mounts_ro mounts_rw
+
+  # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
      -h|--help)
-       cat << 'EOF'
-================================================================================
-COPILOT_YOLO WRAPPER - HELP
-================================================================================
-copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
-
-USAGE:
-  copilot_yolo [OPTIONS] [COPILOT_ARGS]
-  copilot_yolo [MOUNT_MANAGEMENT]
-  copilot_yolo [IMAGE_MANAGEMENT]
-
-OPTIONS:
-  -d, --dotnet              Use .NET image variant (all versions)
-  -d8, --dotnet8            Use .NET 8 image variant
-  -d9, --dotnet9            Use .NET 9 image variant
-  -d10, --dotnet10          Use .NET 10 image variant
-  -pw, --playwright         Use Playwright image variant
-  -dp, --dotnet-playwright  Use .NET + Playwright image variant
-  --mount <path>            Mount additional directory (read-only)
-  --mount-rw <path>         Mount additional directory (read-write)
-  --no-cleanup              Skip cleanup of unused Docker images
-  --no-pull                 Skip pulling the latest image
-  --update-scripts          Update scripts from GitHub repository
-  --upgrade-scripts         Alias for --update-scripts
-  -h, --help                Show this help message
-
-NETWORK PROXY (EXPERIMENTAL):
-  --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
-  --enable-global-network-proxy Enable network proxy with global rules (~/.config/copilot_here/network.json)
-
-MOUNT MANAGEMENT:
-  --list-mounts             Show all configured mounts
-  --save-mount <path>       Save mount to local config (.copilot_here/mounts.conf)
-  --save-mount-global <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
-  --remove-mount <path>     Remove mount from configs
-  
-  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- copilot_yolo --save-mount ~/notes:rw
- copilot_yolo --save-mount-global ~/data:rw
-
-IMAGE MANAGEMENT:
-  --list-images     List all available Docker images
-  --show-image      Show current default image configuration
-  --set-image <tag> Set default image in local config
-  --set-image-global <tag> Set default image in global config
-  --clear-image     Clear default image from local config
-  --clear-image-global Clear default image from global config
-
-COPILOT_ARGS:
-  All standard GitHub Copilot CLI arguments are supported:
- -p, --prompt <text>     Execute a prompt directly
- --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
- --continue              Resume most recent session
- --resume [sessionId]    Resume from a previous session
- --log-level <level>     Set log level (none, error, warning, info, debug)
- --add-dir <directory>   Add directory to allowed list
- --allow-tool <tools>    Allow specific tools
- --deny-tool <tools>     Deny specific tools
- ... and more (see GitHub Copilot CLI help below)
-
-EXAMPLES:
-  # Interactive mode (auto-approves all)
-  copilot_yolo
-  
-  # Execute without confirmation
-  copilot_yolo -p "run the tests and fix failures"
-  
-  # Mount additional directories
-  copilot_yolo --mount ../data -p "analyze all data"
-  
-  # Use specific model
-  copilot_yolo --model gpt-5 -p "optimize this code"
-  
-  # Resume session
-  copilot_yolo --continue
-  
-  # Use .NET + Playwright image
-  copilot_yolo -dp -p "write playwright tests"
-  
-  # Use .NET 10 image
-  copilot_yolo -d10 -p "explore .NET 10 features"
-  
-  # Fast mode (skip cleanup)
-  copilot_yolo --no-cleanup -p "generate README"
-
-WARNING:
-  YOLO mode automatically approves ALL tool usage without confirmation AND
-  disables file path verification (--allow-all-tools + --allow-all-paths).
-  Use with caution and only in trusted environments.
-
-MODES:
-  copilot_here  - Safe mode (asks for confirmation before executing)
-  copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
-
-VERSION: 2025-11-27
-REPOSITORY: https://github.com/GordonBeeming/copilot_here
-
-================================================================================
-GITHUB COPILOT CLI - NATIVE HELP
-================================================================================
-EOF
-       # Run copilot --help to show native help
-       local empty_mounts_ro=()
-       local empty_mounts_rw=()
-       __copilot_run "$image_tag" "true" "true" "true" empty_mounts_ro empty_mounts_rw "--help"
+       __copilot_show_help "$is_yolo"
+       return 0
+       ;;
+     --help2)
+       __copilot_show_native_help
        return 0
        ;;
      --list-mounts)
@@ -1687,7 +1441,7 @@ EOF
          return 1
        fi
        __copilot_save_mount "$1" "false"
-       return 0
+       return $?
        ;;
      --save-mount-global)
        shift
@@ -1696,7 +1450,7 @@ EOF
          return 1
        fi
        __copilot_save_mount "$1" "true"
-       return 0
+       return $?
        ;;
      --remove-mount)
        shift
@@ -1705,80 +1459,88 @@ EOF
          return 1
        fi
        __copilot_remove_mount "$1"
-       return 0
+       return $?
        ;;
      --list-images)
        __copilot_list_images
        return 0
        ;;
      --show-image)
-       __copilot_show_default_image
+       __copilot_show_image
        return 0
        ;;
      --set-image)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-image requires an image tag argument"
+         echo "❌ Error: --set-image requires a tag argument"
          return 1
        fi
-       __copilot_save_image_config "$1" "false"
-       return 0
+       __copilot_set_image "$1" "false"
+       return $?
        ;;
      --set-image-global)
        shift
        if [ -z "$1" ]; then
-         echo "❌ Error: --set-image-global requires an image tag argument"
+         echo "❌ Error: --set-image-global requires a tag argument"
          return 1
        fi
-       __copilot_save_image_config "$1" "true"
-       return 0
+       __copilot_set_image "$1" "true"
+       return $?
+       ;;
+     --clear-image)
+       __copilot_clear_image "false"
+       return $?
+       ;;
+     --clear-image-global)
+       __copilot_clear_image "true"
+       return $?
+       ;;
+     -d|--dotnet)
+       image_tag="dotnet"
+       shift
+       ;;
+     -d8|--dotnet8)
+       image_tag="dotnet8"
+       shift
+       ;;
+     -d9|--dotnet9)
+       image_tag="dotnet9"
+       shift
+       ;;
+     -d10|--dotnet10)
+       image_tag="dotnet10"
+       shift
+       ;;
+     -pw|--playwright)
+       image_tag="playwright"
+       shift
+       ;;
+     -dp|--dotnet-playwright)
+       image_tag="dotnet-playwright"
+       shift
        ;;
      --mount)
        shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount requires a path argument"
-         return 1
+       if [ -n "$1" ]; then
+         mounts_ro+=("$1")
        fi
-       mounts_ro+=("$1")
        shift
        ;;
      --mount-rw)
        shift
-       if [ -z "$1" ]; then
-         echo "❌ Error: --mount-rw requires a path argument"
-         return 1
+       if [ -n "$1" ]; then
+         mounts_rw+=("$1")
        fi
-       mounts_rw+=("$1")
        shift
        ;;
-      -d|--dotnet)
-        image_tag="dotnet"
-        shift
-        ;;
-      -d8|--dotnet8)
-        image_tag="dotnet-8"
-        shift
-        ;;
-      -d9|--dotnet9)
-        image_tag="dotnet-9"
-        shift
-        ;;
-      -d10|--dotnet10)
-        image_tag="dotnet-10"
-        shift
-        ;;
-      -dp|--dotnet-playwright)
-        image_tag="dotnet-playwright"
-        shift
-        ;;
-      --no-cleanup)
-        skip_cleanup="true"
-        shift
-        ;;
-      --no-pull)
-        skip_pull="true"
-        shift
-        ;;
+     --no-cleanup)
+       skip_cleanup="true"
+       shift
+       ;;
+     --no-pull)
+       skip_pull="true"
+       shift
+       ;;
       --enable-network-proxy)
         if [ "$enable_network_proxy" = "true" ]; then
           echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
@@ -1810,12 +1572,21 @@ EOF
   
   # Handle network proxy configuration
   if [ "$enable_network_proxy" = "true" ]; then
-    # Ensure config exists (creates if needed, prompts for mode)
     __copilot_ensure_network_config "$network_proxy_global"
     return $?
   fi
   
   __copilot_check_for_updates || return 0
   
-  __copilot_run "$image_tag" "true" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
+  __copilot_run "$image_tag" "$is_yolo" "$skip_cleanup" "$skip_pull" mounts_ro mounts_rw "${args[@]}"
+}
+
+# Safe Mode: Asks for confirmation before executing
+copilot_here() {
+  __copilot_main "false" "$@"
+}
+
+# YOLO Mode: Auto-approves all tool usage
+copilot_yolo() {
+  __copilot_main "true" "$@"
 }

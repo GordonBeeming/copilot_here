@@ -1281,114 +1281,22 @@ function Test-CopilotUpdate {
     return $false
 }
 
-# Safe Mode: Asks for confirmation before executing
-function Copilot-Here {
-    [CmdletBinding()]
+# Common help function for both Copilot-Here and Copilot-Yolo
+function Show-CopilotHelp {
     param (
-        [switch]$h,
-        [switch]$Help,
-        [switch]$d,
-        [switch]$Dotnet,
-        [switch]$d8,
-        [switch]$Dotnet8,
-        [switch]$d9,
-        [switch]$Dotnet9,
-        [switch]$d10,
-        [switch]$Dotnet10,
-        [switch]$dp,
-        [switch]$DotnetPlaywright,
-        [string[]]$Mount,
-        [string[]]$MountRW,
-        [switch]$ListMounts,
-        [string]$SaveMount,
-        [string]$SaveMountGlobal,
-        [string]$RemoveMount,
-        [switch]$ListImages,
-        [switch]$ShowImage,
-        [string]$SetImage,
-        [string]$SetImageGlobal,
-        [switch]$ClearImage,
-        [switch]$ClearImageGlobal,
-        [switch]$NoCleanup,
-        [switch]$NoPull,
-        [switch]$EnableNetworkProxy,
-        [switch]$EnableGlobalNetworkProxy,
-        [switch]$UpdateScripts,
-        [switch]$UpgradeScripts,
-        [Parameter(ValueFromRemainingArguments=$true)]
-        [string[]]$Prompt
+        [bool]$IsYolo = $false
     )
-
-    # Check for mutually exclusive network proxy flags
-    if ($EnableNetworkProxy -and $EnableGlobalNetworkProxy) {
-        Write-Host "❌ Error: Cannot use both -EnableNetworkProxy and -EnableGlobalNetworkProxy" -ForegroundColor Red
-        return
-    }
-
-    # Handle mount management commands
-    if ($ListMounts) {
-        Show-ConfiguredMounts
-        return
-    }
     
-    if ($SaveMount) {
-        Save-MountToConfig -Path $SaveMount -IsGlobal $false
-        return
-    }
+    $cmdName = if ($IsYolo) { "Copilot-Yolo" } else { "Copilot-Here" }
+    $modeDesc = if ($IsYolo) { "YOLO Mode" } else { "Safe Mode" }
     
-    if ($SaveMountGlobal) {
-        Save-MountToConfig -Path $SaveMountGlobal -IsGlobal $true
-        return
-    }
-    
-    if ($RemoveMount) {
-        Remove-MountFromConfig -Path $RemoveMount
-        return
-    }
-
-    if ($ListImages) {
-        Show-AvailableImages
-        return
-    }
-
-    if ($ShowImage) {
-        Show-ImageConfig
-        return
-    }
-
-    if ($SetImage) {
-        Save-ImageConfig -ImageTag $SetImage -IsGlobal $false
-        return
-    }
-
-    if ($SetImageGlobal) {
-        Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
-        return
-    }
-
-    if ($ClearImage) {
-        Clear-ImageConfig -IsGlobal $false
-        return
-    }
-
-    if ($ClearImageGlobal) {
-        Clear-ImageConfig -IsGlobal $true
-        return
-    }
-
-    if ($UpdateScripts -or $UpgradeScripts) {
-        Update-CopilotScripts
-        return
-    }
-
-    if ($h -or $Help) {
-        Write-Output @"
-copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+    Write-Output @"
+$cmdName - GitHub Copilot CLI in a secure Docker container ($modeDesc)
 
 USAGE:
-  Copilot-Here [OPTIONS] [COPILOT_ARGS]
-  Copilot-Here [MOUNT_MANAGEMENT]
-  Copilot-Here [IMAGE_MANAGEMENT]
+  $cmdName [OPTIONS] [COPILOT_ARGS]
+  $cmdName [MOUNT_MANAGEMENT]
+  $cmdName [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant (all versions)
@@ -1404,6 +1312,7 @@ OPTIONS:
   -UpdateScripts           Update scripts from GitHub repository
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
+  -Help2                   Show GitHub Copilot CLI native help
 
 NETWORK PROXY (EXPERIMENTAL):
   -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
@@ -1416,8 +1325,8 @@ MOUNT MANAGEMENT:
   -RemoveMount <path>      Remove mount from configs
   
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- Copilot-Here -SaveMount ~/notes:rw
- Copilot-Here -SaveMountGlobal ~/data:rw
+ $cmdName -SaveMount ~/notes:rw
+ $cmdName -SaveMountGlobal ~/data:rw
 
 IMAGE MANAGEMENT:
   -ListImages              List all available Docker images
@@ -1448,42 +1357,39 @@ COPILOT_ARGS:
  --add-dir <directory>   Add directory to allowed list
  --allow-tool <tools>    Allow specific tools
  --deny-tool <tools>     Deny specific tools
- ... and more (run "copilot -h" for full list)
+ ... and more (run $cmdName -Help2 for full copilot help)
 
 EXAMPLES:
   # Interactive mode
-  Copilot-Here
+  $cmdName
   
   # Mount additional directories
-  Copilot-Here -Mount ../investigations -p "analyze these files"
-  Copilot-Here -MountRW ~/notes -Mount /data/research
+  $cmdName -Mount ../investigations -p "analyze these files"
+  $cmdName -MountRW ~/notes -Mount /data/research
   
   # Save mounts for reuse
-  Copilot-Here -SaveMount ~/investigations
-  Copilot-Here -SaveMountGlobal ~/common-data
-  Copilot-Here -ListMounts
+  $cmdName -SaveMount ~/investigations
+  $cmdName -SaveMountGlobal ~/common-data
+  $cmdName -ListMounts
   
   # Set default image
-  Copilot-Here -SetImage dotnet
-  Copilot-Here -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
-
-  # Ask a question
-  Copilot-Here -p "how do I list files in PowerShell?"
+  $cmdName -SetImage dotnet
+  $cmdName -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  
+  # Ask a question (short syntax)
+  $cmdName -p "how do I list files in bash?"
   
   # Use specific AI model
-  Copilot-Here --model gpt-5 -p "explain this code"
+  $cmdName --model gpt-5 -p "explain this code"
   
   # Resume previous session
-  Copilot-Here --continue
+  $cmdName --continue
   
-  # Use .NET image
-  Copilot-Here -d -p "build this .NET project"
-  
-  # Use .NET 9 image
-  Copilot-Here -d9 -p "build this .NET 9 project"
+  # Use .NET image with custom log level
+  $cmdName -d --log-level debug -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  Copilot-Here -NoCleanup -NoPull -p "quick question"
+  $cmdName -NoCleanup -NoPull -p "quick question"
 
 MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
@@ -1492,46 +1398,21 @@ MODES:
 VERSION: 2025-11-27
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
-        return
-    }
-
-    $imageTag = "latest"
-    if ($d -or $Dotnet) {
-        $imageTag = "dotnet"
-    } elseif ($d8 -or $Dotnet8) {
-        $imageTag = "dotnet-8"
-    } elseif ($d9 -or $Dotnet9) {
-        $imageTag = "dotnet-9"
-    } elseif ($d10 -or $Dotnet10) {
-        $imageTag = "dotnet-10"
-    } elseif ($dp -or $DotnetPlaywright) {
-        $imageTag = "dotnet-playwright"
-    }
-    
-    # Initialize mount arrays if not provided
-    if (-not $Mount) { $Mount = @() }
-    if (-not $MountRW) { $MountRW = @() }
-    
-    # Handle network proxy configuration
-    if ($EnableNetworkProxy -or $EnableGlobalNetworkProxy) {
-        $isGlobal = $EnableGlobalNetworkProxy
-        
-        # Ensure config exists (creates if needed, prompts for mode)
-        Ensure-NetworkConfig -IsGlobal $isGlobal
-        return
-    }
-    
-    if (Test-CopilotUpdate) { return }
-    
-    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
 }
 
-# YOLO Mode: Auto-approves all tool usage
-function Copilot-Yolo {
-    [CmdletBinding()]
+# Show native copilot help
+function Show-CopilotNativeHelp {
+    $imageTag = Get-DefaultImage
+    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $true -SkipPull $true -Arguments "--help"
+}
+
+# Common internal function for both Copilot-Here and Copilot-Yolo
+function Invoke-CopilotMain {
     param (
+        [bool]$IsYolo,
         [switch]$h,
         [switch]$Help,
+        [switch]$Help2,
         [switch]$d,
         [switch]$Dotnet,
         [switch]$d8,
@@ -1560,7 +1441,6 @@ function Copilot-Yolo {
         [switch]$EnableGlobalNetworkProxy,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
-        [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
 
@@ -1627,136 +1507,117 @@ function Copilot-Yolo {
     }
 
     if ($h -or $Help) {
-        Write-Output @"
-copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
-
-USAGE:
-  Copilot-Yolo [OPTIONS] [COPILOT_ARGS]
-  Copilot-Yolo [MOUNT_MANAGEMENT]
-  Copilot-Yolo [IMAGE_MANAGEMENT]
-
-OPTIONS:
-  -d, -Dotnet              Use .NET image variant (all versions)
-  -d8, -Dotnet8            Use .NET 8 image variant
-  -d9, -Dotnet9            Use .NET 9 image variant
-  -d10, -Dotnet10          Use .NET 10 image variant
-  -pw, -Playwright         Use Playwright image variant
-  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
-  -Mount <path>            Mount additional directory (read-only)
-  -MountRW <path>          Mount additional directory (read-write)
-  -NoCleanup               Skip cleanup of unused Docker images
-  -NoPull                  Skip pulling the latest image
-  -UpdateScripts           Update scripts from GitHub repository
-  -UpgradeScripts          Alias for -UpdateScripts
-  -h, -Help                Show this help message
-
-NETWORK PROXY (EXPERIMENTAL):
-  -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
-  -EnableGlobalNetworkProxy  Enable network proxy with global rules (~/.config/copilot_here/network.json)
-
-MOUNT MANAGEMENT:
-  -ListMounts              Show all configured mounts
-  -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
-  -SaveMountGlobal <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
-  -RemoveMount <path>      Remove mount from configs
-  
-  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- Copilot-Yolo -SaveMount ~/notes:rw
- Copilot-Yolo -SaveMountGlobal ~/data:rw
-
-IMAGE MANAGEMENT:
-  -ListImages              List all available Docker images
-  -ShowImage               Show current default image configuration
-  -SetImage <tag>   Set default image in local config
-  -SetImageGlobal <tag> Set default image in global config
-  -ClearImage              Clear default image from local config
-  -ClearImageGlobal        Clear default image from global config
-
-COPILOT_ARGS:
-  All standard GitHub Copilot CLI arguments are supported:
- -p, --prompt <text>     Execute a prompt directly
- --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
- --continue              Resume most recent session
- --resume [sessionId]    Resume from a previous session
- --log-level <level>     Set log level (none, error, warning, info, debug)
- --add-dir <directory>   Add directory to allowed list
- --allow-tool <tools>    Allow specific tools
- --deny-tool <tools>     Deny specific tools
- ... and more (run "copilot -h" for full list)
-
-EXAMPLES:
-  # Interactive mode (auto-approves all)
-  Copilot-Yolo
-  
-  # Set default image
-  Copilot-Yolo -SetImage dotnet
-  Copilot-Yolo -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
-
-  # Execute without confirmation
-  Copilot-Yolo -p "run the tests and fix failures"
-  
-  # Mount additional directories
-  Copilot-Yolo -Mount ../data -p "analyze all data"
-  
-  # Use specific model
-  Copilot-Yolo --model gpt-5 -p "optimize this code"
-  
-  # Resume session
-  Copilot-Yolo --continue
-  
-  # Use .NET + Playwright image
-  Copilot-Yolo -dp -p "write playwright tests"
-  
-  # Use .NET 10 image
-  Copilot-Yolo -d10 -p "explore .NET 10 features"
-  
-  # Fast mode (skip cleanup)
-  Copilot-Yolo -NoCleanup -p "generate README"
-
-WARNING:
-  YOLO mode automatically approves ALL tool usage without confirmation AND
-  disables file path verification (--allow-all-tools + --allow-all-paths).
-  Use with caution and only in trusted environments.
-
-MODES:
-  Copilot-Here  - Safe mode (asks for confirmation before executing)
-  Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
-
-VERSION: 2025-11-27
-REPOSITORY: https://github.com/GordonBeeming/copilot_here
-"@
+        Show-CopilotHelp -IsYolo $IsYolo
         return
     }
 
-    $imageTag = "latest"
-    if ($d -or $Dotnet) {
-        $imageTag = "dotnet"
-    } elseif ($d8 -or $Dotnet8) {
-        $imageTag = "dotnet-8"
-    } elseif ($d9 -or $Dotnet9) {
-        $imageTag = "dotnet-9"
-    } elseif ($d10 -or $Dotnet10) {
-        $imageTag = "dotnet-10"
-    } elseif ($dp -or $DotnetPlaywright) {
-        $imageTag = "dotnet-playwright"
+    if ($Help2) {
+        Show-CopilotNativeHelp
+        return
     }
+
+    # Determine image tag
+    $imageTag = Get-DefaultImage
     
-    # Initialize mount arrays if not provided
-    if (-not $Mount) { $Mount = @() }
-    if (-not $MountRW) { $MountRW = @() }
-    
-    # Handle network proxy configuration
+    if ($d -or $Dotnet) { $imageTag = "dotnet" }
+    if ($d8 -or $Dotnet8) { $imageTag = "dotnet8" }
+    if ($d9 -or $Dotnet9) { $imageTag = "dotnet9" }
+    if ($d10 -or $Dotnet10) { $imageTag = "dotnet10" }
+    if ($dp -or $DotnetPlaywright) { $imageTag = "dotnet-playwright" }
+
     if ($EnableNetworkProxy -or $EnableGlobalNetworkProxy) {
         $isGlobal = $EnableGlobalNetworkProxy
-        
-        # Ensure config exists (creates if needed, prompts for mode)
         Ensure-NetworkConfig -IsGlobal $isGlobal
         return
     }
     
     if (Test-CopilotUpdate) { return }
     
-    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $IsYolo -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+}
+
+# Safe Mode: Asks for confirmation before executing
+function Copilot-Here {
+    [CmdletBinding()]
+    param (
+        [switch]$h,
+        [switch]$Help,
+        [switch]$Help2,
+        [switch]$d,
+        [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
+        [switch]$dp,
+        [switch]$DotnetPlaywright,
+        [string[]]$Mount,
+        [string[]]$MountRW,
+        [switch]$ListMounts,
+        [string]$SaveMount,
+        [string]$SaveMountGlobal,
+        [string]$RemoveMount,
+        [switch]$ListImages,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
+        [switch]$NoCleanup,
+        [switch]$NoPull,
+        [switch]$EnableNetworkProxy,
+        [switch]$EnableGlobalNetworkProxy,
+        [switch]$UpdateScripts,
+        [switch]$UpgradeScripts,
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [string[]]$Prompt
+    )
+    
+    Invoke-CopilotMain -IsYolo $false @PSBoundParameters
+}
+
+# YOLO Mode: Auto-approves all tool usage
+function Copilot-Yolo {
+    [CmdletBinding()]
+    param (
+        [switch]$h,
+        [switch]$Help,
+        [switch]$Help2,
+        [switch]$d,
+        [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
+        [switch]$dp,
+        [switch]$DotnetPlaywright,
+        [string[]]$Mount,
+        [string[]]$MountRW,
+        [switch]$ListMounts,
+        [string]$SaveMount,
+        [string]$SaveMountGlobal,
+        [string]$RemoveMount,
+        [switch]$ListImages,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
+        [switch]$NoCleanup,
+        [switch]$NoPull,
+        [switch]$EnableNetworkProxy,
+        [switch]$EnableGlobalNetworkProxy,
+        [switch]$UpdateScripts,
+        [switch]$UpgradeScripts,
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [string[]]$Prompt
+    )
+    
+    Invoke-CopilotMain -IsYolo $true @PSBoundParameters
 }
 
 Set-Alias -Name copilot_here -Value Copilot-Here
