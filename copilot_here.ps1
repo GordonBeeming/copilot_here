@@ -608,6 +608,12 @@ function Invoke-CopilotAirlock {
     
     if (-not (Test-CopilotSecurityCheck)) { return }
     
+    # Skip actual container launch in test mode
+    if ($env:COPILOT_HERE_TEST_MODE -eq "true") {
+        Write-Host "🧪 Test mode: skipping container launch"
+        return
+    }
+    
     $appImage = "ghcr.io/gordonbeeming/copilot_here:$ImageTag"
     $proxyImage = "ghcr.io/gordonbeeming/copilot_here:proxy"
     
@@ -1511,19 +1517,7 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
         $isGlobal = $EnableGlobalNetworkProxy
         
         # Ensure config exists (creates if needed, prompts for mode)
-        if (-not (Ensure-NetworkConfig -IsGlobal $isGlobal)) {
-            return
-        }
-        
-        # Determine config file path
-        if ($isGlobal) {
-            $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
-        } else {
-            $configFile = ".copilot_here\network.json"
-        }
-        
-        # Run with airlock
-        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -NetworkConfigFile $configFile -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+        Ensure-NetworkConfig -IsGlobal $isGlobal
         return
     }
     
@@ -1756,19 +1750,7 @@ REPOSITORY: https://github.com/GordonBeeming/copilot_here
         $isGlobal = $EnableGlobalNetworkProxy
         
         # Ensure config exists (creates if needed, prompts for mode)
-        if (-not (Ensure-NetworkConfig -IsGlobal $isGlobal)) {
-            return
-        }
-        
-        # Determine config file path
-        if ($isGlobal) {
-            $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
-        } else {
-            $configFile = ".copilot_here\network.json"
-        }
-        
-        # Run with airlock (YOLO mode)
-        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -NetworkConfigFile $configFile -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+        Ensure-NetworkConfig -IsGlobal $isGlobal
         return
     }
     

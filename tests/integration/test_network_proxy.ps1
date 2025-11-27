@@ -1,0 +1,250 @@
+# Integration tests for network proxy (airlock) functionality - PowerShell
+# Tests -EnableNetworkProxy and -EnableGlobalNetworkProxy parameters
+
+$ErrorActionPreference = "Stop"
+
+# Color support
+function Write-TestPass($message) {
+    Write-Host "✓ PASS: $message" -ForegroundColor Green
+}
+
+function Write-TestFail($message) {
+    Write-Host "✗ FAIL: $message" -ForegroundColor Red
+}
+
+# Test tracking
+$script:TestCount = 0
+$script:PassCount = 0
+$script:FailCount = 0
+
+function Test-Start($name) {
+    Write-Host ""
+    Write-Host "TEST: $name"
+    $script:TestCount++
+}
+
+function Test-Pass($message) {
+    Write-TestPass $message
+    $script:PassCount++
+}
+
+function Test-Fail($message) {
+    Write-TestFail $message
+    $script:FailCount++
+}
+
+function Print-Summary {
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "TEST SUMMARY"
+    Write-Host "======================================"
+    Write-Host "Total Tests: $script:TestCount"
+    Write-Host "Passed: $script:PassCount" -ForegroundColor Green
+    if ($script:FailCount -gt 0) {
+        Write-Host "Failed: $script:FailCount" -ForegroundColor Red
+    } else {
+        Write-Host "Failed: $script:FailCount"
+    }
+    Write-Host "======================================"
+    
+    if ($script:FailCount -gt 0) {
+        exit 1
+    }
+}
+
+# Setup
+$ScriptDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$env:COPILOT_HERE_TEST_MODE = "true"
+
+# Source the script
+. "$ScriptDir\copilot_here.ps1"
+
+Write-Host "======================================"
+Write-Host "Network Proxy (Airlock) Tests - PowerShell"
+Write-Host "======================================"
+Write-Host "PowerShell: $($PSVersionTable.PSVersion)"
+Write-Host "Script: $ScriptDir\copilot_here.ps1"
+
+# Test 1: -EnableNetworkProxy parameter exists in Copilot-Here
+Test-Start "Check -EnableNetworkProxy parameter exists in Copilot-Here"
+$params = (Get-Command Copilot-Here).Parameters
+if ($params.ContainsKey("EnableNetworkProxy")) {
+    Test-Pass "-EnableNetworkProxy parameter exists"
+} else {
+    Test-Fail "-EnableNetworkProxy parameter not found"
+}
+
+# Test 2: -EnableGlobalNetworkProxy parameter exists
+Test-Start "Check -EnableGlobalNetworkProxy parameter exists in Copilot-Here"
+if ($params.ContainsKey("EnableGlobalNetworkProxy")) {
+    Test-Pass "-EnableGlobalNetworkProxy parameter exists"
+} else {
+    Test-Fail "-EnableGlobalNetworkProxy parameter not found"
+}
+
+# Test 3: Parameters exist in Copilot-Yolo too
+Test-Start "Check -EnableNetworkProxy parameter exists in Copilot-Yolo"
+$yoloParams = (Get-Command Copilot-Yolo).Parameters
+if ($yoloParams.ContainsKey("EnableNetworkProxy")) {
+    Test-Pass "-EnableNetworkProxy parameter exists in Copilot-Yolo"
+} else {
+    Test-Fail "-EnableNetworkProxy parameter not found in Copilot-Yolo"
+}
+
+# Test 4: Ensure-NetworkConfig function exists
+Test-Start "Check Ensure-NetworkConfig function exists"
+if (Get-Command Ensure-NetworkConfig -ErrorAction SilentlyContinue) {
+    Test-Pass "Ensure-NetworkConfig function is defined"
+} else {
+    Test-Fail "Ensure-NetworkConfig function not found"
+}
+
+# Test 5: Invoke-CopilotAirlock function exists
+Test-Start "Check Invoke-CopilotAirlock function exists"
+if (Get-Command Invoke-CopilotAirlock -ErrorAction SilentlyContinue) {
+    Test-Pass "Invoke-CopilotAirlock function is defined"
+} else {
+    Test-Fail "Invoke-CopilotAirlock function not found"
+}
+
+# Test 6: Help output contains NETWORK PROXY section
+Test-Start "Check NETWORK PROXY section in help"
+$helpOutput = Copilot-Here -Help 2>&1 | Out-String
+if ($helpOutput -match "NETWORK PROXY") {
+    Test-Pass "NETWORK PROXY section present in help"
+} else {
+    Test-Fail "NETWORK PROXY section missing from help"
+}
+
+# Test 7: Help mentions -EnableNetworkProxy
+Test-Start "Check -EnableNetworkProxy in help text"
+if ($helpOutput -match "EnableNetworkProxy") {
+    Test-Pass "-EnableNetworkProxy documented in help"
+} else {
+    Test-Fail "-EnableNetworkProxy not in help output"
+}
+
+# Test 8: Help mentions -EnableGlobalNetworkProxy
+Test-Start "Check -EnableGlobalNetworkProxy in help text"
+if ($helpOutput -match "EnableGlobalNetworkProxy") {
+    Test-Pass "-EnableGlobalNetworkProxy documented in help"
+} else {
+    Test-Fail "-EnableGlobalNetworkProxy not in help output"
+}
+
+# Test 9: Existing config is detected
+Test-Start "Test existing network config detection"
+# Use cross-platform temp directory
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+$configDir = New-Item -ItemType Directory -Path (Join-Path $testDir ".copilot_here") -Force
+$configFile = Join-Path $configDir "network.json"
+@{
+    inherit_default_rules = $true
+    mode = "enforce"
+    allowed_rules = @()
+} | ConvertTo-Json | Set-Content $configFile
+
+Push-Location $testDir
+try {
+    # Ensure-NetworkConfig returns $true if config exists, so just check the return value
+    $result = Ensure-NetworkConfig -IsGlobal $false
+    if ($result -eq $true) {
+        Test-Pass "Existing config detected correctly (returned true)"
+    } else {
+        Test-Fail "Existing config not detected (returned: $result)"
+    }
+} finally {
+    Pop-Location
+    Remove-Item $testDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Test 10: Default network rules file exists
+Test-Start "Check default-network-rules.json exists"
+$defaultRulesPath = Join-Path $ScriptDir "default-network-rules.json"
+if (Test-Path $defaultRulesPath) {
+    Test-Pass "default-network-rules.json exists in repo"
+} else {
+    Test-Fail "default-network-rules.json not found in repo"
+}
+
+# Test 11: Default rules JSON is valid
+Test-Start "Validate default-network-rules.json format"
+try {
+    $jsonContent = Get-Content $defaultRulesPath -Raw | ConvertFrom-Json
+    if ($jsonContent.allowed_rules) {
+        Test-Pass "default-network-rules.json is valid JSON with allowed_rules"
+    } else {
+        Test-Fail "default-network-rules.json missing allowed_rules"
+    }
+} catch {
+    Test-Fail "default-network-rules.json is invalid JSON: $_"
+}
+
+# Test 12: Docker compose template exists
+Test-Start "Check docker-compose.airlock.yml.template exists"
+$templatePath = Join-Path $ScriptDir "docker-compose.airlock.yml.template"
+if (Test-Path $templatePath) {
+    Test-Pass "docker-compose.airlock.yml.template exists"
+} else {
+    Test-Fail "docker-compose.airlock.yml.template not found"
+}
+
+# Test 13: Compose template has required placeholders
+Test-Start "Validate compose template placeholders"
+$templateContent = Get-Content $templatePath -Raw
+$requiredPlaceholders = @("{{PROJECT_NAME}}", "{{APP_IMAGE}}", "{{PROXY_IMAGE}}", "{{NETWORK_CONFIG}}")
+$missingPlaceholders = @()
+foreach ($placeholder in $requiredPlaceholders) {
+    if ($templateContent -notmatch [regex]::Escape($placeholder)) {
+        $missingPlaceholders += $placeholder
+    }
+}
+if ($missingPlaceholders.Count -eq 0) {
+    Test-Pass "All required placeholders present in template"
+} else {
+    Test-Fail "Missing placeholders: $($missingPlaceholders -join ', ')"
+}
+
+# Test 14: entrypoint-airlock.sh exists
+Test-Start "Check entrypoint-airlock.sh exists"
+if (Test-Path (Join-Path $ScriptDir "entrypoint-airlock.sh")) {
+    Test-Pass "entrypoint-airlock.sh exists"
+} else {
+    Test-Fail "entrypoint-airlock.sh not found"
+}
+
+# Test 15: proxy-entrypoint.sh exists
+Test-Start "Check proxy-entrypoint.sh exists"
+if (Test-Path (Join-Path $ScriptDir "proxy-entrypoint.sh")) {
+    Test-Pass "proxy-entrypoint.sh exists"
+} else {
+    Test-Fail "proxy-entrypoint.sh not found"
+}
+
+# Test 16: Dockerfile.proxy exists
+Test-Start "Check Dockerfile.proxy exists"
+if (Test-Path (Join-Path $ScriptDir "Dockerfile.proxy")) {
+    Test-Pass "Dockerfile.proxy exists"
+} else {
+    Test-Fail "Dockerfile.proxy not found"
+}
+
+# Test 17: Proxy Rust source exists
+Test-Start "Check proxy/src/main.rs exists"
+if (Test-Path (Join-Path $ScriptDir "proxy/src/main.rs")) {
+    Test-Pass "proxy/src/main.rs exists"
+} else {
+    Test-Fail "proxy/src/main.rs not found"
+}
+
+# Test 18: Copilot-Yolo help also has network proxy section
+Test-Start "Check NETWORK PROXY section in Copilot-Yolo help"
+$yoloHelpOutput = Copilot-Yolo -Help 2>&1 | Out-String
+if ($yoloHelpOutput -match "NETWORK PROXY") {
+    Test-Pass "NETWORK PROXY section present in Copilot-Yolo help"
+} else {
+    Test-Fail "NETWORK PROXY section missing from Copilot-Yolo help"
+}
+
+Print-Summary

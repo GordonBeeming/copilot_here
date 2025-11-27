@@ -1,6 +1,10 @@
 #!/bin/zsh
 # Test Docker command generation using function mocking (Zsh version)
 # This validates that correct Docker commands are generated without running Docker
+#
+# NOTE: This file is separate from test_docker_commands.sh because function
+# mocking works differently between shells. Bash requires `export -f` to export
+# functions to subprocesses, while zsh handles function visibility differently.
 
 setopt errexit
 

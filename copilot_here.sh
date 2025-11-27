@@ -945,17 +945,20 @@ __copilot_run_airlock() {
   local skip_cleanup="$3"
   local skip_pull="$4"
   local network_config_file="$5"
-  shift 5
-  
-  # Collect mount arrays by reference name
-  local -n _mounts_ro_ref=$1
-  local -n _mounts_rw_ref=$2
-  shift 2
+  local mounts_ro_name="$6"
+  local mounts_rw_name="$7"
+  shift 7
   
   # Remaining args are copilot arguments
   local copilot_args=("$@")
   
   if ! __copilot_security_check; then return 1; fi
+  
+  # Skip actual container launch in test mode
+  if [ "$COPILOT_HERE_TEST_MODE" = "true" ]; then
+    echo "🧪 Test mode: skipping container launch"
+    return 0
+  fi
   
   local app_image="ghcr.io/gordonbeeming/copilot_here:$image_tag"
   local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
@@ -1016,15 +1019,17 @@ __copilot_run_airlock() {
   # Build extra mounts string
   local extra_mounts=""
   
-  # Add read-only mounts
-  for mount_path in "${_mounts_ro_ref[@]}"; do
+  # Add read-only mounts (using eval to access array by name)
+  eval "local _mounts_ro=(\"\${${mounts_ro_name}[@]}\")"
+  for mount_path in "${_mounts_ro[@]}"; do
     local resolved=$(__copilot_resolve_mount_path "$mount_path")
     [ -z "$resolved" ] && continue
     extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:ro\n"
   done
   
-  # Add read-write mounts
-  for mount_path in "${_mounts_rw_ref[@]}"; do
+  # Add read-write mounts (using eval to access array by name)
+  eval "local _mounts_rw=(\"\${${mounts_rw_name}[@]}\")"
+  for mount_path in "${_mounts_rw[@]}"; do
     local resolved=$(__copilot_resolve_mount_path "$mount_path")
     [ -z "$resolved" ] && continue
     extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw\n"
@@ -1540,20 +1545,7 @@ EOF
   # Handle network proxy configuration
   if [ "$enable_network_proxy" = "true" ]; then
     # Ensure config exists (creates if needed, prompts for mode)
-    if ! __copilot_ensure_network_config "$network_proxy_global"; then
-      return 1
-    fi
-    
-    # Determine config file path
-    local config_file
-    if [ "$network_proxy_global" = "true" ]; then
-      config_file="$HOME/.config/copilot_here/network.json"
-    else
-      config_file=".copilot_here/network.json"
-    fi
-    
-    # Run with airlock
-    __copilot_run_airlock "$image_tag" "false" "$skip_cleanup" "$skip_pull" "$config_file" mounts_ro mounts_rw "${args[@]}"
+    __copilot_ensure_network_config "$network_proxy_global"
     return $?
   fi
   
@@ -1819,20 +1811,7 @@ EOF
   # Handle network proxy configuration
   if [ "$enable_network_proxy" = "true" ]; then
     # Ensure config exists (creates if needed, prompts for mode)
-    if ! __copilot_ensure_network_config "$network_proxy_global"; then
-      return 1
-    fi
-    
-    # Determine config file path
-    local config_file
-    if [ "$network_proxy_global" = "true" ]; then
-      config_file="$HOME/.config/copilot_here/network.json"
-    else
-      config_file=".copilot_here/network.json"
-    fi
-    
-    # Run with airlock (YOLO mode)
-    __copilot_run_airlock "$image_tag" "true" "$skip_cleanup" "$skip_pull" "$config_file" mounts_ro mounts_rw "${args[@]}"
+    __copilot_ensure_network_config "$network_proxy_global"
     return $?
   fi
   
