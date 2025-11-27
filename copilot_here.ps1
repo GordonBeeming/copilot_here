@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-28
+# Version: 2025-11-28.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1125,31 +1125,59 @@ function Remove-UnusedCopilotImages {
 
 # Helper function to cleanup orphaned copilot_here networks
 function Clear-OrphanedNetworks {
-    # First, stop and remove any orphaned copilot_here containers
-    $orphanedContainers = docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>$null
+    # Find proxy containers that are orphaned (their app container is not running)
+    # Pattern: projectname-sessionid-proxy paired with projectname-sessionid-app (or app-run-xxx)
+    # Only remove proxy containers where NO app container with matching prefix is running
     
-    if ($orphanedContainers) {
-        foreach ($containerName in $orphanedContainers) {
+    # Get list of currently RUNNING containers (not all, just running)
+    $runningContainers = docker ps --format "{{.Names}}" 2>$null
+    if (-not $runningContainers) { $runningContainers = @() }
+    
+    # Get all containers (including stopped) to find proxy containers
+    $allContainers = docker ps -a --format "{{.Names}}" 2>$null
+    
+    if ($allContainers) {
+        foreach ($containerName in $allContainers) {
             if (-not $containerName) { continue }
             
-            # Stop and remove the container
-            $result = docker rm -f $containerName 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  🗑️  Removed orphaned container: $containerName"
+            # Only process containers ending with -proxy
+            if ($containerName -notmatch '-proxy$') { continue }
+            
+            # Get the project prefix (everything before -proxy)
+            $projectPrefix = $containerName -replace '-proxy$', ''
+            
+            # Check if any app container with this prefix is running
+            # docker compose run creates containers like: projectname-app-run-xyz
+            # docker compose up creates containers like: projectname-app-1 or projectname-app
+            $appRunning = $runningContainers | Where-Object { $_ -match "^$([regex]::Escape($projectPrefix))-app" }
+            
+            if (-not $appRunning) {
+                # No app container running with this prefix - proxy is orphaned
+                $result = docker rm -f $containerName 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "  🗑️  Removed orphaned proxy container: $containerName"
+                }
             }
+            # If app is running, don't touch this proxy
         }
     }
     
-    # Find orphaned copilot_here networks (not attached to any containers)
-    $orphanedNetworks = docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>$null
+    # Find orphaned networks (not attached to any containers)
+    # Networks are named like: projectname-sessionid_airlock and projectname-sessionid_bridge
+    $allNetworks = docker network ls --format "{{.Name}}" 2>$null
     
-    if (-not $orphanedNetworks) {
+    if (-not $allNetworks) {
         return
     }
     
     $count = 0
-    foreach ($networkName in $orphanedNetworks) {
+    foreach ($networkName in $allNetworks) {
         if (-not $networkName) { continue }
+        
+        # Skip non-copilot networks (those not ending in _airlock or _bridge)
+        if ($networkName -notmatch '_airlock$' -and $networkName -notmatch '_bridge$') {
+            continue
+        }
         
         # Check if network has any attached containers
         $containers = docker network inspect $networkName --format '{{len .Containers}}' 2>$null
@@ -1810,7 +1838,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28
+VERSION: 2025-11-28.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }

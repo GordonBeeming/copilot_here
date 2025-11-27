@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-28
+# Version: 2025-11-28.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -642,30 +642,64 @@ __copilot_cleanup_images() {
 
 # Helper function to cleanup orphaned copilot_here networks
 __copilot_cleanup_orphaned_networks() {
-  # First, stop and remove any orphaned copilot_here containers
-  local orphaned_containers=$(docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>/dev/null || true)
+  # Find proxy containers that are orphaned (their app container is not running)
+  # Pattern: projectname-sessionid-proxy paired with projectname-sessionid-app (or app-run-xxx)
+  # Only remove proxy containers where NO app container with matching prefix is running
   
-  if [ -n "$orphaned_containers" ]; then
+  # Get list of currently RUNNING containers (not all, just running)
+  local running_containers=$(docker ps --format "{{.Names}}" 2>/dev/null || true)
+  
+  # Get all containers (including stopped) to find proxy containers
+  local all_containers=$(docker ps -a --format "{{.Names}}" 2>/dev/null || true)
+  
+  if [ -n "$all_containers" ]; then
     while IFS= read -r container_name; do
       [ -z "$container_name" ] && continue
       
-      # Stop and remove the container
-      if docker rm -f "$container_name" 2>/dev/null; then
-        echo "  🗑️  Removed orphaned container: $container_name"
+      # Only process containers ending with -proxy
+      case "$container_name" in
+        *-proxy) ;;
+        *) continue ;;
+      esac
+      
+      # Get the project prefix (everything before -proxy)
+      local project_prefix="${container_name%-proxy}"
+      
+      # Check if any app container with this prefix is running
+      # docker compose run creates containers like: projectname-app-run-xyz
+      # docker compose up creates containers like: projectname-app-1 or projectname-app
+      local app_running=""
+      if [ -n "$running_containers" ]; then
+        app_running=$(echo "$running_containers" | grep "^${project_prefix}-app" || true)
       fi
-    done <<< "$orphaned_containers"
+      
+      if [ -z "$app_running" ]; then
+        # No app container running with this prefix - proxy is orphaned
+        if docker rm -f "$container_name" 2>/dev/null; then
+          echo "  🗑️  Removed orphaned proxy container: $container_name"
+        fi
+      fi
+      # If app is running, don't touch this proxy
+    done <<< "$all_containers"
   fi
   
-  # Find orphaned copilot_here networks (not attached to any containers)
-  local orphaned_networks=$(docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>/dev/null || true)
+  # Find orphaned networks (not attached to any containers)
+  # Networks are named like: projectname-sessionid_airlock and projectname-sessionid_bridge
+  local all_networks=$(docker network ls --format "{{.Name}}" 2>/dev/null || true)
   
-  if [ -z "$orphaned_networks" ]; then
+  if [ -z "$all_networks" ]; then
     return 0
   fi
   
   local count=0
   while IFS= read -r network_name; do
     [ -z "$network_name" ] && continue
+    
+    # Skip non-copilot networks (those not ending in _airlock or _bridge)
+    case "$network_name" in
+      *_airlock|*_bridge) ;;
+      *) continue ;;
+    esac
     
     # Check if network has any attached containers
     local containers=$(docker network inspect "$network_name" --format '{{len .Containers}}' 2>/dev/null || echo "0")
@@ -676,7 +710,7 @@ __copilot_cleanup_orphaned_networks() {
         count=$((count + 1))
       fi
     fi
-  done <<< "$orphaned_networks"
+  done <<< "$all_networks"
   
   if [ "$count" -gt 0 ]; then
     echo "  ✓ Cleaned up $count orphaned network(s)"
@@ -1408,10 +1442,11 @@ __copilot_run_airlock() {
     title_emoji="🤖⚡️"
   fi
   
-  # Generate unique session ID
-  local session_id=$(date +%s%N | sha256sum | head -c 8)
+  # Generate unique session ID (include PID for uniqueness across concurrent sessions)
+  # Use $$ (PID) which works in both bash and zsh, plus timestamp
+  local session_id=$(echo "$$-$(date +%s%N 2>/dev/null || date +%s)" | sha256sum | head -c 8)
   
-  # Project name matches the terminal title format: emoji + dirname + session
+  # Project name matches the terminal title format: dirname + session
   local project_name="${current_dir_name}-${session_id}"
   
   # Create temporary compose file
@@ -1900,7 +1935,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28
+VERSION: 2025-11-28.2
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }
