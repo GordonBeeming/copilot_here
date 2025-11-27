@@ -1,6 +1,6 @@
 # Build on top of the .NET image to add Playwright capabilities
 # ARG will be provided by the build process with the commit hash
-ARG DOTNET_IMAGE_TAG
+ARG DOTNET_IMAGE_TAG=dotnet
 ARG PLAYWRIGHT_VERSION=latest
 FROM ghcr.io/gordonbeeming/copilot_here:${DOTNET_IMAGE_TAG}
 

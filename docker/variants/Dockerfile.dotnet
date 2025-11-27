@@ -1,6 +1,6 @@
 # Build on top of the base copilot_here image
 # ARG will be provided by the build process with the commit hash
-ARG BASE_IMAGE_TAG
+ARG BASE_IMAGE_TAG=latest
 FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 
 ARG DOTNET_SDK_8_VERSION

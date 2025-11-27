@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-23
+# Version: 2025-11-28
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -498,6 +498,473 @@ function Show-ImageConfig {
     }
 }
 
+# Helper function to create or load network proxy config
+function Ensure-NetworkConfig {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configFile = "$configDir\network.json"
+    } else {
+        $configDir = ".copilot_here"
+        $configFile = "$configDir\network.json"
+    }
+    
+    # Check if config already exists
+    if (Test-Path $configFile) {
+        # Config exists - just enable it
+        try {
+            $config = Get-Content $configFile -Raw | ConvertFrom-Json
+            $currentEnabled = if ($null -eq $config.enabled) { $true } else { $config.enabled }
+            
+            if ($currentEnabled -eq $true) {
+                Write-Host "✅ Airlock already enabled: $configFile"
+            } else {
+                $config.enabled = $true
+                $config | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+                Write-Host "✅ Airlock enabled: $configFile"
+            }
+        } catch {
+            Write-Host "⚠️  Warning: Could not update config, file may be malformed: $configFile" -ForegroundColor Yellow
+        }
+        return $true
+    }
+    
+    # Config doesn't exist - ask user about mode and create it
+    Write-Host "📝 Creating Airlock configuration..."
+    Write-Host ""
+    Write-Host "   The Airlock proxy can run in two modes:"
+    Write-Host "   • [e]nforce - Block requests not in the allowlist (recommended for security)"
+    Write-Host "   • [m]onitor - Log all requests but allow everything (useful for testing)"
+    Write-Host ""
+    $modeChoice = Read-Host "   Select mode (default: enforce)"
+    
+    $mode = "enforce"
+    $enableLogging = $false
+    if ($modeChoice.ToLower() -eq "monitor" -or $modeChoice.ToLower() -eq "m") {
+        $mode = "monitor"
+        $enableLogging = $true
+    }
+    
+    # Create config directory
+    if (-not (Test-Path $configDir)) {
+        try {
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        } catch {
+            Write-Host "❌ Error: Failed to create config directory: $configDir" -ForegroundColor Red
+            return $false
+        }
+    }
+    
+    # Load default rules if available
+    $defaultRulesFile = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
+    $allowedRules = $null
+    
+    if (Test-Path $defaultRulesFile) {
+        try {
+            $defaultContent = Get-Content $defaultRulesFile -Raw | ConvertFrom-Json
+            $allowedRules = $defaultContent.allowed_rules
+        } catch {
+            # Fallback to inline defaults
+        }
+    }
+    
+    # Fallback to inline defaults if not found
+    if (-not $allowedRules) {
+        $allowedRules = @(
+            @{
+                host = "api.github.com"
+                allowed_paths = @("/user", "/graphql")
+            },
+            @{
+                host = "api.individual.githubcopilot.com"
+                allowed_paths = @("/models", "/mcp/readonly", "/chat/completions")
+            }
+        )
+    }
+    
+    # Create config object with enabled: true
+    $config = @{
+        enabled = $true
+        inherit_default_rules = $true
+        mode = $mode
+        enable_logging = $enableLogging
+        allowed_rules = $allowedRules
+    }
+    
+    # Write config file
+    try {
+        $config | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+    } catch {
+        Write-Host "❌ Error: Failed to write config file: $configFile" -ForegroundColor Red
+        return $false
+    }
+    
+    Write-Host ""
+    Write-Host "✅ Created Airlock config: $configFile" -ForegroundColor Green
+    Write-Host "   Mode: $mode"
+    Write-Host "   inherit_default_rules: true"
+    Write-Host ""
+    
+    return $true
+}
+
+# Helper function to disable Airlock
+function Disable-Airlock {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
+    } else {
+        $configFile = ".copilot_here\network.json"
+    }
+    
+    if (-not (Test-Path $configFile)) {
+        Write-Host "ℹ️  No Airlock config found: $configFile"
+        return $true
+    }
+    
+    try {
+        $config = Get-Content $configFile -Raw | ConvertFrom-Json
+        $currentEnabled = if ($null -eq $config.enabled) { $true } else { $config.enabled }
+        
+        if ($currentEnabled -eq $false) {
+            Write-Host "ℹ️  Airlock already disabled: $configFile"
+        } else {
+            # Convert to hashtable for modification
+            $configHash = @{}
+            $config.PSObject.Properties | ForEach-Object { $configHash[$_.Name] = $_.Value }
+            $configHash.enabled = $false
+            $configHash | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+            Write-Host "✅ Airlock disabled: $configFile"
+        }
+    } catch {
+        Write-Host "⚠️  Warning: Could not update config: $configFile" -ForegroundColor Yellow
+        return $false
+    }
+    
+    return $true
+}
+
+# Helper function to show network rules
+function Show-AirlockRules {
+    $localConfig = ".copilot_here\network.json"
+    $globalConfig = "$env:USERPROFILE\.config\copilot_here\network.json"
+    $defaultRules = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
+    
+    Write-Host "📋 Airlock Proxy Rules"
+    Write-Host "======================"
+    Write-Host ""
+    
+    # Show default rules
+    if (Test-Path $defaultRules) {
+        Write-Host "📦 Default Rules:"
+        Write-Host "   $defaultRules"
+        Get-Content $defaultRules | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "📦 Default Rules: Not found"
+        Write-Host ""
+    }
+    
+    # Show global config
+    if (Test-Path $globalConfig) {
+        Write-Host "🌐 Global Config:"
+        Write-Host "   $globalConfig"
+        Get-Content $globalConfig | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "🌐 Global Config: Not configured"
+        Write-Host ""
+    }
+    
+    # Show local config
+    if (Test-Path $localConfig) {
+        Write-Host "📁 Local Config:"
+        Write-Host "   $localConfig"
+        Get-Content $localConfig | ForEach-Object { Write-Host "   $_" }
+        Write-Host ""
+    } else {
+        Write-Host "📁 Local Config: Not configured"
+        Write-Host ""
+    }
+}
+
+# Helper function to edit Airlock rules
+function Edit-AirlockRules {
+    param(
+        [bool]$IsGlobal
+    )
+    
+    if ($IsGlobal) {
+        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configFile = "$configDir\network.json"
+    } else {
+        $configDir = ".copilot_here"
+        $configFile = "$configDir\network.json"
+    }
+    
+    # Create config if it doesn't exist
+    if (-not (Test-Path $configFile)) {
+        Write-Host "📝 Config file doesn't exist. Creating it first..."
+        $result = Ensure-NetworkConfig -IsGlobal $IsGlobal
+        if (-not $result) {
+            return
+        }
+    }
+    
+    # Determine editor
+    $editor = $env:EDITOR
+    if (-not $editor) { $editor = $env:VISUAL }
+    if (-not $editor) { $editor = "notepad" }
+    
+    Write-Host "📝 Opening $configFile with $editor..."
+    & $editor $configFile
+}
+
+# Helper function to run with airlock (Docker Compose mode)
+function Invoke-CopilotAirlock {
+    param(
+        [string]$ImageTag,
+        [bool]$AllowAllTools,
+        [bool]$SkipCleanup,
+        [bool]$SkipPull,
+        [string]$NetworkConfigFile,
+        [string[]]$MountsRO,
+        [string[]]$MountsRW,
+        [string[]]$Arguments
+    )
+    
+    if (-not (Test-CopilotSecurityCheck)) { return }
+    
+    # Process network config file to replace placeholders
+    $processedConfigFile = Get-ProcessedNetworkConfig -ConfigFile $NetworkConfigFile
+    if (-not $processedConfigFile) {
+        Write-Host "❌ Failed to process network config file" -ForegroundColor Red
+        return
+    }
+    
+    # Skip actual container launch in test mode
+    if ($env:COPILOT_HERE_TEST_MODE -eq "true") {
+        Write-Host "🧪 Test mode: skipping container launch"
+        Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
+        return
+    }
+    
+    # Cleanup orphaned containers and networks from previous failed runs FIRST
+    # This ensures we have available subnets before trying to create new networks
+    Clear-OrphanedNetworks
+    
+    $appImage = "ghcr.io/gordonbeeming/copilot_here:$ImageTag"
+    $proxyImage = "ghcr.io/gordonbeeming/copilot_here:proxy"
+    
+    Write-Host "🛡️  Starting in Airlock mode..."
+    Write-Host "   App image: $appImage"
+    Write-Host "   Proxy image: $proxyImage"
+    Write-Host "   Network config: $NetworkConfigFile"
+    
+    # Pull images unless skipped
+    if (-not $SkipPull) {
+        Write-Host "📥 Pulling images..."
+        docker pull $appImage
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to pull app image" -ForegroundColor Red
+            Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
+            return
+        }
+        # Try to pull proxy image, but don't fail if it exists locally (for local dev)
+        docker pull $proxyImage 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            $localImage = docker image inspect $proxyImage 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "   Using local proxy image (not available in registry)"
+            } else {
+                Write-Host "❌ Failed to pull proxy image and no local image found" -ForegroundColor Red
+                if (Test-Path "./dev-build.sh") {
+                    Write-Host "   Run ./dev-build.sh to build the proxy image locally" -ForegroundColor Yellow
+                } else {
+                    Write-Host "   The proxy image is not yet available in the registry" -ForegroundColor Yellow
+                }
+                Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
+                return
+            }
+        }
+    }
+    
+    # Get current directory info for project name
+    $currentDir = (Get-Location).Path
+    $currentDirName = Split-Path -Leaf $currentDir
+    $titleEmoji = "🤖"
+    if ($AllowAllTools) {
+        $titleEmoji = "🤖⚡️"
+    }
+    
+    # Generate unique session ID
+    $sessionId = [System.Guid]::NewGuid().ToString().Substring(0, 8)
+    
+    # Project name matches terminal title format
+    $projectName = "$currentDirName-$sessionId"
+    
+    # Create temporary compose file
+    $tempCompose = [System.IO.Path]::GetTempFileName() + ".yml"
+    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    $templateFile = "$configDir\docker-compose.airlock.yml.template"
+    
+    # Download template if not exists
+    if (-not (Test-Path $templateFile)) {
+        Write-Host "📥 Downloading compose template..."
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $templateFile
+        } catch {
+            Write-Host "❌ Failed to download compose template" -ForegroundColor Red
+            Remove-Item $tempCompose -ErrorAction SilentlyContinue
+            return
+        }
+    }
+    
+    # Get token
+    $token = gh auth token 2>$null
+    if ([string]::IsNullOrEmpty($token)) {
+        Write-Host "⚠️  Could not retrieve token using 'gh auth token'." -ForegroundColor Yellow
+    }
+    
+    # Prepare copilot config path
+    $copilotConfig = "$env:USERPROFILE\.config\copilot-cli-docker"
+    if (-not (Test-Path $copilotConfig)) {
+        New-Item -ItemType Directory -Path $copilotConfig -Force | Out-Null
+    }
+    
+    # Container work directory - use same path mapping as non-airlock mode
+    # Windows paths get mapped to /home/appuser/work for consistency
+    $containerWorkDir = "/home/appuser/work"
+    $userHome = $env:USERPROFILE.Replace('\', '/')
+    $currentDirUnix = $currentDir.Replace('\', '/')
+    if ($currentDirUnix.StartsWith($userHome)) {
+        $relativePath = $currentDirUnix.Substring($userHome.Length)
+        $containerWorkDir = "/home/appuser$relativePath"
+    }
+    
+    # Check if logging is enabled in network config (also enabled automatically for monitor mode)
+    $logsMount = ""
+    $networkConfigContent = Get-Content $NetworkConfigFile -Raw 2>$null
+    $isMonitorMode = $networkConfigContent -match '"mode"\s*:\s*"monitor"'
+    if (($networkConfigContent -match '"enable_logging"\s*:\s*true') -or $isMonitorMode) {
+        $logsDir = Join-Path $currentDir ".copilot_here\logs"
+        if (-not (Test-Path $logsDir)) {
+            New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+        }
+        # Create gitignore to prevent committing logs
+        $gitignorePath = Join-Path $logsDir ".gitignore"
+        if (-not (Test-Path $gitignorePath)) {
+            @(
+                "# Ignore all log files - may contain sensitive information",
+                "*",
+                "!.gitignore"
+            ) | Set-Content $gitignorePath -Encoding UTF8
+        }
+        $logsMount = "      - $($logsDir -replace '\\', '/'):/logs"
+    }
+    
+    # Build extra mounts string
+    $extraMounts = ""
+    # Build extra mounts string (format: host_path:container_path)
+    foreach ($mountSpec in $MountsRO) {
+        # Parse host_path:container_path format
+        $parts = $mountSpec -split ':', 2
+        $hostPath = $parts[0]
+        $containerPath = if ($parts.Count -gt 1) { $parts[1] } else { $hostPath }
+        if ($hostPath) {
+            $extraMounts += "      - ${hostPath}:${containerPath}:ro`n"
+        }
+    }
+    foreach ($mountSpec in $MountsRW) {
+        # Parse host_path:container_path format
+        $parts = $mountSpec -split ':', 2
+        $hostPath = $parts[0]
+        $containerPath = if ($parts.Count -gt 1) { $parts[1] } else { $hostPath }
+        if ($hostPath) {
+            $extraMounts += "      - ${hostPath}:${containerPath}:rw`n"
+        }
+    }
+    # Trim trailing newline to prevent empty line after insertion
+    if ($extraMounts) {
+        $extraMounts = $extraMounts.TrimEnd()
+    }
+    
+    # Build copilot command args as JSON array
+    $copilotCmd = '["copilot"'
+    if ($AllowAllTools) {
+        $copilotCmd += ', "--allow-all-tools", "--allow-all-paths"'
+        $copilotCmd += ", `"--add-dir`", `"$containerWorkDir`""
+    }
+    
+    if ($Arguments.Count -eq 0) {
+        $copilotCmd += ', "--banner"'
+    } else {
+        foreach ($arg in $Arguments) {
+            $escapedArg = $arg -replace '"', '\"'
+            $copilotCmd += ", `"$escapedArg`""
+        }
+    }
+    $copilotCmd += ']'
+    
+    # Read template and substitute variables
+    $template = Get-Content $templateFile -Raw
+    $compose = $template `
+        -replace '\{\{PROJECT_NAME\}\}', $projectName `
+        -replace '\{\{APP_IMAGE\}\}', $appImage `
+        -replace '\{\{PROXY_IMAGE\}\}', $proxyImage `
+        -replace '\{\{WORK_DIR\}\}', ($currentDir -replace '\\', '/') `
+        -replace '\{\{CONTAINER_WORK_DIR\}\}', $containerWorkDir `
+        -replace '\{\{COPILOT_CONFIG\}\}', ($copilotConfig -replace '\\', '/') `
+        -replace '\{\{NETWORK_CONFIG\}\}', ($processedConfigFile -replace '\\', '/') `
+        -replace '\{\{LOGS_MOUNT\}\}', $logsMount `
+        -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
+        -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
+        -replace '\{\{EXTRA_MOUNTS\}\}', $extraMounts `
+        -replace '\{\{COPILOT_ARGS\}\}', $copilotCmd
+    
+    Set-Content $tempCompose $compose -Encoding UTF8
+    
+    # Set terminal title
+    $title = "$titleEmoji $currentDirName 🛡️"
+    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $Host.UI.RawUI.WindowTitle = $title
+    
+    try {
+        Write-Host ""
+        # Pass GITHUB_TOKEN via environment, not written to compose file for security
+        # COMPOSE_MENU=0 disables the interactive Docker Desktop menu bar
+        $env:GITHUB_TOKEN = $token
+        $env:COMPOSE_MENU = "0"
+        
+        # Start proxy first
+        docker compose -f $tempCompose -p $projectName up -d proxy
+        
+        # Run app interactively (--rm removes it on exit)
+        docker compose -f $tempCompose -p $projectName run -i --rm app
+    } finally {
+        # Cleanup
+        $Host.UI.RawUI.WindowTitle = $originalTitle
+        Write-Host ""
+        Write-Host "🧹 Cleaning up airlock..."
+        # Stop and remove containers directly by name
+        docker stop "${projectName}-proxy" 2>$null
+        docker rm "${projectName}-proxy" 2>$null
+        # Remove networks
+        docker network rm "${projectName}_airlock" 2>$null
+        docker network rm "${projectName}_bridge" 2>$null
+        # Remove volume
+        docker volume rm "${projectName}_proxy-ca" 2>$null
+        Remove-Item $tempCompose -ErrorAction SilentlyContinue
+        Remove-Item $processedConfigFile -ErrorAction SilentlyContinue
+    }
+}
+
 # Helper function for security checks (shared by all variants)
 function Test-CopilotSecurityCheck {
     # Skip in test mode
@@ -524,6 +991,75 @@ function Test-CopilotSecurityCheck {
     }
     Write-Host "✅ Security checks passed."
     return $true
+}
+
+# Helper function to get GitHub owner and repo from git remote
+function Get-GitHubInfo {
+    try {
+        $remoteUrl = git remote get-url origin 2>$null
+        if (-not $remoteUrl) {
+            return $null
+        }
+        
+        # Parse owner and repo from various URL formats:
+        # git@github.com:owner/repo.git
+        # https://github.com/owner/repo.git
+        # https://github.com/owner/repo
+        if ($remoteUrl -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
+            $owner = $Matches[1]
+            $repo = $Matches[2]
+            return @{
+                Owner = $owner
+                Repo = $repo
+            }
+        }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
+# Helper function to process network config with placeholders
+function Get-ProcessedNetworkConfig {
+    param([string]$ConfigFile)
+    
+    if (-not (Test-Path $ConfigFile)) {
+        return $null
+    }
+    
+    # Get GitHub owner and repo
+    $githubInfo = Get-GitHubInfo
+    $githubOwner = ""
+    $githubRepo = ""
+    
+    if ($githubInfo) {
+        $githubOwner = $githubInfo.Owner
+        $githubRepo = $githubInfo.Repo
+    }
+    
+    # Read and process the config file, replacing placeholders
+    $content = Get-Content $ConfigFile -Raw
+    
+    # Replace placeholders
+    $content = $content -replace '\{\{GITHUB_OWNER\}\}', $githubOwner
+    $content = $content -replace '\{\{GITHUB_REPO\}\}', $githubRepo
+    
+    # Write to temp file in a location Docker can access (user's config dir)
+    # Fall back to system temp if config dir creation fails
+    # Use USERPROFILE on Windows, HOME on macOS/Linux
+    $userHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+    $tempDir = "$userHome/.config/copilot_here/tmp"
+    try {
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Path $tempDir -Force -ErrorAction Stop | Out-Null
+        }
+    } catch {
+        $tempDir = [System.IO.Path]::GetTempPath()
+    }
+    $tempFile = Join-Path $tempDir "network-$([System.DateTimeOffset]::Now.ToUnixTimeMilliseconds()).json"
+    Set-Content -Path $tempFile -Value $content -Encoding UTF8
+    
+    return $tempFile
 }
 
 # Helper function to cleanup unused copilot_here images
@@ -584,6 +1120,51 @@ function Remove-UnusedCopilotImages {
         Write-Host "  ✓ No old images to clean up"
     } else {
         Write-Host "  ✓ Cleaned up $count old image(s)"
+    }
+}
+
+# Helper function to cleanup orphaned copilot_here networks
+function Clear-OrphanedNetworks {
+    # First, stop and remove any orphaned copilot_here containers
+    $orphanedContainers = docker ps -a --filter "name=copilot_here-" --format "{{.Names}}" 2>$null
+    
+    if ($orphanedContainers) {
+        foreach ($containerName in $orphanedContainers) {
+            if (-not $containerName) { continue }
+            
+            # Stop and remove the container
+            $result = docker rm -f $containerName 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  🗑️  Removed orphaned container: $containerName"
+            }
+        }
+    }
+    
+    # Find orphaned copilot_here networks (not attached to any containers)
+    $orphanedNetworks = docker network ls --filter "name=copilot_here-" --format "{{.Name}}" 2>$null
+    
+    if (-not $orphanedNetworks) {
+        return
+    }
+    
+    $count = 0
+    foreach ($networkName in $orphanedNetworks) {
+        if (-not $networkName) { continue }
+        
+        # Check if network has any attached containers
+        $containers = docker network inspect $networkName --format '{{len .Containers}}' 2>$null
+        
+        if ($containers -eq "0") {
+            $result = docker network rm $networkName 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  🗑️  Removed orphaned network: $networkName"
+                $count++
+            }
+        }
+    }
+    
+    if ($count -gt 0) {
+        Write-Host "  ✓ Cleaned up $count orphaned network(s)"
     }
 }
 
@@ -689,6 +1270,10 @@ function Invoke-CopilotRun {
     # Initialize seenPaths with current directory to avoid duplicates
     $seenPaths = @{$currentDir = "mounted"}
     
+    # Arrays to collect all resolved mounts (for passing to airlock)
+    $allResolvedMountsRO = @()
+    $allResolvedMountsRW = @()
+    
     # Add current working directory to display
     $mountDisplay += "📁 $containerWorkDir"
     
@@ -717,6 +1302,13 @@ function Invoke-CopilotRun {
         $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
         $allMountPaths += $resolvedPath
         
+        # Store resolved mount for airlock (host_path:container_path format)
+        if ($mountMode -eq "rw") {
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
+        } else {
+            $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
+        }
+        
         # Determine source for display
         $sourceIcon = if (Test-EmojiSupport) {
             if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "🌍" } else { "📍" }
@@ -742,6 +1334,7 @@ function Invoke-CopilotRun {
         
         $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):ro"
         $allMountPaths += $resolvedPath
+        $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
         
         $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
         $mountDisplay += "   $icon $resolvedPath (ro)"
@@ -764,10 +1357,14 @@ function Invoke-CopilotRun {
                     break
                 }
             }
+            # Also update resolved mounts arrays - move from ro to rw
+            $allResolvedMountsRO = $allResolvedMountsRO | Where-Object { $_ -ne "$($resolvedPath):$($resolvedPath)" }
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
         } else {
             $seenPaths[$resolvedPath] = "rw"
             $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):rw"
             $allMountPaths += $resolvedPath
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
         }
         
         $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
@@ -779,6 +1376,72 @@ function Invoke-CopilotRun {
         Write-Host "📂 Mounts:"
         foreach ($display in $mountDisplay) {
             Write-Host $display
+        }
+    }
+    
+    # Display Airlock status
+    $localNetworkConfig = ".copilot_here/network.json"
+    $globalNetworkConfig = "$env:HOME/.config/copilot_here/network.json"
+    if (-not $env:HOME) {
+        $globalNetworkConfig = "$env:USERPROFILE/.config/copilot_here/network.json"
+    }
+    $airlockEnabled = $false
+    $airlockSource = ""
+    $airlockMode = ""
+    
+    # Check local config first (takes precedence)
+    if (Test-Path $localNetworkConfig) {
+        try {
+            $config = Get-Content $localNetworkConfig -Raw | ConvertFrom-Json
+            if ($config.enabled -eq $true) {
+                $airlockEnabled = $true
+                $airlockSource = "local (.copilot_here/network.json)"
+                $airlockMode = $config.mode
+            }
+        } catch {
+            # Ignore parse errors
+        }
+    }
+    
+    # Check global config if local not enabled
+    if (-not $airlockEnabled -and (Test-Path $globalNetworkConfig)) {
+        try {
+            $config = Get-Content $globalNetworkConfig -Raw | ConvertFrom-Json
+            if ($config.enabled -eq $true) {
+                $airlockEnabled = $true
+                $airlockSource = "global (~/.config/copilot_here/network.json)"
+                $airlockMode = $config.mode
+            }
+        } catch {
+            # Ignore parse errors
+        }
+    }
+    
+    if ($airlockEnabled) {
+        $modeDisplay = ""
+        if ($airlockMode -eq "monitor") {
+            $modeDisplay = " (monitor mode)"
+        } elseif ($airlockMode -eq "enforce") {
+            $modeDisplay = " (enforce mode)"
+        }
+        Write-Host "🛡️  Airlock: enabled$modeDisplay - $airlockSource"
+        
+        # Determine which config file to use
+        $networkConfigFile = $localNetworkConfig
+        if ($airlockSource -eq "global (~/.config/copilot_here/network.json)") {
+            $networkConfigFile = $globalNetworkConfig
+        }
+        
+        # Call airlock mode instead of normal docker run
+        # Pass resolved mount arrays (all config + CLI mounts already processed)
+        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools:$AllowAllTools `
+            -SkipCleanup:$SkipCleanup -SkipPull:$SkipPull `
+            -NetworkConfigFile $networkConfigFile `
+            -MountsRo $allResolvedMountsRO -MountsRw $allResolvedMountsRW -Arguments $Arguments
+        return
+    } else {
+        if ((Test-Path $localNetworkConfig) -or (Test-Path $globalNetworkConfig)) {
+            Write-Host "🔓 Airlock: disabled"
         }
     }
     
@@ -841,6 +1504,12 @@ function Invoke-CopilotRun {
 function Update-CopilotScripts {
     Write-Host "📦 Updating copilot_here scripts from GitHub..."
     
+    # Ensure config directory exists
+    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    if (-not (Test-Path $configDir)) {
+        New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+    }
+    
     # Get current version
     $currentVersion = ""
     $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
@@ -878,6 +1547,27 @@ function Update-CopilotScripts {
         # Update the actual file (following symlinks)
         Move-Item $tempScript $targetFile -Force
         Write-Host "✅ Scripts updated successfully!"
+        
+        # Download default airlock rules
+        Write-Host "📥 Updating default Airlock rules..."
+        $airlockRulesFile = "$configDir\default-airlock-rules.json"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -OutFile $airlockRulesFile
+            Write-Host "✅ Airlock rules updated: $airlockRulesFile"
+        } catch {
+            Write-Host "⚠️  Failed to download Airlock rules (non-fatal)" -ForegroundColor Yellow
+        }
+        
+        # Download docker-compose template
+        Write-Host "📥 Updating compose template..."
+        $composeTemplateFile = "$configDir\docker-compose.airlock.yml.template"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $composeTemplateFile
+            Write-Host "✅ Compose template updated: $composeTemplateFile"
+        } catch {
+            Write-Host "⚠️  Failed to download compose template (non-fatal)" -ForegroundColor Yellow
+        }
+        
         Write-Host "🔄 Reloading..."
         . $standalonePath
         Write-Host "✨ Update complete! You're now on version $newVersion"
@@ -917,6 +1607,27 @@ function Update-CopilotScripts {
     }
     
     Remove-Item $tempScript
+    
+    # Download default airlock rules
+    Write-Host "📥 Updating default Airlock rules..."
+    $airlockRulesFile = "$configDir\default-airlock-rules.json"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/default-airlock-rules.json" -OutFile $airlockRulesFile
+        Write-Host "✅ Airlock rules updated: $airlockRulesFile"
+    } catch {
+        Write-Host "⚠️  Failed to download Airlock rules (non-fatal)" -ForegroundColor Yellow
+    }
+    
+    # Download docker-compose template
+    Write-Host "📥 Updating compose template..."
+    $composeTemplateFile = "$configDir\docker-compose.airlock.yml.template"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template" -OutFile $composeTemplateFile
+        Write-Host "✅ Compose template updated: $composeTemplateFile"
+    } catch {
+        Write-Host "⚠️  Failed to download compose template (non-fatal)" -ForegroundColor Yellow
+    }
+    
     Write-Host "🔄 Reloading..."
     . $PROFILE
     Write-Host "✨ Update complete! You're now on version $newVersion"
@@ -980,106 +1691,22 @@ function Test-CopilotUpdate {
     return $false
 }
 
-# Safe Mode: Asks for confirmation before executing
-function Copilot-Here {
-    [CmdletBinding()]
+# Common help function for both Copilot-Here and Copilot-Yolo
+function Show-CopilotHelp {
     param (
-        [switch]$h,
-        [switch]$Help,
-        [switch]$d,
-        [switch]$Dotnet,
-        [switch]$d8,
-        [switch]$Dotnet8,
-        [switch]$d9,
-        [switch]$Dotnet9,
-        [switch]$d10,
-        [switch]$Dotnet10,
-        [switch]$dp,
-        [switch]$DotnetPlaywright,
-        [string[]]$Mount,
-        [string[]]$MountRW,
-        [switch]$ListMounts,
-        [string]$SaveMount,
-        [string]$SaveMountGlobal,
-        [string]$RemoveMount,
-        [switch]$ListImages,
-        [switch]$ShowImage,
-        [string]$SetImage,
-        [string]$SetImageGlobal,
-        [switch]$ClearImage,
-        [switch]$ClearImageGlobal,
-        [switch]$NoCleanup,
-        [switch]$NoPull,
-        [switch]$UpdateScripts,
-        [switch]$UpgradeScripts,
-        [Parameter(ValueFromRemainingArguments=$true)]
-        [string[]]$Prompt
+        [bool]$IsYolo = $false
     )
-
-    # Handle mount management commands
-    if ($ListMounts) {
-        Show-ConfiguredMounts
-        return
-    }
     
-    if ($SaveMount) {
-        Save-MountToConfig -Path $SaveMount -IsGlobal $false
-        return
-    }
+    $cmdName = if ($IsYolo) { "Copilot-Yolo" } else { "Copilot-Here" }
+    $modeDesc = if ($IsYolo) { "YOLO Mode" } else { "Safe Mode" }
     
-    if ($SaveMountGlobal) {
-        Save-MountToConfig -Path $SaveMountGlobal -IsGlobal $true
-        return
-    }
-    
-    if ($RemoveMount) {
-        Remove-MountFromConfig -Path $RemoveMount
-        return
-    }
-
-    if ($ListImages) {
-        Show-AvailableImages
-        return
-    }
-
-    if ($ShowImage) {
-        Show-ImageConfig
-        return
-    }
-
-    if ($SetImage) {
-        Save-ImageConfig -ImageTag $SetImage -IsGlobal $false
-        return
-    }
-
-    if ($SetImageGlobal) {
-        Save-ImageConfig -ImageTag $SetImageGlobal -IsGlobal $true
-        return
-    }
-
-    if ($ClearImage) {
-        Clear-ImageConfig -IsGlobal $false
-        return
-    }
-
-    if ($ClearImageGlobal) {
-        Clear-ImageConfig -IsGlobal $true
-        return
-    }
-
-    if ($UpdateScripts -or $UpgradeScripts) {
-        Update-CopilotScripts
-        return
-    }
-
-    if ($h -or $Help) {
-        Write-Output @"
-copilot_here - GitHub Copilot CLI in a secure Docker container (Safe Mode)
+    Write-Output @"
+$cmdName - GitHub Copilot CLI in a secure Docker container ($modeDesc)
 
 USAGE:
-  Copilot-Here [OPTIONS] [COPILOT_ARGS]
-  Copilot-Here [MOUNT_MANAGEMENT]
-  Copilot-Here [IMAGE_MANAGEMENT]
+  $cmdName [OPTIONS] [COPILOT_ARGS]
+  $cmdName [MOUNT_MANAGEMENT]
+  $cmdName [IMAGE_MANAGEMENT]
 
 OPTIONS:
   -d, -Dotnet              Use .NET image variant (all versions)
@@ -1091,10 +1718,20 @@ OPTIONS:
   -Mount <path>            Mount additional directory (read-only)
   -MountRW <path>          Mount additional directory (read-write)
   -NoCleanup               Skip cleanup of unused Docker images
-  -NoPull                  Skip pulling the latest image
+  -NoPull, -SkipPull       Skip pulling the latest image
   -UpdateScripts           Update scripts from GitHub repository
   -UpgradeScripts          Alias for -UpdateScripts
   -h, -Help                Show this help message
+  -Help2                   Show GitHub Copilot CLI native help
+
+NETWORK (AIRLOCK):
+  -EnableAirlock             Enable Airlock with local rules (.copilot_here/network.json)
+  -EnableGlobalAirlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
+  -DisableAirlock            Disable Airlock for local config
+  -DisableGlobalAirlock      Disable Airlock for global config
+  -ShowAirlockRules          Show current Airlock proxy rules
+  -EditAirlockRules          Edit local Airlock rules in `$env:EDITOR
+  -EditGlobalAirlockRules    Edit global Airlock rules in `$env:EDITOR
 
 MOUNT MANAGEMENT:
   -ListMounts              Show all configured mounts
@@ -1103,8 +1740,8 @@ MOUNT MANAGEMENT:
   -RemoveMount <path>      Remove mount from configs
   
   Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- Copilot-Here -SaveMount ~/notes:rw
- Copilot-Here -SaveMountGlobal ~/data:rw
+ $cmdName -SaveMount ~/notes:rw
+ $cmdName -SaveMountGlobal ~/data:rw
 
 IMAGE MANAGEMENT:
   -ListImages              List all available Docker images
@@ -1135,81 +1772,62 @@ COPILOT_ARGS:
  --add-dir <directory>   Add directory to allowed list
  --allow-tool <tools>    Allow specific tools
  --deny-tool <tools>     Deny specific tools
- ... and more (run "copilot -h" for full list)
+ ... and more (run $cmdName -Help2 for full copilot help)
 
 EXAMPLES:
   # Interactive mode
-  Copilot-Here
+  $cmdName
   
   # Mount additional directories
-  Copilot-Here -Mount ../investigations -p "analyze these files"
-  Copilot-Here -MountRW ~/notes -Mount /data/research
+  $cmdName -Mount ../investigations -p "analyze these files"
+  $cmdName -MountRW ~/notes -Mount /data/research
   
   # Save mounts for reuse
-  Copilot-Here -SaveMount ~/investigations
-  Copilot-Here -SaveMountGlobal ~/common-data
-  Copilot-Here -ListMounts
+  $cmdName -SaveMount ~/investigations
+  $cmdName -SaveMountGlobal ~/common-data
+  $cmdName -ListMounts
   
   # Set default image
-  Copilot-Here -SetImage dotnet
-  Copilot-Here -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
-
-  # Ask a question
-  Copilot-Here -p "how do I list files in PowerShell?"
+  $cmdName -SetImage dotnet
+  $cmdName -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
+  
+  # Ask a question (short syntax)
+  $cmdName -p "how do I list files in bash?"
   
   # Use specific AI model
-  Copilot-Here --model gpt-5 -p "explain this code"
+  $cmdName --model gpt-5 -p "explain this code"
   
   # Resume previous session
-  Copilot-Here --continue
+  $cmdName --continue
   
-  # Use .NET image
-  Copilot-Here -d -p "build this .NET project"
-  
-  # Use .NET 9 image
-  Copilot-Here -d9 -p "build this .NET 9 project"
+  # Use .NET image with custom log level
+  $cmdName -d --log-level debug -p "build this .NET project"
   
   # Fast mode (skip cleanup and pull)
-  Copilot-Here -NoCleanup -NoPull -p "quick question"
+  $cmdName -NoCleanup -NoPull -p "quick question"
 
 MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-23
+VERSION: 2025-11-28
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
-        return
-    }
-
-    $imageTag = "latest"
-    if ($d -or $Dotnet) {
-        $imageTag = "dotnet"
-    } elseif ($d8 -or $Dotnet8) {
-        $imageTag = "dotnet-8"
-    } elseif ($d9 -or $Dotnet9) {
-        $imageTag = "dotnet-9"
-    } elseif ($d10 -or $Dotnet10) {
-        $imageTag = "dotnet-10"
-    } elseif ($dp -or $DotnetPlaywright) {
-        $imageTag = "dotnet-playwright"
-    }
-    
-    # Initialize mount arrays if not provided
-    if (-not $Mount) { $Mount = @() }
-    if (-not $MountRW) { $MountRW = @() }
-    
-    if (Test-CopilotUpdate) { return }
-    
-    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
 }
 
-# YOLO Mode: Auto-approves all tool usage
-function Copilot-Yolo {
-    [CmdletBinding()]
+# Show native copilot help
+function Show-CopilotNativeHelp {
+    $imageTag = Get-DefaultImage
+    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $false -SkipCleanup $true -SkipPull $true -Arguments "--help"
+}
+
+# Common internal function for both Copilot-Here and Copilot-Yolo
+function Invoke-CopilotMain {
     param (
+        [bool]$IsYolo,
         [switch]$h,
         [switch]$Help,
+        [switch]$Help2,
         [switch]$d,
         [switch]$Dotnet,
         [switch]$d8,
@@ -1233,12 +1851,51 @@ function Copilot-Yolo {
         [switch]$ClearImage,
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
+        [Alias("SkipPull")]
         [switch]$NoPull,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
         [switch]$UpdateScripts,
         [switch]$UpgradeScripts,
-        [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Prompt
     )
+
+    # Check for mutually exclusive network proxy flags
+    if ($EnableAirlock -and $EnableGlobalAirlock) {
+        Write-Host "❌ Error: Cannot use both -EnableAirlock and -EnableGlobalAirlock" -ForegroundColor Red
+        return
+    }
+
+    # Handle Airlock rules management commands
+    if ($ShowAirlockRules) {
+        Show-AirlockRules
+        return
+    }
+    
+    if ($EditAirlockRules) {
+        Edit-AirlockRules -IsGlobal $false
+        return
+    }
+    
+    if ($EditGlobalAirlockRules) {
+        Edit-AirlockRules -IsGlobal $true
+        return
+    }
+    
+    if ($DisableAirlock) {
+        Disable-Airlock -IsGlobal $false
+        return
+    }
+    
+    if ($DisableGlobalAirlock) {
+        Disable-Airlock -IsGlobal $true
+        return
+    }
 
     # Handle mount management commands
     if ($ListMounts) {
@@ -1297,123 +1954,129 @@ function Copilot-Yolo {
     }
 
     if ($h -or $Help) {
-        Write-Output @"
-copilot_yolo - GitHub Copilot CLI in a secure Docker container (YOLO Mode)
-
-USAGE:
-  Copilot-Yolo [OPTIONS] [COPILOT_ARGS]
-  Copilot-Yolo [MOUNT_MANAGEMENT]
-  Copilot-Yolo [IMAGE_MANAGEMENT]
-
-OPTIONS:
-  -d, -Dotnet              Use .NET image variant (all versions)
-  -d8, -Dotnet8            Use .NET 8 image variant
-  -d9, -Dotnet9            Use .NET 9 image variant
-  -d10, -Dotnet10          Use .NET 10 image variant
-  -pw, -Playwright         Use Playwright image variant
-  -dp, -DotnetPlaywright   Use .NET + Playwright image variant
-  -Mount <path>            Mount additional directory (read-only)
-  -MountRW <path>          Mount additional directory (read-write)
-  -NoCleanup               Skip cleanup of unused Docker images
-  -NoPull                  Skip pulling the latest image
-  -UpdateScripts           Update scripts from GitHub repository
-  -UpgradeScripts          Alias for -UpdateScripts
-  -h, -Help                Show this help message
-
-MOUNT MANAGEMENT:
-  -ListMounts              Show all configured mounts
-  -SaveMount <path>        Save mount to local config (.copilot_here/mounts.conf)
-  -SaveMountGlobal <path>  Save mount to global config (~/.config/copilot_here/mounts.conf)
-  -RemoveMount <path>      Remove mount from configs
-  
-  Note: Saved mounts are read-only by default. To save as read-write, add :rw suffix:
- Copilot-Yolo -SaveMount ~/notes:rw
- Copilot-Yolo -SaveMountGlobal ~/data:rw
-
-IMAGE MANAGEMENT:
-  -ListImages              List all available Docker images
-  -ShowImage               Show current default image configuration
-  -SetImage <tag>   Set default image in local config
-  -SetImageGlobal <tag> Set default image in global config
-  -ClearImage              Clear default image from local config
-  -ClearImageGlobal        Clear default image from global config
-
-COPILOT_ARGS:
-  All standard GitHub Copilot CLI arguments are supported:
- -p, --prompt <text>     Execute a prompt directly
- --model <model>         Set AI model (claude-sonnet-4.5, gpt-5, etc.)
- --continue              Resume most recent session
- --resume [sessionId]    Resume from a previous session
- --log-level <level>     Set log level (none, error, warning, info, debug)
- --add-dir <directory>   Add directory to allowed list
- --allow-tool <tools>    Allow specific tools
- --deny-tool <tools>     Deny specific tools
- ... and more (run "copilot -h" for full list)
-
-EXAMPLES:
-  # Interactive mode (auto-approves all)
-  Copilot-Yolo
-  
-  # Set default image
-  Copilot-Yolo -SetImage dotnet
-  Copilot-Yolo -SetImageGlobal dotnet-sha-bf08e6c875a919cd3440e8b3ebefc5d460edd870
-
-  # Execute without confirmation
-  Copilot-Yolo -p "run the tests and fix failures"
-  
-  # Mount additional directories
-  Copilot-Yolo -Mount ../data -p "analyze all data"
-  
-  # Use specific model
-  Copilot-Yolo --model gpt-5 -p "optimize this code"
-  
-  # Resume session
-  Copilot-Yolo --continue
-  
-  # Use .NET + Playwright image
-  Copilot-Yolo -dp -p "write playwright tests"
-  
-  # Use .NET 10 image
-  Copilot-Yolo -d10 -p "explore .NET 10 features"
-  
-  # Fast mode (skip cleanup)
-  Copilot-Yolo -NoCleanup -p "generate README"
-
-WARNING:
-  YOLO mode automatically approves ALL tool usage without confirmation AND
-  disables file path verification (--allow-all-tools + --allow-all-paths).
-  Use with caution and only in trusted environments.
-
-MODES:
-  Copilot-Here  - Safe mode (asks for confirmation before executing)
-  Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
-
-VERSION: 2025-11-23
-REPOSITORY: https://github.com/GordonBeeming/copilot_here
-"@
+        Show-CopilotHelp -IsYolo $IsYolo
         return
     }
 
-    $imageTag = "latest"
-    if ($d -or $Dotnet) {
-        $imageTag = "dotnet"
-    } elseif ($d8 -or $Dotnet8) {
-        $imageTag = "dotnet-8"
-    } elseif ($d9 -or $Dotnet9) {
-        $imageTag = "dotnet-9"
-    } elseif ($d10 -or $Dotnet10) {
-        $imageTag = "dotnet-10"
-    } elseif ($dp -or $DotnetPlaywright) {
-        $imageTag = "dotnet-playwright"
+    if ($Help2) {
+        Show-CopilotNativeHelp
+        return
     }
+
+    # Determine image tag
+    $imageTag = Get-DefaultImage
     
-    # Initialize mount arrays if not provided
-    if (-not $Mount) { $Mount = @() }
-    if (-not $MountRW) { $MountRW = @() }
+    if ($d -or $Dotnet) { $imageTag = "dotnet" }
+    if ($d8 -or $Dotnet8) { $imageTag = "dotnet8" }
+    if ($d9 -or $Dotnet9) { $imageTag = "dotnet9" }
+    if ($d10 -or $Dotnet10) { $imageTag = "dotnet10" }
+    if ($dp -or $DotnetPlaywright) { $imageTag = "dotnet-playwright" }
+
+    if ($EnableAirlock -or $EnableGlobalAirlock) {
+        $isGlobal = $EnableGlobalAirlock
+        Ensure-NetworkConfig -IsGlobal $isGlobal
+        return
+    }
     
     if (Test-CopilotUpdate) { return }
     
-    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $true -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+    Invoke-CopilotRun -ImageTag $imageTag -AllowAllTools $IsYolo -SkipCleanup $NoCleanup -SkipPull $NoPull -MountsRO $Mount -MountsRW $MountRW -Arguments $Prompt
+}
+
+# Safe Mode: Asks for confirmation before executing
+function Copilot-Here {
+    [CmdletBinding()]
+    param (
+        [switch]$h,
+        [switch]$Help,
+        [switch]$Help2,
+        [switch]$d,
+        [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
+        [switch]$dp,
+        [switch]$DotnetPlaywright,
+        [string[]]$Mount,
+        [string[]]$MountRW,
+        [switch]$ListMounts,
+        [string]$SaveMount,
+        [string]$SaveMountGlobal,
+        [string]$RemoveMount,
+        [switch]$ListImages,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
+        [switch]$NoCleanup,
+        [Alias("SkipPull")]
+        [switch]$NoPull,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
+        [switch]$UpdateScripts,
+        [switch]$UpgradeScripts,
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [string[]]$Prompt
+    )
+    
+    Invoke-CopilotMain -IsYolo $false @PSBoundParameters
+}
+
+# YOLO Mode: Auto-approves all tool usage
+function Copilot-Yolo {
+    [CmdletBinding()]
+    param (
+        [switch]$h,
+        [switch]$Help,
+        [switch]$Help2,
+        [switch]$d,
+        [switch]$Dotnet,
+        [switch]$d8,
+        [switch]$Dotnet8,
+        [switch]$d9,
+        [switch]$Dotnet9,
+        [switch]$d10,
+        [switch]$Dotnet10,
+        [switch]$dp,
+        [switch]$DotnetPlaywright,
+        [string[]]$Mount,
+        [string[]]$MountRW,
+        [switch]$ListMounts,
+        [string]$SaveMount,
+        [string]$SaveMountGlobal,
+        [string]$RemoveMount,
+        [switch]$ListImages,
+        [switch]$ShowImage,
+        [string]$SetImage,
+        [string]$SetImageGlobal,
+        [switch]$ClearImage,
+        [switch]$ClearImageGlobal,
+        [switch]$NoCleanup,
+        [Alias("SkipPull")]
+        [switch]$NoPull,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
+        [switch]$DisableAirlock,
+        [switch]$DisableGlobalAirlock,
+        [switch]$ShowAirlockRules,
+        [switch]$EditAirlockRules,
+        [switch]$EditGlobalAirlockRules,
+        [switch]$UpdateScripts,
+        [switch]$UpgradeScripts,
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [string[]]$Prompt
+    )
+    
+    Invoke-CopilotMain -IsYolo $true @PSBoundParameters
 }
 
 Set-Alias -Name copilot_here -Value Copilot-Here

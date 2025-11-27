@@ -1,6 +1,10 @@
 #!/bin/bash
 # Test Docker command generation using function mocking
 # This validates that correct Docker commands are generated without running Docker
+#
+# NOTE: This file is separate from test_docker_commands_zsh.sh because function
+# mocking works differently between shells. Bash requires `export -f` to export
+# functions to subprocesses, while zsh handles function visibility differently.
 
 set -e
 
@@ -55,10 +59,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEST_DIR=$(mktemp -d)
 DOCKER_LOG="$TEST_DIR/docker.log"
 
+# Create test working directory and HOME to isolate from production configs
+TEST_WORK_DIR="$TEST_DIR/work"
+TEST_HOME="$TEST_DIR/home"
+mkdir -p "$TEST_WORK_DIR"
+mkdir -p "$TEST_HOME/.config/copilot_here"
+
 cleanup() {
   rm -rf "$TEST_DIR"
 }
 trap cleanup EXIT
+
+# Override HOME to use test directory (isolates from global config)
+export HOME="$TEST_HOME"
 
 # Enable test mode to skip auth checks
 export COPILOT_HERE_TEST_MODE=true
@@ -72,6 +85,9 @@ export -f docker
 
 # Source the script
 source "$SCRIPT_DIR/copilot_here.sh"
+
+# Change to test work directory to avoid local .copilot_here/network.json
+cd "$TEST_WORK_DIR"
 
 echo "======================================"
 echo "Docker Command Tests (Mock)"

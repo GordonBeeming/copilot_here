@@ -132,6 +132,86 @@ else
 fi
 echo ""
 
+# Test network proxy / airlock (Bash)
+echo -e "${BLUE}Running network proxy tests (Bash)...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_network_proxy.sh"; then
+  echo -e "${GREEN}✓ Network proxy tests (Bash) passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ Network proxy tests (Bash) failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
+# Test network proxy / airlock (Zsh if available)
+if command -v zsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running network proxy tests (Zsh)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if zsh "$TEST_DIR/test_network_proxy.sh"; then
+    echo -e "${GREEN}✓ Network proxy tests (Zsh) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Network proxy tests (Zsh) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test network proxy / airlock (PowerShell if available)
+if command -v pwsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running network proxy tests (PowerShell)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if pwsh -File "$TEST_DIR/test_network_proxy.ps1"; then
+    echo -e "${GREEN}✓ Network proxy tests (PowerShell) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ Network proxy tests (PowerShell) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test GitHub info extraction (Bash)
+echo -e "${BLUE}Running GitHub info extraction tests (Bash)...${NC}"
+TOTAL_SUITES=$((TOTAL_SUITES + 1))
+if bash "$TEST_DIR/test_github_info.sh"; then
+  echo -e "${GREEN}✓ GitHub info extraction tests (Bash) passed${NC}"
+  PASSED_SUITES=$((PASSED_SUITES + 1))
+else
+  echo -e "${RED}✗ GitHub info extraction tests (Bash) failed${NC}"
+  FAILED_SUITES=$((FAILED_SUITES + 1))
+fi
+echo ""
+
+# Test GitHub info extraction (Zsh if available)
+if command -v zsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running GitHub info extraction tests (Zsh)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if zsh "$TEST_DIR/test_github_info.sh"; then
+    echo -e "${GREEN}✓ GitHub info extraction tests (Zsh) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ GitHub info extraction tests (Zsh) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
+# Test GitHub info extraction (PowerShell if available)
+if command -v pwsh >/dev/null 2>&1; then
+  echo -e "${BLUE}Running GitHub info extraction tests (PowerShell)...${NC}"
+  TOTAL_SUITES=$((TOTAL_SUITES + 1))
+  if pwsh -File "$TEST_DIR/test_github_info.ps1"; then
+    echo -e "${GREEN}✓ GitHub info extraction tests (PowerShell) passed${NC}"
+    PASSED_SUITES=$((PASSED_SUITES + 1))
+  else
+    echo -e "${RED}✗ GitHub info extraction tests (PowerShell) failed${NC}"
+    FAILED_SUITES=$((FAILED_SUITES + 1))
+  fi
+  echo ""
+fi
+
 # Test mount configuration (Zsh if available)
 # Note: Core mount functionality tested in test_zsh.sh
 # Advanced edge case tests are Bash-specific due to array handling differences

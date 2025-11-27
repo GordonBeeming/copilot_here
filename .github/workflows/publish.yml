@@ -66,6 +66,85 @@ jobs:
         run: |
           pwsh tests/run_all_tests.ps1
 
+  # Airlock integration tests - runs after images are built
+  # Tests actual Docker Compose airlock functionality
+  test-airlock:
+    name: Test Airlock on ${{ matrix.os }}
+    needs: [build-and-publish]
+    runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Make test script executable (Unix)
+        if: matrix.os != 'windows-latest'
+        run: chmod +x tests/integration/test_airlock.sh
+        
+      - name: Run airlock integration tests (Unix)
+        if: matrix.os != 'windows-latest'
+        run: ./tests/integration/test_airlock.sh
+        
+      - name: Run airlock integration tests (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: pwsh tests/integration/test_airlock.ps1
+
+  # Airlock integration tests for PRs - builds images locally first
+  test-airlock-pr:
+    name: Test Airlock (PR) on ${{ matrix.os }}
+    needs: [test-bash-zsh, test-windows]
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Build images locally (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          chmod +x ./dev-build.sh
+          ./dev-build.sh
+          
+      - name: Build images locally (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Build proxy image
+          docker build -t ghcr.io/gordonbeeming/copilot_here:proxy -f docker/Dockerfile.proxy .
+          # Build base image
+          docker build -t ghcr.io/gordonbeeming/copilot_here:latest -f docker/Dockerfile.base .
+        
+      - name: Make test script executable (Unix)
+        if: matrix.os != 'windows-latest'
+        run: chmod +x tests/integration/test_airlock.sh
+        
+      - name: Run airlock integration tests (Unix)
+        if: matrix.os != 'windows-latest'
+        run: ./tests/integration/test_airlock.sh --use-local
+        
+      - name: Run airlock integration tests (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: pwsh tests/integration/test_airlock.ps1 -Local
+
   build-and-publish:
     name: Build and Publish Images
     needs: [test-bash-zsh, test-windows]  # Tests must pass before building/publishing
@@ -162,6 +241,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile.base
           platforms: linux/amd64,linux/arm64
           push: false # We don't push yet; we decide that in the next step.
           load: false # Can't load multi-platform images
@@ -196,6 +276,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile.base
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -207,6 +288,31 @@ jobs:
           build-args: |
             COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
+          cache-to: type=inline
+
+      # Step 11a: Extract metadata for Proxy image
+      - name: Extract metadata for Proxy image
+        id: meta-proxy
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=proxy
+            type=raw,value=proxy-sha-${{ github.sha }}
+
+      # Step 11b: Build and push Proxy image (Rust-based network proxy for Airlock mode)
+      - name: Build and push Proxy image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.proxy
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-proxy.outputs.tags }}
+          labels: |
+            ${{ steps.meta-proxy.outputs.labels }}
+            project=copilot_here
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy,mode=max
           cache-to: type=inline
 
       # Step 12: Extract metadata for .NET image
@@ -224,7 +330,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet
+          file: ./docker/variants/Dockerfile.dotnet
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -254,7 +360,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet8
+          file: ./docker/variants/Dockerfile.dotnet8
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -282,7 +388,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet9
+          file: ./docker/variants/Dockerfile.dotnet9
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -310,7 +416,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet10
+          file: ./docker/variants/Dockerfile.dotnet10
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -338,7 +444,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.dotnet-playwright
+          file: ./docker/variants/Dockerfile.dotnet-playwright
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -366,7 +472,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.playwright
+          file: ./docker/variants/Dockerfile.playwright
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -397,6 +503,7 @@ jobs:
           if [[ "${{ steps.push_decision.outputs.push_needed }}" == "true" ]]; then
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:proxy\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-8\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:dotnet-9\`" >> $GITHUB_STEP_SUMMARY

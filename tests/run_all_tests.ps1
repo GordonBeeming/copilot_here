@@ -42,7 +42,8 @@ function Run-Test($testFile) {
 $tests = @(
     "test_powershell.ps1",
     "test_image_config.ps1",
-    "test_window_title.ps1"
+    "test_window_title.ps1",
+    "test_github_info.ps1"
 )
 
 foreach ($test in $tests) {
