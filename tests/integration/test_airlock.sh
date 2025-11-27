@@ -10,10 +10,24 @@
 # NOTE: These tests require Docker and actually run containers.
 # They are NOT run in CI unit tests - run manually or in dedicated CI job.
 #
-# Usage: ./tests/integration/test_airlock.sh
+# Usage: ./tests/integration/test_airlock.sh [--use-local]
+#
+# Options:
+#   --use-local    Skip image pull and use locally built images (for dev testing)
 
 # Don't use set -e as we want to continue running tests even if some fail
 # set -e
+
+# Parse arguments
+USE_LOCAL_IMAGES=false
+for arg in "$@"; do
+  case $arg in
+    --use-local)
+      USE_LOCAL_IMAGES=true
+      shift
+      ;;
+  esac
+done
 
 # Color support
 RED='\033[0;31m'
@@ -131,51 +145,76 @@ setup_test_env() {
 }
 EOF
 
-  # Create compose file for testing
+  # Find the template file - check repo first, then installed location
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local repo_root="$(cd "$script_dir/../.." && pwd)"
+  local template_file=""
+  
+  if [ -f "$repo_root/docker-compose.airlock.yml.template" ]; then
+    template_file="$repo_root/docker-compose.airlock.yml.template"
+  elif [ -f "$HOME/.config/copilot_here/docker-compose.airlock.yml.template" ]; then
+    template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+  else
+    echo -e "${RED}❌ docker-compose.airlock.yml.template not found${NC}"
+    echo "   Checked: $repo_root/docker-compose.airlock.yml.template"
+    echo "   Checked: $HOME/.config/copilot_here/docker-compose.airlock.yml.template"
+    return 1
+  fi
+  
+  echo "   Using template: $template_file"
+  
+  # Create compose file using the ACTUAL template (same logic as production code)
   COMPOSE_FILE="$TEST_DIR/docker-compose.yml"
-  cat > "$COMPOSE_FILE" << EOF
-networks:
-  airlock:
-    internal: true
-  bridge:
-
-volumes:
-  proxy-ca:
-
-services:
-  proxy:
-    image: ghcr.io/gordonbeeming/copilot_here:proxy
-    container_name: "${PROJECT_NAME}-proxy"
-    networks:
-      - airlock
-      - bridge
-    volumes:
-      - ${NETWORK_CONFIG}:/config/rules.json:ro
-      - proxy-ca:/ca
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:58080/health"]
-      interval: 2s
-      timeout: 2s
-      retries: 15
-      start_period: 5s
-
-  test-client:
-    image: curlimages/curl:latest
-    container_name: "${PROJECT_NAME}-client"
-    networks:
-      - airlock
-    environment:
-      - HTTP_PROXY=http://proxy:58080
-      - HTTPS_PROXY=http://proxy:58080
-      - http_proxy=http://proxy:58080
-      - https_proxy=http://proxy:58080
-    volumes:
-      - proxy-ca:/ca:ro
-    depends_on:
-      proxy:
-        condition: service_healthy
-    entrypoint: ["sleep", "infinity"]
-EOF
+  
+  # Use awk to substitute placeholders - same method as copilot_here.sh
+  local app_image="ghcr.io/gordonbeeming/copilot_here:latest"
+  local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
+  local work_dir="$TEST_DIR"
+  local container_work_dir="/home/appuser/work"
+  local copilot_config="$TEST_DIR/copilot-config"
+  mkdir -p "$copilot_config"
+  
+  awk -v project_name="$PROJECT_NAME" \
+      -v app_image="$app_image" \
+      -v proxy_image="$proxy_image" \
+      -v work_dir="$work_dir" \
+      -v container_work_dir="$container_work_dir" \
+      -v copilot_config="$copilot_config" \
+      -v network_config="$NETWORK_CONFIG" \
+      -v logs_mount="" \
+      -v puid="$(id -u)" \
+      -v pgid="$(id -g)" \
+      -v extra_mounts="" \
+      -v copilot_args="[\"sleep\", \"infinity\"]" \
+      '{
+        gsub(/\{\{PROJECT_NAME\}\}/, project_name);
+        gsub(/\{\{APP_IMAGE\}\}/, app_image);
+        gsub(/\{\{PROXY_IMAGE\}\}/, proxy_image);
+        gsub(/\{\{WORK_DIR\}\}/, work_dir);
+        gsub(/\{\{CONTAINER_WORK_DIR\}\}/, container_work_dir);
+        gsub(/\{\{COPILOT_CONFIG\}\}/, copilot_config);
+        gsub(/\{\{NETWORK_CONFIG\}\}/, network_config);
+        gsub(/\{\{LOGS_MOUNT\}\}/, logs_mount);
+        gsub(/\{\{PUID\}\}/, puid);
+        gsub(/\{\{PGID\}\}/, pgid);
+        gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
+        gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
+        print
+      }' "$template_file" > "$COMPOSE_FILE"
+  
+  # Verify the compose file was created and is valid YAML
+  if [ ! -s "$COMPOSE_FILE" ]; then
+    echo -e "${RED}❌ Failed to generate compose file${NC}"
+    return 1
+  fi
+  
+  # Quick validation - check it has the expected structure
+  if ! grep -q "services:" "$COMPOSE_FILE"; then
+    echo -e "${RED}❌ Generated compose file is invalid (missing services:)${NC}"
+    echo "Generated file contents:"
+    cat "$COMPOSE_FILE"
+    return 1
+  fi
 
   echo "   Project name: $PROJECT_NAME"
   echo "   Compose file: $COMPOSE_FILE"
@@ -187,8 +226,27 @@ start_containers() {
   echo ""
   echo "🚀 Starting test containers..."
   
-  # Pull images first
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" pull --quiet 2>/dev/null || true
+  # Pull images first (unless using local images)
+  if [ "$USE_LOCAL_IMAGES" = true ]; then
+    echo "   Using local images (--use-local)"
+    # Verify local images exist
+    local app_image="ghcr.io/gordonbeeming/copilot_here:latest"
+    local proxy_image="ghcr.io/gordonbeeming/copilot_here:proxy"
+    
+    if ! docker image inspect "$app_image" &>/dev/null; then
+      echo -e "${RED}❌ Local app image not found: $app_image${NC}"
+      echo "   Run ./dev-build.sh first to build the images"
+      return 1
+    fi
+    
+    if ! docker image inspect "$proxy_image" &>/dev/null; then
+      echo -e "${RED}❌ Local proxy image not found: $proxy_image${NC}"
+      echo "   Run ./dev-build.sh first to build the images"
+      return 1
+    fi
+  else
+    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" pull --quiet 2>/dev/null || true
+  fi
   
   # Start containers
   if ! docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" up -d --wait 2>&1; then
@@ -218,9 +276,9 @@ cleanup_containers() {
   echo "✓ Cleanup complete"
 }
 
-# Run command in test client container
+# Run command in app container
 run_in_client() {
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T test-client "$@"
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T app "$@"
 }
 
 # ============================================================================
@@ -354,7 +412,7 @@ test_no_direct_internet() {
   local result exit_code
   result=$(docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T \
     -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= \
-    test-client curl -sf --max-time 5 "http://httpbin.org/get" 2>&1) || exit_code=$?
+    app curl -sf --max-time 5 "http://httpbin.org/get" 2>&1) || exit_code=$?
   exit_code=${exit_code:-0}
   
   if [ $exit_code -ne 0 ]; then

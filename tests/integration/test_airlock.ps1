@@ -10,6 +10,11 @@
 # They are NOT run in CI unit tests - run manually or in dedicated CI job.
 #
 # Usage: pwsh tests/integration/test_airlock.ps1
+#        pwsh tests/integration/test_airlock.ps1 -Local  # Skip pulling, use local images
+
+param(
+    [switch]$Local  # Skip pulling images, use locally built ones
+)
 
 $ErrorActionPreference = "Continue"
 
@@ -107,16 +112,33 @@ function Initialize-TestEnvironment {
     Write-Host ""
     Write-Host "🔧 Setting up test environment..."
     
+    # Find the repo root (where docker-compose.airlock.yml.template lives)
+    $script:RepoRoot = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+    $templatePath = Join-Path $script:RepoRoot "docker-compose.airlock.yml.template"
+    
+    if (-not (Test-Path $templatePath)) {
+        Write-Host "❌ Template not found: $templatePath" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "   Using template: $templatePath"
+    
     # Create temp directory for test files
     $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "airlock-test-$PID"
     New-Item -ItemType Directory -Path $script:TestDir -Force | Out-Null
+    
+    # Create logs directory
+    $logsDir = Join-Path $script:TestDir "logs"
+    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
     
     # Create network config for testing
     $script:NetworkConfig = Join-Path $script:TestDir "network.json"
     $networkConfigContent = @'
 {
+  "enabled": true,
   "mode": "enforce",
-  "inherit_defaults": false,
+  "inherit_default_rules": false,
+  "enable_logging": false,
   "allowed_rules": [
     {
       "host": "httpbin.org",
@@ -132,68 +154,56 @@ function Initialize-TestEnvironment {
 '@
     $networkConfigContent | Set-Content -Path $script:NetworkConfig -Encoding UTF8
     
-    # Convert Windows path to Unix path for Docker
-    $networkConfigUnix = $script:NetworkConfig -replace '\\', '/' -replace '^([A-Za-z]):', '/$1'
-    $networkConfigUnix = $networkConfigUnix.ToLower()
+    # Generate random port for proxy
+    $proxyPort = Get-Random -Minimum 50000 -Maximum 60000
     
-    # Create compose file for testing
+    # Convert paths for Docker (handle Windows paths)
+    $networkConfigDocker = $script:NetworkConfig
+    $logsDirDocker = $logsDir
+    $testDirDocker = $script:TestDir
+    
+    if ($IsWindows -or $env:OS -eq "Windows_NT") {
+        # Convert Windows paths to Docker-compatible format
+        $networkConfigDocker = $script:NetworkConfig -replace '\\', '/'
+        $logsDirDocker = $logsDir -replace '\\', '/'
+        $testDirDocker = $script:TestDir -replace '\\', '/'
+    }
+    
+    # Read template and substitute values
+    $templateContent = Get-Content -Path $templatePath -Raw
+    
+    # Substitute placeholders
+    $composeContent = $templateContent `
+        -replace '\$\{PROXY_PORT\}', $proxyPort `
+        -replace '\$\{PROJECT_NAME\}', $script:ProjectName `
+        -replace '\$\{APP_IMAGE\}', 'ghcr.io/gordonbeeming/copilot_here:latest' `
+        -replace '\$\{PROXY_IMAGE\}', 'ghcr.io/gordonbeeming/copilot_here:proxy' `
+        -replace '\$\{NETWORK_CONFIG\}', $networkConfigDocker `
+        -replace '\$\{WORK_DIR\}', $testDirDocker `
+        -replace '\$\{LOGS_MOUNT\}', '' `
+        -replace '\$\{USER_ID\}', '1000' `
+        -replace '\$\{GROUP_ID\}', '1000'
+    
+    # Write compose file
     $script:ComposeFile = Join-Path $script:TestDir "docker-compose.yml"
-    $composeContent = @"
-networks:
-  airlock:
-    internal: true
-  bridge:
-
-volumes:
-  proxy-ca:
-
-services:
-  proxy:
-    image: ghcr.io/gordonbeeming/copilot_here:proxy
-    container_name: "$script:ProjectName-proxy"
-    networks:
-      - airlock
-      - bridge
-    volumes:
-      - ${networkConfigUnix}:/config/rules.json:ro
-      - proxy-ca:/ca
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:58080/health"]
-      interval: 2s
-      timeout: 2s
-      retries: 15
-      start_period: 5s
-
-  test-client:
-    image: curlimages/curl:latest
-    container_name: "$script:ProjectName-client"
-    networks:
-      - airlock
-    environment:
-      - HTTP_PROXY=http://proxy:58080
-      - HTTPS_PROXY=http://proxy:58080
-      - http_proxy=http://proxy:58080
-      - https_proxy=http://proxy:58080
-    volumes:
-      - proxy-ca:/ca:ro
-    depends_on:
-      proxy:
-        condition: service_healthy
-    entrypoint: ["sleep", "infinity"]
-"@
     $composeContent | Set-Content -Path $script:ComposeFile -Encoding UTF8
     
     Write-Host "   Project name: $script:ProjectName"
     Write-Host "   Compose file: $script:ComposeFile"
     Write-Host "   Network config: $script:NetworkConfig"
+    Write-Host "   Proxy port: $proxyPort"
 }
 
 function Start-TestContainers {
     Write-Host ""
     Write-Host "🚀 Starting test containers..."
     
-    # Pull images first (quiet)
-    docker compose -f $script:ComposeFile -p $script:ProjectName pull --quiet 2>$null
+    # Pull images first (quiet) unless using local images
+    if (-not $Local) {
+        docker compose -f $script:ComposeFile -p $script:ProjectName pull --quiet 2>$null
+    } else {
+        Write-Host "   Using local images (skipping pull)"
+    }
     
     # Start containers
     $output = docker compose -f $script:ComposeFile -p $script:ProjectName up -d --wait 2>&1
@@ -227,7 +237,7 @@ function Stop-TestContainers {
 
 function Invoke-InClient {
     param([string[]]$Command)
-    $result = docker compose -f $script:ComposeFile -p $script:ProjectName exec -T test-client @Command 2>&1
+    $result = docker compose -f $script:ComposeFile -p $script:ProjectName exec -T app @Command 2>&1
     return $result
 }
 
@@ -349,7 +359,7 @@ function Test-NoDirectInternet {
     # Try to reach a host directly without proxy
     $result = docker compose -f $script:ComposeFile -p $script:ProjectName exec -T `
         -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= `
-        test-client curl -sf --max-time 5 "http://httpbin.org/get" 2>&1
+        app curl -sf --max-time 5 "http://httpbin.org/get" 2>&1
     $exitCode = $LASTEXITCODE
     
     if ($exitCode -ne 0) {

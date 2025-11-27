@@ -6,7 +6,7 @@
 #
 # Template variables (replaced at runtime):
 #   {{PROJECT_NAME}}       - Compose project name (matches terminal title format)
-#   {{IMAGE_TAG}}          - The copilot_here image tag to use
+#   {{APP_IMAGE}}          - The copilot_here image tag to use
 #   {{PROXY_IMAGE}}        - The proxy image to use
 #   {{WORK_DIR}}           - Host working directory
 #   {{CONTAINER_WORK_DIR}} - Container working directory
@@ -15,9 +15,11 @@
 #   {{LOGS_MOUNT}}         - Log volume mount (if enable_logging is true)
 #   {{PUID}}               - User ID for container
 #   {{PGID}}               - Group ID for container
-#   {{GITHUB_TOKEN}}       - GitHub token for authentication
 #   {{EXTRA_MOUNTS}}       - Additional volume mounts (generated dynamically)
 #   {{COPILOT_ARGS}}       - Arguments to pass to copilot CLI
+#
+# Environment variables read from shell (NOT written to file for security):
+#   GITHUB_TOKEN           - GitHub token for authentication
 
 networks:
   airlock:
@@ -60,7 +62,7 @@ services:
       - https_proxy=http://proxy:58080
       - PUID={{PUID}}
       - PGID={{PGID}}
-      - GITHUB_TOKEN={{GITHUB_TOKEN}}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
     volumes:
       - proxy-ca:/ca:ro
       - {{COPILOT_CONFIG}}:/home/appuser/.copilot

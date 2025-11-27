@@ -13,7 +13,8 @@ __copilot_supports_emoji() {
 # Helper function to load mounts from config file
 __copilot_load_mounts() {
   local config_file="$1"
-  local var_name="$2"
+  local ro_var_name="$2"
+  local rw_var_name="$3"
   local actual_file="$config_file"
   
   # Follow symlink if config file is a symlink
@@ -25,7 +26,24 @@ __copilot_load_mounts() {
     while IFS= read -r line || [ -n "$line" ]; do
       # Skip empty lines, whitespace-only lines, and comments
       [[ -z "$line" || "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
-      eval "${var_name}+=(\"\$line\")"
+      
+      # Trim leading and trailing whitespace
+      line="${line#"${line%%[![:space:]]*}"}"  # Trim leading
+      line="${line%"${line##*[![:space:]]}"}"  # Trim trailing
+      
+      # Check for :rw suffix to determine read-write vs read-only
+      if [[ "$line" == *":rw" ]]; then
+        # Read-write mount - strip the :rw suffix
+        local mount_path="${line%:rw}"
+        eval "${rw_var_name}+=(\"\$mount_path\")"
+      elif [[ "$line" == *":ro" ]]; then
+        # Read-only mount - strip the :ro suffix
+        local mount_path="${line%:ro}"
+        eval "${ro_var_name}+=(\"\$mount_path\")"
+      else
+        # No suffix - default to read-only
+        eval "${ro_var_name}+=(\"\$line\")"
+      fi
     done < "$actual_file"
   fi
 }
@@ -73,6 +91,29 @@ __copilot_resolve_mount_path() {
   echo "$resolved_path"
 }
 
+# Helper function to load raw mounts from config (for display purposes)
+__copilot_load_raw_mounts() {
+  local config_file="$1"
+  local var_name="$2"
+  local actual_file="$config_file"
+  
+  # Follow symlink if config file is a symlink
+  if [ -L "$config_file" ]; then
+    actual_file=$(readlink -f "$config_file" 2>/dev/null || readlink "$config_file")
+  fi
+  
+  if [ -f "$actual_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      # Skip empty lines, whitespace-only lines, and comments
+      [[ -z "$line" || "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+      # Trim leading and trailing whitespace
+      line="${line#"${line%%[![:space:]]*}"}"  # Trim leading
+      line="${line%"${line##*[![:space:]]}"}"  # Trim trailing
+      eval "${var_name}+=(\"\$line\")"
+    done < "$actual_file"
+  fi
+}
+
 # Helper function to display mounts list
 __copilot_list_mounts() {
   local global_config="$HOME/.config/copilot_here/mounts.conf"
@@ -81,8 +122,8 @@ __copilot_list_mounts() {
   local global_mounts=()
   local local_mounts=()
   
-  __copilot_load_mounts "$global_config" global_mounts
-  __copilot_load_mounts "$local_config" local_mounts
+  __copilot_load_raw_mounts "$global_config" global_mounts
+  __copilot_load_raw_mounts "$local_config" local_mounts
   
   if [ ${#global_mounts[@]} -eq 0 ] && [ ${#local_mounts[@]} -eq 0 ]; then
     echo "📂 No saved mounts configured"
@@ -614,14 +655,14 @@ __copilot_run() {
     -e GITHUB_TOKEN="$token"
   )
 
-  # Load mounts from config files
+  # Load mounts from config files (raw for the old processing loop)
   local global_config="$HOME/.config/copilot_here/mounts.conf"
   local local_config=".copilot_here/mounts.conf"
   local global_mounts=()
   local local_mounts=()
   
-  __copilot_load_mounts "$global_config" global_mounts
-  __copilot_load_mounts "$local_config" local_mounts
+  __copilot_load_raw_mounts "$global_config" global_mounts
+  __copilot_load_raw_mounts "$local_config" local_mounts
   
   # Track all mounted paths for display and --add-dir
   local all_mount_paths=()
@@ -806,6 +847,59 @@ __copilot_run() {
     for display in "${mount_display[@]}"; do
       echo "$display"
     done
+  fi
+  
+  # Display Airlock status
+  local current_dir=$(pwd)
+  local local_network_config="${current_dir}/.copilot_here/network.json"
+  local global_network_config="$HOME/.config/copilot_here/network.json"
+  local airlock_enabled="false"
+  local airlock_source=""
+  local airlock_mode=""
+  
+  # Check local config first (takes precedence)
+  if [ -f "$local_network_config" ]; then
+    local enabled_val=$(grep -o '"enabled"[[:space:]]*:[[:space:]]*[a-z]*' "$local_network_config" 2>/dev/null | grep -o 'true\|false' | head -1)
+    if [ "$enabled_val" = "true" ]; then
+      airlock_enabled="true"
+      airlock_source="local (.copilot_here/network.json)"
+      airlock_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"[^"]*"' "$local_network_config" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | head -1)
+    fi
+  fi
+  
+  # Check global config if local not enabled
+  if [ "$airlock_enabled" = "false" ] && [ -f "$global_network_config" ]; then
+    local enabled_val=$(grep -o '"enabled"[[:space:]]*:[[:space:]]*[a-z]*' "$global_network_config" 2>/dev/null | grep -o 'true\|false' | head -1)
+    if [ "$enabled_val" = "true" ]; then
+      airlock_enabled="true"
+      airlock_source="global (~/.config/copilot_here/network.json)"
+      airlock_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"[^"]*"' "$global_network_config" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | head -1)
+    fi
+  fi
+  
+  if [ "$airlock_enabled" = "true" ]; then
+    local mode_display=""
+    if [ "$airlock_mode" = "monitor" ]; then
+      mode_display=" (monitor mode)"
+    elif [ "$airlock_mode" = "enforce" ]; then
+      mode_display=" (enforce mode)"
+    fi
+    echo "🛡️  Airlock: enabled${mode_display} - ${airlock_source}"
+    
+    # Determine which config file to use
+    local network_config_file="$local_network_config"
+    if [ "$airlock_source" = "global (~/.config/copilot_here/network.json)" ]; then
+      network_config_file="$global_network_config"
+    fi
+    
+    # Call airlock mode instead of normal docker run
+    __copilot_run_airlock "$image_tag" "$allow_all_tools" "$skip_cleanup" "$skip_pull" \
+      "$network_config_file" "mounts_ro" "mounts_rw" "$@"
+    return $?
+  else
+    if [ -f "$local_network_config" ] || [ -f "$global_network_config" ]; then
+      echo "🔓 Airlock: disabled"
+    fi
   fi
   
   docker_args+=("$image_name")
@@ -1130,7 +1224,20 @@ __copilot_run_airlock() {
   if [ "$skip_pull" != "true" ]; then
     echo "📥 Pulling images..."
     docker pull "$app_image" || { echo "❌ Failed to pull app image"; return 1; }
-    docker pull "$proxy_image" || { echo "❌ Failed to pull proxy image"; return 1; }
+    # Try to pull proxy image, but don't fail if it exists locally (for local dev)
+    if ! docker pull "$proxy_image" 2>/dev/null; then
+      if docker image inspect "$proxy_image" >/dev/null 2>&1; then
+        echo "   Using local proxy image (not available in registry)"
+      else
+        echo "❌ Failed to pull proxy image and no local image found"
+        if [ -f "./dev-build.sh" ]; then
+          echo "   Run ./dev-build.sh to build the proxy image locally"
+        else
+          echo "   The proxy image is not yet available in the registry"
+        fi
+        return 1
+      fi
+    fi
   fi
   
   # Get current directory info for project name (matches terminal title format)
@@ -1190,15 +1297,16 @@ __copilot_run_airlock() {
     logs_mount="      - ${logs_dir}:/logs"
   fi
   
-  # Build extra mounts string
+  # Build extra mounts string (using actual newlines, not \n)
   local extra_mounts=""
+  local newline=$'\n'
   
   # Add read-only mounts (using eval to access array by name)
   eval "local _mounts_ro=(\"\${${mounts_ro_name}[@]}\")"
   for mount_path in "${_mounts_ro[@]}"; do
     local resolved=$(__copilot_resolve_mount_path "$mount_path")
     [ -z "$resolved" ] && continue
-    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:ro\n"
+    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:ro${newline}"
   done
   
   # Add read-write mounts (using eval to access array by name)
@@ -1206,7 +1314,7 @@ __copilot_run_airlock() {
   for mount_path in "${_mounts_rw[@]}"; do
     local resolved=$(__copilot_resolve_mount_path "$mount_path")
     [ -z "$resolved" ] && continue
-    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw\n"
+    extra_mounts="${extra_mounts}      - ${resolved}:${resolved}:rw${newline}"
   done
   
   # Build copilot command args
@@ -1228,20 +1336,34 @@ __copilot_run_airlock() {
   copilot_cmd="${copilot_cmd}]"
   
   # Generate compose file from template
-  sed -e "s|{{PROJECT_NAME}}|${project_name}|g" \
-      -e "s|{{APP_IMAGE}}|${app_image}|g" \
-      -e "s|{{PROXY_IMAGE}}|${proxy_image}|g" \
-      -e "s|{{WORK_DIR}}|${current_dir}|g" \
-      -e "s|{{CONTAINER_WORK_DIR}}|${container_work_dir}|g" \
-      -e "s|{{COPILOT_CONFIG}}|${copilot_config}|g" \
-      -e "s|{{NETWORK_CONFIG}}|${network_config_file}|g" \
-      -e "s|{{LOGS_MOUNT}}|${logs_mount}|g" \
-      -e "s|{{PUID}}|$(id -u)|g" \
-      -e "s|{{PGID}}|$(id -g)|g" \
-      -e "s|{{GITHUB_TOKEN}}|${token}|g" \
-      -e "s|{{EXTRA_MOUNTS}}|${extra_mounts}|g" \
-      -e "s|{{COPILOT_ARGS}}|${copilot_cmd}|g" \
-      "$template_file" > "$temp_compose"
+  # Use awk for reliable multiline substitution (works on macOS and Linux)
+  awk -v project_name="$project_name" \
+      -v app_image="$app_image" \
+      -v proxy_image="$proxy_image" \
+      -v work_dir="$current_dir" \
+      -v container_work_dir="$container_work_dir" \
+      -v copilot_config="$copilot_config" \
+      -v network_config="$network_config_file" \
+      -v logs_mount="$logs_mount" \
+      -v puid="$(id -u)" \
+      -v pgid="$(id -g)" \
+      -v extra_mounts="$extra_mounts" \
+      -v copilot_args="$copilot_cmd" \
+      '{
+        gsub(/\{\{PROJECT_NAME\}\}/, project_name);
+        gsub(/\{\{APP_IMAGE\}\}/, app_image);
+        gsub(/\{\{PROXY_IMAGE\}\}/, proxy_image);
+        gsub(/\{\{WORK_DIR\}\}/, work_dir);
+        gsub(/\{\{CONTAINER_WORK_DIR\}\}/, container_work_dir);
+        gsub(/\{\{COPILOT_CONFIG\}\}/, copilot_config);
+        gsub(/\{\{NETWORK_CONFIG\}\}/, network_config);
+        gsub(/\{\{LOGS_MOUNT\}\}/, logs_mount);
+        gsub(/\{\{PUID\}\}/, puid);
+        gsub(/\{\{PGID\}\}/, pgid);
+        gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
+        gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
+        print
+      }' "$template_file" > "$temp_compose"
   
   # Set terminal title
   local title="${title_emoji} ${current_dir_name} [proxy]"
@@ -1257,9 +1379,9 @@ __copilot_run_airlock() {
   }
   trap cleanup EXIT INT TERM
   
-  # Run with docker compose
+  # Run with docker compose (GITHUB_TOKEN is passed via environment, not written to file)
   echo ""
-  docker compose -f "$temp_compose" -p "$project_name" up --abort-on-container-exit --attach app
+  GITHUB_TOKEN="$token" docker compose -f "$temp_compose" -p "$project_name" up --abort-on-container-exit --attach app
   
   # Cleanup is handled by trap
 }

@@ -138,12 +138,12 @@ jobs:
         
       - name: Run airlock integration tests (Unix)
         if: matrix.os != 'windows-latest'
-        run: ./tests/integration/test_airlock.sh
+        run: ./tests/integration/test_airlock.sh --use-local
         
       - name: Run airlock integration tests (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: pwsh tests/integration/test_airlock.ps1
+        run: pwsh tests/integration/test_airlock.ps1 -Local
 
   build-and-publish:
     name: Build and Publish Images

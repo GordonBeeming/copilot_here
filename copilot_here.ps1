@@ -763,10 +763,21 @@ function Invoke-CopilotAirlock {
             Write-Host "❌ Failed to pull app image" -ForegroundColor Red
             return
         }
-        docker pull $proxyImage
+        # Try to pull proxy image, but don't fail if it exists locally (for local dev)
+        docker pull $proxyImage 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Failed to pull proxy image" -ForegroundColor Red
-            return
+            $localImage = docker image inspect $proxyImage 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "   Using local proxy image (not available in registry)"
+            } else {
+                Write-Host "❌ Failed to pull proxy image and no local image found" -ForegroundColor Red
+                if (Test-Path "./dev-build.sh") {
+                    Write-Host "   Run ./dev-build.sh to build the proxy image locally" -ForegroundColor Yellow
+                } else {
+                    Write-Host "   The proxy image is not yet available in the registry" -ForegroundColor Yellow
+                }
+                return
+            }
         }
     }
     
@@ -882,7 +893,6 @@ function Invoke-CopilotAirlock {
         -replace '\{\{LOGS_MOUNT\}\}', $logsMount `
         -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
         -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
-        -replace '\{\{GITHUB_TOKEN\}\}', $token `
         -replace '\{\{EXTRA_MOUNTS\}\}', $extraMounts `
         -replace '\{\{COPILOT_ARGS\}\}', $copilotCmd
     
@@ -895,6 +905,8 @@ function Invoke-CopilotAirlock {
     
     try {
         Write-Host ""
+        # Pass GITHUB_TOKEN via environment, not written to compose file for security
+        $env:GITHUB_TOKEN = $token
         docker compose -f $tempCompose -p $projectName up --abort-on-container-exit --attach app
     } finally {
         # Cleanup
@@ -1187,6 +1199,71 @@ function Invoke-CopilotRun {
         Write-Host "📂 Mounts:"
         foreach ($display in $mountDisplay) {
             Write-Host $display
+        }
+    }
+    
+    # Display Airlock status
+    $localNetworkConfig = ".copilot_here/network.json"
+    $globalNetworkConfig = "$env:HOME/.config/copilot_here/network.json"
+    if (-not $env:HOME) {
+        $globalNetworkConfig = "$env:USERPROFILE/.config/copilot_here/network.json"
+    }
+    $airlockEnabled = $false
+    $airlockSource = ""
+    $airlockMode = ""
+    
+    # Check local config first (takes precedence)
+    if (Test-Path $localNetworkConfig) {
+        try {
+            $config = Get-Content $localNetworkConfig -Raw | ConvertFrom-Json
+            if ($config.enabled -eq $true) {
+                $airlockEnabled = $true
+                $airlockSource = "local (.copilot_here/network.json)"
+                $airlockMode = $config.mode
+            }
+        } catch {
+            # Ignore parse errors
+        }
+    }
+    
+    # Check global config if local not enabled
+    if (-not $airlockEnabled -and (Test-Path $globalNetworkConfig)) {
+        try {
+            $config = Get-Content $globalNetworkConfig -Raw | ConvertFrom-Json
+            if ($config.enabled -eq $true) {
+                $airlockEnabled = $true
+                $airlockSource = "global (~/.config/copilot_here/network.json)"
+                $airlockMode = $config.mode
+            }
+        } catch {
+            # Ignore parse errors
+        }
+    }
+    
+    if ($airlockEnabled) {
+        $modeDisplay = ""
+        if ($airlockMode -eq "monitor") {
+            $modeDisplay = " (monitor mode)"
+        } elseif ($airlockMode -eq "enforce") {
+            $modeDisplay = " (enforce mode)"
+        }
+        Write-Host "🛡️  Airlock: enabled$modeDisplay - $airlockSource"
+        
+        # Determine which config file to use
+        $networkConfigFile = $localNetworkConfig
+        if ($airlockSource -eq "global (~/.config/copilot_here/network.json)") {
+            $networkConfigFile = $globalNetworkConfig
+        }
+        
+        # Call airlock mode instead of normal docker run
+        Invoke-CopilotAirlock -ImageTag $imageTag -AllowAllTools:$AllowAllTools `
+            -SkipCleanup:$SkipCleanup -SkipPull:$SkipPull `
+            -NetworkConfigFile $networkConfigFile `
+            -MountsRo $mountsRo -MountsRw $mountsRw -Arguments $Arguments
+        return
+    } else {
+        if ((Test-Path $localNetworkConfig) -or (Test-Path $globalNetworkConfig)) {
+            Write-Host "🔓 Airlock: disabled"
         }
     }
     
