@@ -48,7 +48,8 @@ WORKDIR /work
 
 # Copy the entrypoint script into the container and make it executable.
 COPY entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY entrypoint-airlock.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh
 
 # The entrypoint script will handle user creation and command execution.
 ENTRYPOINT [ "entrypoint.sh" ]
