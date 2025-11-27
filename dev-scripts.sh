@@ -1,8 +1,9 @@
 #!/bin/bash
-# devtest.sh - Quick script to test copilot_here changes locally
-# Usage: source ./devtest.sh  OR  . ./devtest.sh
+# dev-scripts.sh - Copy copilot_here scripts to local config for testing
+# Usage: source ./dev-scripts.sh  OR  . ./dev-scripts.sh
 #
 # This script must be sourced (not executed) to reload functions in current shell
+# For full local dev including Docker builds, use ./dev-build.sh instead
 
 # Check if being sourced or executed
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then

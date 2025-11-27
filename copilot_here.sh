@@ -1094,6 +1094,22 @@ __copilot_run_airlock() {
   # Container work directory
   local container_work_dir="/home/appuser/work"
   
+  # Check if logging is enabled in network config (also enabled automatically for monitor mode)
+  local logs_mount=""
+  local enable_logging=$(grep -o '"enable_logging"[[:space:]]*:[[:space:]]*true' "$network_config_file" 2>/dev/null)
+  local is_monitor_mode=$(grep -o '"mode"[[:space:]]*:[[:space:]]*"monitor"' "$network_config_file" 2>/dev/null)
+  if [ -n "$enable_logging" ] || [ -n "$is_monitor_mode" ]; then
+    local logs_dir="${current_dir}/.copilot_here/logs"
+    mkdir -p "$logs_dir"
+    # Create gitignore to prevent committing logs
+    if [ ! -f "${current_dir}/.copilot_here/logs/.gitignore" ]; then
+      echo "# Ignore all log files - may contain sensitive information" > "${current_dir}/.copilot_here/logs/.gitignore"
+      echo "*" >> "${current_dir}/.copilot_here/logs/.gitignore"
+      echo "!.gitignore" >> "${current_dir}/.copilot_here/logs/.gitignore"
+    fi
+    logs_mount="      - ${logs_dir}:/logs"
+  fi
+  
   # Build extra mounts string
   local extra_mounts=""
   
@@ -1139,6 +1155,7 @@ __copilot_run_airlock() {
       -e "s|{{CONTAINER_WORK_DIR}}|${container_work_dir}|g" \
       -e "s|{{COPILOT_CONFIG}}|${copilot_config}|g" \
       -e "s|{{NETWORK_CONFIG}}|${network_config_file}|g" \
+      -e "s|{{LOGS_MOUNT}}|${logs_mount}|g" \
       -e "s|{{PUID}}|$(id -u)|g" \
       -e "s|{{PGID}}|$(id -g)|g" \
       -e "s|{{GITHUB_TOKEN}}|${token}|g" \

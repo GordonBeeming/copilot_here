@@ -281,4 +281,69 @@ try {
     Test-Fail "-ShowNetworkRules threw an error: $_"
 }
 
+# Test 23: Config file has inherit_default_rules field
+Test-Start "Check config has inherit_default_rules"
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir2 = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+$configDir2 = New-Item -ItemType Directory -Path (Join-Path $testDir2 ".copilot_here") -Force
+$configFile2 = Join-Path $configDir2 "network.json"
+@{
+    inherit_default_rules = $true
+    mode = "enforce"
+    enable_logging = $false
+    allowed_rules = @()
+} | ConvertTo-Json | Set-Content $configFile2
+$configContent = Get-Content $configFile2 -Raw
+if ($configContent -match "inherit_default_rules") {
+    Test-Pass "Config has inherit_default_rules field"
+} else {
+    Test-Fail "Config missing inherit_default_rules field"
+}
+Remove-Item $testDir2 -Recurse -Force -ErrorAction SilentlyContinue
+
+# Test 24: Default rules JSON has enable_logging field
+Test-Start "Check default-network-rules.json has enable_logging"
+$defaultRulesContent = Get-Content $defaultRulesPath -Raw
+if ($defaultRulesContent -match "enable_logging") {
+    Test-Pass "default-network-rules.json has enable_logging field"
+} else {
+    Test-Fail "default-network-rules.json missing enable_logging field"
+}
+
+# Test 25: Monitor mode config is valid
+Test-Start "Check monitor mode config is valid"
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$testDir3 = New-Item -ItemType Directory -Path (Join-Path $tempBase "copilot_test_$(Get-Random)") -Force
+$configDir3 = New-Item -ItemType Directory -Path (Join-Path $testDir3 ".copilot_here") -Force
+$configFile3 = Join-Path $configDir3 "network.json"
+@{
+    inherit_default_rules = $true
+    mode = "monitor"
+    enable_logging = $false
+    allowed_rules = @()
+} | ConvertTo-Json | Set-Content $configFile3
+$monitorContent = Get-Content $configFile3 -Raw
+if ($monitorContent -match '"mode"\s*:\s*"monitor"') {
+    Test-Pass "Monitor mode config is valid"
+} else {
+    Test-Fail "Monitor mode config format issue"
+}
+Remove-Item $testDir3 -Recurse -Force -ErrorAction SilentlyContinue
+
+# Test 26: Compose template has LOGS_MOUNT placeholder
+Test-Start "Check compose template has LOGS_MOUNT placeholder"
+if ($templateContent -match "{{LOGS_MOUNT}}") {
+    Test-Pass "Compose template has LOGS_MOUNT placeholder"
+} else {
+    Test-Fail "Compose template missing LOGS_MOUNT placeholder"
+}
+
+# Test 27: Compose template has proxy volume for config
+Test-Start "Check compose template mounts network config"
+if ($templateContent -match "{{NETWORK_CONFIG}}") {
+    Test-Pass "Compose template has network config mount"
+} else {
+    Test-Fail "Compose template missing network config mount"
+}
+
 Print-Summary

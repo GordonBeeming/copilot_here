@@ -18,7 +18,8 @@ RUN OPENSSL_STATIC=1 cargo build --release
 FROM alpine:3.21
 
 # Install only essential runtime dependencies
-RUN apk add --no-cache ca-certificates su-exec
+# curl is needed for healthcheck
+RUN apk add --no-cache ca-certificates su-exec curl
 
 # Create proxy user
 RUN addgroup -S proxy-user && adduser -S -G proxy-user -h /app proxy-user

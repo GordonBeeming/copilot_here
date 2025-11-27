@@ -759,6 +759,27 @@ function Invoke-CopilotAirlock {
     # Container work directory
     $containerWorkDir = "/home/appuser/work"
     
+    # Check if logging is enabled in network config (also enabled automatically for monitor mode)
+    $logsMount = ""
+    $networkConfigContent = Get-Content $NetworkConfigFile -Raw 2>$null
+    $isMonitorMode = $networkConfigContent -match '"mode"\s*:\s*"monitor"'
+    if (($networkConfigContent -match '"enable_logging"\s*:\s*true') -or $isMonitorMode) {
+        $logsDir = Join-Path $currentDir ".copilot_here\logs"
+        if (-not (Test-Path $logsDir)) {
+            New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+        }
+        # Create gitignore to prevent committing logs
+        $gitignorePath = Join-Path $logsDir ".gitignore"
+        if (-not (Test-Path $gitignorePath)) {
+            @(
+                "# Ignore all log files - may contain sensitive information",
+                "*",
+                "!.gitignore"
+            ) | Set-Content $gitignorePath -Encoding UTF8
+        }
+        $logsMount = "      - $($logsDir -replace '\\', '/'):/logs"
+    }
+    
     # Build extra mounts string
     $extraMounts = ""
     foreach ($mountPath in $MountsRO) {
@@ -801,6 +822,7 @@ function Invoke-CopilotAirlock {
         -replace '\{\{CONTAINER_WORK_DIR\}\}', $containerWorkDir `
         -replace '\{\{COPILOT_CONFIG\}\}', ($copilotConfig -replace '\\', '/') `
         -replace '\{\{NETWORK_CONFIG\}\}', ($NetworkConfigFile -replace '\\', '/') `
+        -replace '\{\{LOGS_MOUNT\}\}', $logsMount `
         -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
         -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
         -replace '\{\{GITHUB_TOKEN\}\}', $token `

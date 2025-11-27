@@ -38,6 +38,8 @@ struct Config {
     #[serde(default = "default_mode")]
     mode: String,
     #[serde(default)]
+    enable_logging: Option<bool>,
+    #[serde(default)]
     allowed_rules: Vec<HostRule>,
 }
 
@@ -45,10 +47,19 @@ fn default_mode() -> String {
     "monitor".to_string()
 }
 
+impl Config {
+    /// Returns true if logging should be enabled
+    /// Logging is enabled if: explicitly set to true, OR mode is "monitor"
+    fn should_log(&self) -> bool {
+        self.enable_logging.unwrap_or(self.mode == "monitor")
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             mode: "monitor".to_string(),
+            enable_logging: None,
             allowed_rules: vec![],
         }
     }
@@ -58,7 +69,11 @@ impl Default for Config {
 // Logging
 // ============================================================================
 
-fn log_traffic(action: &str, host: &str, path: &str, method: &str, mode: &str, reason: &str) {
+fn log_traffic(config: &Config, action: &str, host: &str, path: &str, method: &str, mode: &str, reason: &str) {
+    if !config.should_log() {
+        return;
+    }
+    
     let log_path = "/logs/traffic.jsonl";
     if let Some(parent) = Path::new(log_path).parent() {
         let _ = fs::create_dir_all(parent);
@@ -126,9 +141,15 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
 // HTTP CONNECT Parsing
 // ============================================================================
 
-/// Parse HTTP CONNECT request and return (host, port)
-/// Reads the full CONNECT request including headers
-async fn read_connect_request(client: &mut TcpStream) -> Result<Option<(String, u16)>> {
+/// Request type parsed from the incoming connection
+enum ProxyRequest {
+    Connect { host: String, port: u16 },
+    Health,
+    Unknown,
+}
+
+/// Parse HTTP request - either CONNECT for proxy or GET /health for healthcheck
+async fn read_request(client: &mut TcpStream) -> Result<ProxyRequest> {
     let mut buf = vec![0u8; 4096];
     let mut total_read = 0;
     
@@ -136,7 +157,7 @@ async fn read_connect_request(client: &mut TcpStream) -> Result<Option<(String, 
     loop {
         let n = client.read(&mut buf[total_read..]).await?;
         if n == 0 {
-            return Ok(None);
+            return Ok(ProxyRequest::Unknown);
         }
         total_read += n;
         
@@ -146,7 +167,7 @@ async fn read_connect_request(client: &mut TcpStream) -> Result<Option<(String, 
         }
         
         if total_read >= buf.len() {
-            return Ok(None); // Headers too large
+            return Ok(ProxyRequest::Unknown); // Headers too large
         }
     }
     
@@ -154,8 +175,17 @@ async fn read_connect_request(client: &mut TcpStream) -> Result<Option<(String, 
     let first_line = request.lines().next().unwrap_or("");
     let parts: Vec<&str> = first_line.split_whitespace().collect();
     
-    if parts.len() < 3 || parts[0] != "CONNECT" {
-        return Ok(None);
+    if parts.len() < 2 {
+        return Ok(ProxyRequest::Unknown);
+    }
+
+    // Check for health endpoint
+    if parts[0] == "GET" && parts[1] == "/health" {
+        return Ok(ProxyRequest::Health);
+    }
+    
+    if parts[0] != "CONNECT" {
+        return Ok(ProxyRequest::Unknown);
     }
     
     // Parse host:port from CONNECT target
@@ -168,7 +198,7 @@ async fn read_connect_request(client: &mut TcpStream) -> Result<Option<(String, 
         (target.to_string(), 443)
     };
     
-    Ok(Some((host, port)))
+    Ok(ProxyRequest::Connect { host, port })
 }
 
 // ============================================================================
@@ -236,11 +266,19 @@ async fn handle_connection(
     ca: Arc<CaAuthority>,
     config: Arc<Config>,
 ) -> Result<()> {
-    // Parse HTTP CONNECT request
-    let (hostname, port) = match read_connect_request(&mut client).await? {
-        Some((h, p)) => (h, p),
-        None => {
-            error!("Failed to parse CONNECT request");
+    // Parse HTTP request (CONNECT or health check)
+    let request = read_request(&mut client).await?;
+    
+    let (hostname, port) = match request {
+        ProxyRequest::Health => {
+            // Respond to health check
+            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nOK";
+            client.write_all(response.as_bytes()).await?;
+            return Ok(());
+        }
+        ProxyRequest::Connect { host, port } => (host, port),
+        ProxyRequest::Unknown => {
+            error!("Failed to parse request");
             let response = "HTTP/1.1 400 Bad Request\r\n\r\n";
             client.write_all(response.as_bytes()).await?;
             return Ok(());
@@ -251,7 +289,7 @@ async fn handle_connection(
     let (host_allowed, reason) = check_host_allowed(&config, &hostname);
     
     if !host_allowed {
-        log_traffic("BLOCK", &hostname, "/", "CONNECT", &config.mode, &reason);
+        log_traffic(&config, "BLOCK", &hostname, "/", "CONNECT", &config.mode, &reason);
         println!("⛔ [{}] CONNECT {}:{} -> {}", config.mode, hostname, port, reason);
         let response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nHost not allowed";
         client.write_all(response.as_bytes()).await?;
@@ -316,7 +354,7 @@ async fn handle_connection(
     // Check path-level rules
     let (allowed, reason) = check_request(&config, &hostname, path);
     let action = if allowed { "ALLOW" } else { "BLOCK" };
-    log_traffic(action, &hostname, path, method, &config.mode, &reason);
+    log_traffic(&config, action, &hostname, path, method, &config.mode, &reason);
 
     let icon = if allowed { "✅" } else { "⛔" };
     println!("{} [{}] {} {}{} -> {}", icon, config.mode, method, hostname, path, reason);

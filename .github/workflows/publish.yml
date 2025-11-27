@@ -66,6 +66,31 @@ jobs:
         run: |
           pwsh tests/run_all_tests.ps1
 
+  # Airlock integration tests - runs after images are built
+  # Tests actual Docker Compose airlock functionality
+  test-airlock:
+    name: Test Airlock Mode
+    needs: [build-and-publish]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Make test script executable
+        run: chmod +x tests/integration/test_airlock.sh
+        
+      - name: Run airlock integration tests
+        run: ./tests/integration/test_airlock.sh
+
   build-and-publish:
     name: Build and Publish Images
     needs: [test-bash-zsh, test-windows]  # Tests must pass before building/publishing

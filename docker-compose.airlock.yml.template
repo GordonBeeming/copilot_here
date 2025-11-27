@@ -12,6 +12,7 @@
 #   {{CONTAINER_WORK_DIR}} - Container working directory
 #   {{COPILOT_CONFIG}}     - Path to copilot config directory
 #   {{NETWORK_CONFIG}}     - Path to network.json config file
+#   {{LOGS_MOUNT}}         - Log volume mount (if enable_logging is true)
 #   {{PUID}}               - User ID for container
 #   {{PGID}}               - Group ID for container
 #   {{GITHUB_TOKEN}}       - GitHub token for authentication
@@ -39,6 +40,7 @@ services:
     volumes:
       - {{NETWORK_CONFIG}}:/config/rules.json:ro
       - proxy-ca:/ca
+{{LOGS_MOUNT}}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:58080/health"]
       interval: 5s

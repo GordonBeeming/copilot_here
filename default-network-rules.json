@@ -1,4 +1,5 @@
 {
+  "enable_logging": false,
   "allowed_rules": [
     {
       "host": "api.github.com",

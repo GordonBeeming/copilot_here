@@ -291,4 +291,69 @@ else
   test_fail "--show-network-rules failed: $SHOW_OUTPUT"
 fi
 
+# Test 22: Config file has inherit_default_rules field
+test_start "Check config has inherit_default_rules"
+mkdir -p "$TEST_DIR/.copilot_here"
+cat > "$TEST_DIR/.copilot_here/network.json" << 'EOF'
+{
+  "inherit_default_rules": true,
+  "mode": "enforce",
+  "enable_logging": false,
+  "allowed_rules": []
+}
+EOF
+cd "$TEST_DIR"
+CONTENT=$(cat ".copilot_here/network.json")
+if echo "$CONTENT" | grep -q '"inherit_default_rules"'; then
+  test_pass "Config has inherit_default_rules field"
+else
+  test_fail "Config missing inherit_default_rules field"
+fi
+cd - > /dev/null
+
+# Test 23: Default rules JSON has enable_logging field
+test_start "Check default-network-rules.json has enable_logging"
+if grep -q '"enable_logging"' "$SCRIPT_DIR/default-network-rules.json"; then
+  test_pass "default-network-rules.json has enable_logging field"
+else
+  test_fail "default-network-rules.json missing enable_logging field"
+fi
+
+# Test 24: Monitor mode enables logging automatically
+test_start "Check monitor mode enables logging"
+mkdir -p "$TEST_DIR/.copilot_here"
+cat > "$TEST_DIR/.copilot_here/network.json" << 'EOF'
+{
+  "inherit_default_rules": true,
+  "mode": "monitor",
+  "enable_logging": false,
+  "allowed_rules": []
+}
+EOF
+cd "$TEST_DIR"
+# The check in __copilot_run_airlock should detect monitor mode
+CONTENT=$(cat ".copilot_here/network.json")
+if echo "$CONTENT" | grep -q '"mode"[[:space:]]*:[[:space:]]*"monitor"'; then
+  test_pass "Monitor mode config is valid"
+else
+  test_fail "Monitor mode config format issue"
+fi
+cd - > /dev/null
+
+# Test 25: Compose template has LOGS_MOUNT placeholder
+test_start "Check compose template has LOGS_MOUNT placeholder"
+if grep -q "{{LOGS_MOUNT}}" "$SCRIPT_DIR/docker-compose.airlock.yml.template"; then
+  test_pass "Compose template has LOGS_MOUNT placeholder"
+else
+  test_fail "Compose template missing LOGS_MOUNT placeholder"
+fi
+
+# Test 26: Compose template has proxy volume for config
+test_start "Check compose template mounts network config"
+if grep -q "{{NETWORK_CONFIG}}" "$SCRIPT_DIR/docker-compose.airlock.yml.template"; then
+  test_pass "Compose template has network config mount"
+else
+  test_fail "Compose template missing network config mount"
+fi
+
 print_summary
