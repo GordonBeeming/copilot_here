@@ -258,4 +258,37 @@ else
   test_fail "Network proxy flags not properly documented"
 fi
 
+# Test 18: --show-network-rules documented in help
+test_start "Check --show-network-rules documented"
+if echo "$HELP_CHECK" | grep -q "show-network-rules"; then
+  test_pass "--show-network-rules documented in help"
+else
+  test_fail "--show-network-rules not documented in help"
+fi
+
+# Test 19: --edit-network-rules documented in help
+test_start "Check --edit-network-rules documented"
+if echo "$HELP_CHECK" | grep -q "edit-network-rules"; then
+  test_pass "--edit-network-rules documented in help"
+else
+  test_fail "--edit-network-rules not documented in help"
+fi
+
+# Test 20: --edit-global-network-rules documented in help
+test_start "Check --edit-global-network-rules documented"
+if echo "$HELP_CHECK" | grep -q "edit-global-network-rules"; then
+  test_pass "--edit-global-network-rules documented in help"
+else
+  test_fail "--edit-global-network-rules not documented in help"
+fi
+
+# Test 21: --show-network-rules runs without error
+test_start "Check --show-network-rules runs"
+SHOW_OUTPUT=$(copilot_here --show-network-rules 2>&1)
+if echo "$SHOW_OUTPUT" | grep -q "Network Proxy Rules"; then
+  test_pass "--show-network-rules displays header"
+else
+  test_fail "--show-network-rules failed: $SHOW_OUTPUT"
+fi
+
 print_summary

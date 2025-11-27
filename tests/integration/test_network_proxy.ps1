@@ -247,4 +247,38 @@ if ($yoloHelpOutput -match "NETWORK PROXY") {
     Test-Fail "NETWORK PROXY section missing from Copilot-Yolo help"
 }
 
+# Test 19: -ShowNetworkRules documented in help
+Test-Start "Check -ShowNetworkRules documented"
+if ($helpOutput -match "ShowNetworkRules") {
+    Test-Pass "-ShowNetworkRules documented in help"
+} else {
+    Test-Fail "-ShowNetworkRules not documented in help"
+}
+
+# Test 20: -EditNetworkRules documented in help
+Test-Start "Check -EditNetworkRules documented"
+if ($helpOutput -match "EditNetworkRules") {
+    Test-Pass "-EditNetworkRules documented in help"
+} else {
+    Test-Fail "-EditNetworkRules not documented in help"
+}
+
+# Test 21: -EditGlobalNetworkRules documented in help
+Test-Start "Check -EditGlobalNetworkRules documented"
+if ($helpOutput -match "EditGlobalNetworkRules") {
+    Test-Pass "-EditGlobalNetworkRules documented in help"
+} else {
+    Test-Fail "-EditGlobalNetworkRules not documented in help"
+}
+
+# Test 22: -ShowNetworkRules runs without error
+Test-Start "Check -ShowNetworkRules runs"
+try {
+    # Just verify the command runs without throwing an exception
+    Copilot-Here -ShowNetworkRules | Out-Null
+    Test-Pass "-ShowNetworkRules runs without error"
+} catch {
+    Test-Fail "-ShowNetworkRules threw an error: $_"
+}
+
 Print-Summary
