@@ -1,5 +1,5 @@
 # Integration tests for network proxy (airlock) functionality - PowerShell
-# Tests -EnableNetworkProxy and -EnableGlobalNetworkProxy parameters
+# Tests -EnableAirlock and -EnableGlobalAirlock parameters
 
 $ErrorActionPreference = "Stop"
 
@@ -65,30 +65,30 @@ Write-Host "======================================"
 Write-Host "PowerShell: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $ScriptDir\copilot_here.ps1"
 
-# Test 1: -EnableNetworkProxy parameter exists in Copilot-Here
-Test-Start "Check -EnableNetworkProxy parameter exists in Copilot-Here"
+# Test 1: -EnableAirlock parameter exists in Copilot-Here
+Test-Start "Check -EnableAirlock parameter exists in Copilot-Here"
 $params = (Get-Command Copilot-Here).Parameters
-if ($params.ContainsKey("EnableNetworkProxy")) {
-    Test-Pass "-EnableNetworkProxy parameter exists"
+if ($params.ContainsKey("EnableAirlock")) {
+    Test-Pass "-EnableAirlock parameter exists"
 } else {
-    Test-Fail "-EnableNetworkProxy parameter not found"
+    Test-Fail "-EnableAirlock parameter not found"
 }
 
-# Test 2: -EnableGlobalNetworkProxy parameter exists
-Test-Start "Check -EnableGlobalNetworkProxy parameter exists in Copilot-Here"
-if ($params.ContainsKey("EnableGlobalNetworkProxy")) {
-    Test-Pass "-EnableGlobalNetworkProxy parameter exists"
+# Test 2: -EnableGlobalAirlock parameter exists
+Test-Start "Check -EnableGlobalAirlock parameter exists in Copilot-Here"
+if ($params.ContainsKey("EnableGlobalAirlock")) {
+    Test-Pass "-EnableGlobalAirlock parameter exists"
 } else {
-    Test-Fail "-EnableGlobalNetworkProxy parameter not found"
+    Test-Fail "-EnableGlobalAirlock parameter not found"
 }
 
 # Test 3: Parameters exist in Copilot-Yolo too
-Test-Start "Check -EnableNetworkProxy parameter exists in Copilot-Yolo"
+Test-Start "Check -EnableAirlock parameter exists in Copilot-Yolo"
 $yoloParams = (Get-Command Copilot-Yolo).Parameters
-if ($yoloParams.ContainsKey("EnableNetworkProxy")) {
-    Test-Pass "-EnableNetworkProxy parameter exists in Copilot-Yolo"
+if ($yoloParams.ContainsKey("EnableAirlock")) {
+    Test-Pass "-EnableAirlock parameter exists in Copilot-Yolo"
 } else {
-    Test-Fail "-EnableNetworkProxy parameter not found in Copilot-Yolo"
+    Test-Fail "-EnableAirlock parameter not found in Copilot-Yolo"
 }
 
 # Test 4: Ensure-NetworkConfig function exists
@@ -107,29 +107,29 @@ if (Get-Command Invoke-CopilotAirlock -ErrorAction SilentlyContinue) {
     Test-Fail "Invoke-CopilotAirlock function not found"
 }
 
-# Test 6: Help output contains NETWORK PROXY section
-Test-Start "Check NETWORK PROXY section in help"
+# Test 6: Help output contains NETWORK (AIRLOCK) section
+Test-Start "Check NETWORK (AIRLOCK) section in help"
 $helpOutput = Copilot-Here -Help 2>&1 | Out-String
-if ($helpOutput -match "NETWORK PROXY") {
-    Test-Pass "NETWORK PROXY section present in help"
+if ($helpOutput -match "NETWORK (AIRLOCK)") {
+    Test-Pass "NETWORK (AIRLOCK) section present in help"
 } else {
-    Test-Fail "NETWORK PROXY section missing from help"
+    Test-Fail "NETWORK (AIRLOCK) section missing from help"
 }
 
-# Test 7: Help mentions -EnableNetworkProxy
-Test-Start "Check -EnableNetworkProxy in help text"
-if ($helpOutput -match "EnableNetworkProxy") {
-    Test-Pass "-EnableNetworkProxy documented in help"
+# Test 7: Help mentions -EnableAirlock
+Test-Start "Check -EnableAirlock in help text"
+if ($helpOutput -match "EnableAirlock") {
+    Test-Pass "-EnableAirlock documented in help"
 } else {
-    Test-Fail "-EnableNetworkProxy not in help output"
+    Test-Fail "-EnableAirlock not in help output"
 }
 
-# Test 8: Help mentions -EnableGlobalNetworkProxy
-Test-Start "Check -EnableGlobalNetworkProxy in help text"
-if ($helpOutput -match "EnableGlobalNetworkProxy") {
-    Test-Pass "-EnableGlobalNetworkProxy documented in help"
+# Test 8: Help mentions -EnableGlobalAirlock
+Test-Start "Check -EnableGlobalAirlock in help text"
+if ($helpOutput -match "EnableGlobalAirlock") {
+    Test-Pass "-EnableGlobalAirlock documented in help"
 } else {
-    Test-Fail "-EnableGlobalNetworkProxy not in help output"
+    Test-Fail "-EnableGlobalAirlock not in help output"
 }
 
 # Test 9: Existing config is detected
@@ -239,12 +239,12 @@ if (Test-Path (Join-Path $ScriptDir "proxy/src/main.rs")) {
 }
 
 # Test 18: Copilot-Yolo help also has network proxy section
-Test-Start "Check NETWORK PROXY section in Copilot-Yolo help"
+Test-Start "Check NETWORK (AIRLOCK) section in Copilot-Yolo help"
 $yoloHelpOutput = Copilot-Yolo -Help 2>&1 | Out-String
-if ($yoloHelpOutput -match "NETWORK PROXY") {
-    Test-Pass "NETWORK PROXY section present in Copilot-Yolo help"
+if ($yoloHelpOutput -match "NETWORK (AIRLOCK)") {
+    Test-Pass "NETWORK (AIRLOCK) section present in Copilot-Yolo help"
 } else {
-    Test-Fail "NETWORK PROXY section missing from Copilot-Yolo help"
+    Test-Fail "NETWORK (AIRLOCK) section missing from Copilot-Yolo help"
 }
 
 # Test 19: -ShowNetworkRules documented in help

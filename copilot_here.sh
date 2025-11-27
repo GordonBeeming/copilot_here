@@ -1402,9 +1402,9 @@ OPTIONS:
   -h, --help                Show this help message
   --help2                   Show GitHub Copilot CLI native help
 
-NETWORK PROXY (EXPERIMENTAL):
-  --enable-network-proxy        Enable network proxy with local rules (.copilot_here/network.json)
-  --enable-global-network-proxy Enable network proxy with global rules (~/.config/copilot_here/network.json)
+NETWORK (AIRLOCK):
+  --enable-airlock              Enable Airlock with local rules (.copilot_here/network.json)
+  --enable-global-airlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
   --show-network-rules          Show current network proxy rules
   --edit-network-rules          Edit local network rules in \$EDITOR
   --edit-global-network-rules   Edit global network rules in \$EDITOR
@@ -1639,18 +1639,18 @@ __copilot_main() {
        skip_pull="true"
        shift
        ;;
-      --enable-network-proxy)
+      --enable-airlock)
         if [ "$enable_network_proxy" = "true" ]; then
-          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          echo "❌ Error: Cannot use both --enable-airlock and --enable-global-airlock"
           return 1
         fi
         enable_network_proxy="true"
         network_proxy_global="false"
         shift
         ;;
-      --enable-global-network-proxy)
+      --enable-global-airlock)
         if [ "$enable_network_proxy" = "true" ]; then
-          echo "❌ Error: Cannot use both --enable-network-proxy and --enable-global-network-proxy"
+          echo "❌ Error: Cannot use both --enable-airlock and --enable-global-airlock"
           return 1
         fi
         enable_network_proxy="true"

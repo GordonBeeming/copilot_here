@@ -1,6 +1,6 @@
 #!/bin/sh
 # Integration tests for network proxy (airlock) functionality
-# Tests --enable-network-proxy and --enable-global-network-proxy flags
+# Tests --enable-airlock and --enable-global-airlock flags
 # Compatible with bash and zsh
 
 set -e
@@ -90,38 +90,38 @@ echo "======================================"
 echo "Shell: $SHELL_VERSION"
 echo "Script: $SCRIPT_DIR/copilot_here.sh"
 
-# Test 1: --enable-network-proxy flag in help
-test_start "Check --enable-network-proxy in copilot_here help"
+# Test 1: --enable-airlock flag in help
+test_start "Check --enable-airlock in copilot_here help"
 HELP_OUTPUT=$(copilot_here --help 2>&1 || true)
-if echo "$HELP_OUTPUT" | grep -q "enable-network-proxy"; then
-  test_pass "--enable-network-proxy documented in help"
+if echo "$HELP_OUTPUT" | grep -q "enable-airlock"; then
+  test_pass "--enable-airlock documented in help"
 else
-  test_fail "--enable-network-proxy not in help output"
+  test_fail "--enable-airlock not in help output"
 fi
 
-# Test 2: --enable-global-network-proxy flag in help
-test_start "Check --enable-global-network-proxy in copilot_here help"
-if echo "$HELP_OUTPUT" | grep -q "enable-global-network-proxy"; then
-  test_pass "--enable-global-network-proxy documented in help"
+# Test 2: --enable-global-airlock flag in help
+test_start "Check --enable-global-airlock in copilot_here help"
+if echo "$HELP_OUTPUT" | grep -q "enable-global-airlock"; then
+  test_pass "--enable-global-airlock documented in help"
 else
-  test_fail "--enable-global-network-proxy not in help output"
+  test_fail "--enable-global-airlock not in help output"
 fi
 
-# Test 3: NETWORK PROXY section in help
-test_start "Check NETWORK PROXY section in help"
-if echo "$HELP_OUTPUT" | grep -q "NETWORK PROXY"; then
-  test_pass "NETWORK PROXY section present in help"
+# Test 3: NETWORK (AIRLOCK) section in help
+test_start "Check NETWORK (AIRLOCK) section in help"
+if echo "$HELP_OUTPUT" | grep -q "NETWORK (AIRLOCK)"; then
+  test_pass "NETWORK (AIRLOCK) section present in help"
 else
-  test_fail "NETWORK PROXY section missing from help"
+  test_fail "NETWORK (AIRLOCK) section missing from help"
 fi
 
 # Test 4: copilot_yolo also has network proxy flags
-test_start "Check --enable-network-proxy in copilot_yolo help"
+test_start "Check --enable-airlock in copilot_yolo help"
 YOLO_HELP=$(copilot_yolo --help 2>&1 || true)
-if echo "$YOLO_HELP" | grep -q "enable-network-proxy"; then
-  test_pass "--enable-network-proxy documented in copilot_yolo help"
+if echo "$YOLO_HELP" | grep -q "enable-airlock"; then
+  test_pass "--enable-airlock documented in copilot_yolo help"
 else
-  test_fail "--enable-network-proxy not in copilot_yolo help output"
+  test_fail "--enable-airlock not in copilot_yolo help output"
 fi
 
 # Test 5: __copilot_ensure_network_config function exists
@@ -252,7 +252,7 @@ test_start "Test mutually exclusive flags handled"
 # This should be handled before docker is invoked
 HELP_CHECK=$(copilot_here --help 2>&1 || true)
 # Verify both flags are documented (implementation handles mutual exclusion)
-if echo "$HELP_CHECK" | grep -q "enable-network-proxy" && echo "$HELP_CHECK" | grep -q "enable-global-network-proxy"; then
+if echo "$HELP_CHECK" | grep -q "enable-airlock" && echo "$HELP_CHECK" | grep -q "enable-global-airlock"; then
   test_pass "Both network proxy flags are documented"
 else
   test_fail "Network proxy flags not properly documented"

@@ -1412,9 +1412,9 @@ OPTIONS:
   -h, -Help                Show this help message
   -Help2                   Show GitHub Copilot CLI native help
 
-NETWORK PROXY (EXPERIMENTAL):
-  -EnableNetworkProxy        Enable network proxy with local rules (.copilot_here/network.json)
-  -EnableGlobalNetworkProxy  Enable network proxy with global rules (~/.config/copilot_here/network.json)
+NETWORK (AIRLOCK):
+  -EnableAirlock             Enable Airlock with local rules (.copilot_here/network.json)
+  -EnableGlobalAirlock       Enable Airlock with global rules (~/.config/copilot_here/network.json)
   -ShowNetworkRules          Show current network proxy rules
   -EditNetworkRules          Edit local network rules in `$env:EDITOR
   -EditGlobalNetworkRules    Edit global network rules in `$env:EDITOR
@@ -1538,8 +1538,8 @@ function Invoke-CopilotMain {
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
-        [switch]$EnableNetworkProxy,
-        [switch]$EnableGlobalNetworkProxy,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,
@@ -1549,8 +1549,8 @@ function Invoke-CopilotMain {
     )
 
     # Check for mutually exclusive network proxy flags
-    if ($EnableNetworkProxy -and $EnableGlobalNetworkProxy) {
-        Write-Host "❌ Error: Cannot use both -EnableNetworkProxy and -EnableGlobalNetworkProxy" -ForegroundColor Red
+    if ($EnableAirlock -and $EnableGlobalAirlock) {
+        Write-Host "❌ Error: Cannot use both -EnableAirlock and -EnableGlobalAirlock" -ForegroundColor Red
         return
     }
 
@@ -1645,8 +1645,8 @@ function Invoke-CopilotMain {
     if ($d10 -or $Dotnet10) { $imageTag = "dotnet10" }
     if ($dp -or $DotnetPlaywright) { $imageTag = "dotnet-playwright" }
 
-    if ($EnableNetworkProxy -or $EnableGlobalNetworkProxy) {
-        $isGlobal = $EnableGlobalNetworkProxy
+    if ($EnableAirlock -or $EnableGlobalAirlock) {
+        $isGlobal = $EnableGlobalAirlock
         Ensure-NetworkConfig -IsGlobal $isGlobal
         return
     }
@@ -1687,8 +1687,8 @@ function Copilot-Here {
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
-        [switch]$EnableNetworkProxy,
-        [switch]$EnableGlobalNetworkProxy,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,
@@ -1732,8 +1732,8 @@ function Copilot-Yolo {
         [switch]$ClearImageGlobal,
         [switch]$NoCleanup,
         [switch]$NoPull,
-        [switch]$EnableNetworkProxy,
-        [switch]$EnableGlobalNetworkProxy,
+        [switch]$EnableAirlock,
+        [switch]$EnableGlobalAirlock,
         [switch]$ShowNetworkRules,
         [switch]$EditNetworkRules,
         [switch]$EditGlobalNetworkRules,
