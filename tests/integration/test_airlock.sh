@@ -120,7 +120,8 @@ setup_test_env() {
   "allowed_rules": [
     {
       "host": "httpbin.org",
-      "allowed_paths": ["/get", "/status/200"]
+      "allowed_paths": ["/get", "/status/200"],
+      "allow_insecure": true
     },
     {
       "host": "api.github.com",
@@ -253,18 +254,17 @@ test_proxy_logs_running() {
 }
 
 test_allowed_host_http() {
-  test_start "Plain HTTP requests are rejected (HTTPS-only proxy)"
+  test_start "HTTP request to allowed host succeeds"
   
-  # The proxy only handles HTTPS CONNECT requests - plain HTTP is rejected with 400
-  # This is by design for security: all traffic must use HTTPS with MITM inspection
+  # HTTP requests should work through the proxy (forwarded, not tunneled like HTTPS)
   local result exit_code
   result=$(run_in_client curl -sf --max-time 10 "http://httpbin.org/get" 2>&1) || exit_code=$?
   exit_code=${exit_code:-0}
   
-  if [ $exit_code -ne 0 ]; then
-    test_pass "Plain HTTP request correctly rejected (proxy is HTTPS-only)"
+  if [ $exit_code -eq 0 ] && echo "$result" | grep -q '"url"'; then
+    test_pass "HTTP request to httpbin.org/get succeeded"
   else
-    test_fail "Plain HTTP should be rejected but succeeded: $result"
+    test_fail "HTTP request failed (exit $exit_code): $result"
   fi
 }
 
@@ -329,6 +329,21 @@ test_blocked_path() {
     test_pass "Request to /post was blocked (not in allowed_paths)"
   else
     test_fail "Request to blocked path should have failed: $result"
+  fi
+}
+
+test_http_blocked_without_allow_insecure() {
+  test_start "HTTP request blocked when allow_insecure is false"
+  
+  # api.github.com has allow_insecure: false (or unset), so HTTP should be blocked
+  local result exit_code
+  result=$(run_in_client curl -sf --max-time 10 "http://api.github.com/" 2>&1) || exit_code=$?
+  exit_code=${exit_code:-0}
+  
+  if [ $exit_code -ne 0 ]; then
+    test_pass "HTTP request to api.github.com blocked (allow_insecure not set)"
+  else
+    test_fail "HTTP request should be blocked when allow_insecure is false: $result"
   fi
 }
 
@@ -399,6 +414,7 @@ main() {
   test_allowed_path_succeeds
   test_blocked_host
   test_blocked_path
+  test_http_blocked_without_allow_insecure
   test_no_direct_internet
   
   # Print summary and capture result

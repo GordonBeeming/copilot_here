@@ -31,6 +31,8 @@ struct HostRule {
     host: String,
     #[serde(default)]
     allowed_paths: Vec<String>,
+    #[serde(default)]
+    allow_insecure: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,10 +97,10 @@ fn log_traffic(config: &Config, action: &str, host: &str, path: &str, method: &s
 // Security Check
 // ============================================================================
 
-/// Check if a host is allowed (for CONNECT-level checks, ignores path rules)
-fn check_host_allowed(config: &Config, host: &str) -> (bool, String) {
+/// Check if a host is allowed and whether insecure is permitted (for CONNECT-level checks, ignores path rules)
+fn check_host_allowed(config: &Config, host: &str) -> (bool, String, bool) {
     if config.mode != "enforce" {
-        return (true, "Monitor Mode".to_string());
+        return (true, "Monitor Mode".to_string(), true);
     }
 
     let host_rule = config.allowed_rules.iter().find(|rule| {
@@ -106,8 +108,8 @@ fn check_host_allowed(config: &Config, host: &str) -> (bool, String) {
     });
 
     match host_rule {
-        None => (false, "Host Not Allowed".to_string()),
-        Some(_) => (true, "Host Allowed".to_string()),
+        None => (false, "Host Not Allowed".to_string(), false),
+        Some(rule) => (true, "Host Allowed".to_string(), rule.allow_insecure),
     }
 }
 
@@ -144,13 +146,14 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
 /// Request type parsed from the incoming connection
 enum ProxyRequest {
     Connect { host: String, port: u16 },
+    Http { method: String, url: String, headers: String },
     Health,
     Unknown,
 }
 
-/// Parse HTTP request - either CONNECT for proxy or GET /health for healthcheck
+/// Parse HTTP request - CONNECT for HTTPS proxy, regular HTTP methods, or GET /health for healthcheck
 async fn read_request(client: &mut TcpStream) -> Result<ProxyRequest> {
-    let mut buf = vec![0u8; 4096];
+    let mut buf = vec![0u8; 8192];
     let mut total_read = 0;
     
     // Read until we find \r\n\r\n (end of headers)
@@ -179,26 +182,40 @@ async fn read_request(client: &mut TcpStream) -> Result<ProxyRequest> {
         return Ok(ProxyRequest::Unknown);
     }
 
-    // Check for health endpoint
-    if parts[0] == "GET" && parts[1] == "/health" {
+    let method = parts[0];
+    let target = parts[1];
+
+    // Check for health endpoint (direct request, not proxied)
+    if method == "GET" && target == "/health" {
         return Ok(ProxyRequest::Health);
     }
     
-    if parts[0] != "CONNECT" {
-        return Ok(ProxyRequest::Unknown);
+    // CONNECT method for HTTPS tunneling
+    if method == "CONNECT" {
+        // Parse host:port from CONNECT target
+        let (host, port) = if let Some(colon_pos) = target.rfind(':') {
+            let host = &target[..colon_pos];
+            let port: u16 = target[colon_pos + 1..].parse().unwrap_or(443);
+            (host.to_string(), port)
+        } else {
+            (target.to_string(), 443)
+        };
+        
+        return Ok(ProxyRequest::Connect { host, port });
     }
     
-    // Parse host:port from CONNECT target
-    let target = parts[1];
-    let (host, port) = if let Some(colon_pos) = target.rfind(':') {
-        let host = &target[..colon_pos];
-        let port: u16 = target[colon_pos + 1..].parse().unwrap_or(443);
-        (host.to_string(), port)
-    } else {
-        (target.to_string(), 443)
-    };
+    // HTTP proxy request (GET http://host/path, POST http://host/path, etc.)
+    if target.starts_with("http://") {
+        // Collect headers (skip first line)
+        let headers: String = request.lines().skip(1).collect::<Vec<&str>>().join("\r\n");
+        return Ok(ProxyRequest::Http { 
+            method: method.to_string(), 
+            url: target.to_string(),
+            headers,
+        });
+    }
     
-    Ok(ProxyRequest::Connect { host, port })
+    Ok(ProxyRequest::Unknown)
 }
 
 // ============================================================================
@@ -261,12 +278,102 @@ impl CaAuthority {
 // Connection Handler
 // ============================================================================
 
+/// Handle plain HTTP proxy requests (not CONNECT tunneling)
+async fn handle_http_request(
+    mut client: TcpStream,
+    config: Arc<Config>,
+    method: String,
+    url: String,
+    headers: String,
+) -> Result<()> {
+    // Parse URL: http://host:port/path
+    let url_without_scheme = url.strip_prefix("http://").unwrap_or(&url);
+    let (host_port, path) = match url_without_scheme.find('/') {
+        Some(idx) => (&url_without_scheme[..idx], &url_without_scheme[idx..]),
+        None => (url_without_scheme, "/"),
+    };
+    
+    let (hostname, port) = if let Some(colon_pos) = host_port.rfind(':') {
+        let host = &host_port[..colon_pos];
+        let port: u16 = host_port[colon_pos + 1..].parse().unwrap_or(80);
+        (host.to_string(), port)
+    } else {
+        (host_port.to_string(), 80)
+    };
+
+    // Check if host is allowed and if insecure is permitted
+    let (host_allowed, reason, allow_insecure) = check_host_allowed(&config, &hostname);
+    
+    if !host_allowed {
+        log_traffic(&config, "BLOCK", &hostname, path, &method, &config.mode, &reason);
+        println!("⛔ [{}] {} http://{}{} -> {}", config.mode, method, hostname, path, reason);
+        let response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nHost not allowed";
+        client.write_all(response.as_bytes()).await?;
+        return Ok(());
+    }
+
+    // Block insecure requests unless explicitly allowed
+    if !allow_insecure && config.mode == "enforce" {
+        log_traffic(&config, "BLOCK", &hostname, path, &method, &config.mode, "Insecure HTTP not allowed");
+        println!("⛔ [{}] {} http://{}{} -> Insecure HTTP not allowed (set allow_insecure: true)", config.mode, method, hostname, path);
+        let response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nInsecure HTTP not allowed. Use HTTPS or set allow_insecure: true for this host.";
+        client.write_all(response.as_bytes()).await?;
+        return Ok(());
+    }
+
+    // Check path-level rules
+    let (allowed, reason) = check_request(&config, &hostname, path);
+    
+    if !allowed {
+        log_traffic(&config, "BLOCK", &hostname, path, &method, &config.mode, &reason);
+        println!("⛔ [{}] {} http://{}{} -> {}", config.mode, method, hostname, path, reason);
+        let response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nPath not allowed";
+        client.write_all(response.as_bytes()).await?;
+        return Ok(());
+    }
+
+    let action = "ALLOW";
+    log_traffic(&config, action, &hostname, path, &method, &config.mode, &reason);
+    println!("✅ [{}] {} http://{}{} -> {}", config.mode, method, hostname, path, reason);
+
+    // Connect to upstream
+    let upstream_addr = format!("{}:{}", hostname, port);
+    let mut upstream = match TcpStream::connect(&upstream_addr).await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to connect to upstream {}: {}", upstream_addr, e);
+            let response = format!("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to {}", hostname);
+            client.write_all(response.as_bytes()).await?;
+            return Ok(());
+        }
+    };
+
+    // Reconstruct and forward the HTTP request (convert absolute URL to relative path)
+    let request = format!("{} {} HTTP/1.1\r\nHost: {}\r\n{}\r\n\r\n", 
+        method, path, hostname, headers);
+    upstream.write_all(request.as_bytes()).await?;
+
+    // Bidirectional copy
+    let (mut client_read, mut client_write) = client.into_split();
+    let (mut upstream_read, mut upstream_write) = upstream.into_split();
+
+    let client_to_upstream = tokio::io::copy(&mut client_read, &mut upstream_write);
+    let upstream_to_client = tokio::io::copy(&mut upstream_read, &mut client_write);
+
+    tokio::select! {
+        _ = client_to_upstream => {},
+        _ = upstream_to_client => {},
+    }
+
+    Ok(())
+}
+
 async fn handle_connection(
     mut client: TcpStream,
     ca: Arc<CaAuthority>,
     config: Arc<Config>,
 ) -> Result<()> {
-    // Parse HTTP request (CONNECT or health check)
+    // Parse HTTP request (CONNECT, HTTP, or health check)
     let request = read_request(&mut client).await?;
     
     let (hostname, port) = match request {
@@ -275,6 +382,10 @@ async fn handle_connection(
             let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nOK";
             client.write_all(response.as_bytes()).await?;
             return Ok(());
+        }
+        ProxyRequest::Http { method, url, headers } => {
+            // Handle plain HTTP proxy request
+            return handle_http_request(client, config, method, url, headers).await;
         }
         ProxyRequest::Connect { host, port } => (host, port),
         ProxyRequest::Unknown => {
@@ -286,7 +397,7 @@ async fn handle_connection(
     };
 
     // Check if host is allowed (for CONNECT-level blocking)
-    let (host_allowed, reason) = check_host_allowed(&config, &hostname);
+    let (host_allowed, reason, _allow_insecure) = check_host_allowed(&config, &hostname);
     
     if !host_allowed {
         log_traffic(&config, "BLOCK", &hostname, "/", "CONNECT", &config.mode, &reason);
