@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-28.6
+# Version: 2025-11-28.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1931,7 +1931,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.6
+VERSION: 2025-11-28.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }
@@ -2005,7 +2005,7 @@ __copilot_main() {
        return 0
        ;;
      --show-image)
-       __copilot_show_image
+       __copilot_show_default_image
        return 0
        ;;
      --set-image)
@@ -2014,7 +2014,7 @@ __copilot_main() {
          echo "❌ Error: --set-image requires a tag argument"
          return 1
        fi
-       __copilot_set_image "$1" "false"
+       __copilot_save_image_config "$1" "false"
        return $?
        ;;
      --set-image-global)
@@ -2023,15 +2023,15 @@ __copilot_main() {
          echo "❌ Error: --set-image-global requires a tag argument"
          return 1
        fi
-       __copilot_set_image "$1" "true"
+       __copilot_save_image_config "$1" "true"
        return $?
        ;;
      --clear-image)
-       __copilot_clear_image "false"
+       __copilot_clear_image_config "false"
        return $?
        ;;
      --clear-image-global)
-       __copilot_clear_image "true"
+       __copilot_clear_image_config "true"
        return $?
        ;;
      -d|--dotnet)
