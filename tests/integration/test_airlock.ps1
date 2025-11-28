@@ -272,13 +272,22 @@ function Test-ProxyLogsRunning {
 function Test-AllowedHostHttp {
     Write-TestStart "HTTP request to allowed host succeeds"
     
-    $result = Invoke-InClient @("curl", "-sf", "--max-time", "10", "http://httpbin.org/get")
-    
-    if ($LASTEXITCODE -eq 0 -and $result -match '"url"') {
-        Write-TestPass "HTTP request to httpbin.org/get succeeded"
-    } else {
-        Write-TestFail "HTTP request failed (exit $LASTEXITCODE): $result"
+    $maxRetries = 3
+    for ($retry = 0; $retry -lt $maxRetries; $retry++) {
+        $result = Invoke-InClient @("curl", "-sf", "--max-time", "15", "http://httpbin.org/get")
+        
+        if ($LASTEXITCODE -eq 0 -and $result -match '"url"') {
+            Write-TestPass "HTTP request to httpbin.org/get succeeded"
+            return
+        }
+        
+        if ($retry -lt ($maxRetries - 1)) {
+            Write-Host "   Retry $($retry + 1)/$maxRetries after transient failure..."
+            Start-Sleep -Seconds 2
+        }
     }
+    
+    Write-TestFail "HTTP request failed after $maxRetries attempts (exit $LASTEXITCODE): $result"
 }
 
 function Test-AllowedHostHttps {
@@ -292,25 +301,43 @@ function Test-AllowedHostHttps {
         return
     }
     
-    $result = Invoke-InClient @("curl", "-sf", "--max-time", "10", "--cacert", "/ca/certs/ca.pem", "https://httpbin.org/get")
-    
-    if ($result -match '"url"') {
-        Write-TestPass "HTTPS request to httpbin.org/get succeeded with CA"
-    } else {
-        Write-TestFail "HTTPS request failed: $result"
+    $maxRetries = 3
+    for ($retry = 0; $retry -lt $maxRetries; $retry++) {
+        $result = Invoke-InClient @("curl", "-sf", "--max-time", "15", "--cacert", "/ca/certs/ca.pem", "https://httpbin.org/get")
+        
+        if ($result -match '"url"') {
+            Write-TestPass "HTTPS request to httpbin.org/get succeeded with CA"
+            return
+        }
+        
+        if ($retry -lt ($maxRetries - 1)) {
+            Write-Host "   Retry $($retry + 1)/$maxRetries after transient failure..."
+            Start-Sleep -Seconds 2
+        }
     }
+    
+    Write-TestFail "HTTPS request failed after $maxRetries attempts: $result"
 }
 
 function Test-AllowedPathSucceeds {
     Write-TestStart "Request to allowed path succeeds"
     
-    $result = Invoke-InClient @("curl", "-sf", "--max-time", "10", "--cacert", "/ca/certs/ca.pem", "https://httpbin.org/status/200")
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-TestPass "Request to /status/200 succeeded"
-    } else {
-        Write-TestFail "Request to allowed path failed: $result"
+    $maxRetries = 3
+    for ($retry = 0; $retry -lt $maxRetries; $retry++) {
+        $result = Invoke-InClient @("curl", "-sf", "--max-time", "15", "--cacert", "/ca/certs/ca.pem", "https://httpbin.org/status/200")
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-TestPass "Request to /status/200 succeeded"
+            return
+        }
+        
+        if ($retry -lt ($maxRetries - 1)) {
+            Write-Host "   Retry $($retry + 1)/$maxRetries after transient failure..."
+            Start-Sleep -Seconds 2
+        }
     }
+    
+    Write-TestFail "Request to allowed path failed after $maxRetries attempts: $result"
 }
 
 function Test-BlockedHost {

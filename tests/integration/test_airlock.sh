@@ -315,15 +315,24 @@ test_allowed_host_http() {
   test_start "HTTP request to allowed host succeeds"
   
   # HTTP requests should work through the proxy (forwarded, not tunneled like HTTPS)
-  local result exit_code
-  result=$(run_in_client curl -sf --max-time 10 "http://httpbin.org/get" 2>&1) || exit_code=$?
-  exit_code=${exit_code:-0}
+  local result exit_code max_retries=3 retry=0
+  while [ $retry -lt $max_retries ]; do
+    result=$(run_in_client curl -sf --max-time 15 "http://httpbin.org/get" 2>&1) || exit_code=$?
+    exit_code=${exit_code:-0}
+    
+    if [ $exit_code -eq 0 ] && echo "$result" | grep -q '"url"'; then
+      test_pass "HTTP request to httpbin.org/get succeeded"
+      return
+    fi
+    
+    retry=$((retry + 1))
+    if [ $retry -lt $max_retries ]; then
+      echo "   Retry $retry/$max_retries after transient failure..."
+      sleep 2
+    fi
+  done
   
-  if [ $exit_code -eq 0 ] && echo "$result" | grep -q '"url"'; then
-    test_pass "HTTP request to httpbin.org/get succeeded"
-  else
-    test_fail "HTTP request failed (exit $exit_code): $result"
-  fi
+  test_fail "HTTP request failed after $max_retries attempts (exit $exit_code): $result"
 }
 
 test_allowed_host_https() {
@@ -338,28 +347,46 @@ test_allowed_host_https() {
     return
   fi
   
-  local result
-  result=$(run_in_client curl -sf --max-time 10 --cacert /ca/certs/ca.pem "https://httpbin.org/get" 2>&1) || true
+  local result max_retries=3 retry=0
+  while [ $retry -lt $max_retries ]; do
+    result=$(run_in_client curl -sf --max-time 15 --cacert /ca/certs/ca.pem "https://httpbin.org/get" 2>&1) || true
+    
+    if echo "$result" | grep -q '"url"'; then
+      test_pass "HTTPS request to httpbin.org/get succeeded with CA"
+      return
+    fi
+    
+    retry=$((retry + 1))
+    if [ $retry -lt $max_retries ]; then
+      echo "   Retry $retry/$max_retries after transient failure..."
+      sleep 2
+    fi
+  done
   
-  if echo "$result" | grep -q '"url"'; then
-    test_pass "HTTPS request to httpbin.org/get succeeded with CA"
-  else
-    test_fail "HTTPS request failed: $result"
-  fi
+  test_fail "HTTPS request failed after $max_retries attempts: $result"
 }
 
 test_allowed_path_succeeds() {
   test_start "Request to allowed path succeeds"
   
-  local result exit_code
-  result=$(run_in_client curl -sf --max-time 10 --cacert /ca/certs/ca.pem "https://httpbin.org/status/200" 2>&1) || exit_code=$?
-  exit_code=${exit_code:-0}
+  local result exit_code max_retries=3 retry=0
+  while [ $retry -lt $max_retries ]; do
+    result=$(run_in_client curl -sf --max-time 15 --cacert /ca/certs/ca.pem "https://httpbin.org/status/200" 2>&1) || exit_code=$?
+    exit_code=${exit_code:-0}
+    
+    if [ $exit_code -eq 0 ]; then
+      test_pass "Request to /status/200 succeeded"
+      return
+    fi
+    
+    retry=$((retry + 1))
+    if [ $retry -lt $max_retries ]; then
+      echo "   Retry $retry/$max_retries after transient failure..."
+      sleep 2
+    fi
+  done
   
-  if [ $exit_code -eq 0 ]; then
-    test_pass "Request to /status/200 succeeded"
-  else
-    test_fail "Request to allowed path failed: $result"
-  fi
+  test_fail "Request to allowed path failed after $max_retries attempts: $result"
 }
 
 test_blocked_host() {
