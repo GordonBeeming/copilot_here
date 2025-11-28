@@ -8,9 +8,13 @@ on:
   pull_request:
     branches: ["main"]
   schedule:
-    # Runs nightly at 3:15 AM UTC to check for npm package updates.
+    # Runs nightly at 3:15 AM UTC to check for package updates.
     - cron: "15 3 * * *"
   workflow_dispatch: # Allows the workflow to be run manually from the Actions tab
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 # Sets the minimum required permissions for the entire workflow for security.
 permissions:
@@ -26,11 +30,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Install PowerShell (for cross-platform testing)
         shell: bash
         run: |
@@ -46,79 +50,51 @@ jobs:
             # Install PowerShell on macOS
             brew install --cask powershell
           fi
-      
+
       - name: Make test scripts executable
         run: chmod +x tests/run_all_tests.sh tests/integration/*.sh
-        
+
       - name: Run all integration tests
         run: ./tests/run_all_tests.sh
 
   test-windows:
     name: Test PowerShell on Windows
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Run PowerShell integration tests
         shell: pwsh
         run: |
           pwsh tests/run_all_tests.ps1
 
-  # Airlock integration tests - runs after images are built
-  # Tests actual Docker Compose airlock functionality
-  # Note: Only runs on ubuntu-latest as Docker images are Linux-based
-  test-airlock:
-    name: Test Airlock
-    needs: [build-and-publish]
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Make test script executable
-        run: chmod +x tests/integration/test_airlock.sh
-        
-      - name: Run airlock integration tests
-        run: ./tests/integration/test_airlock.sh
-
-  # Airlock integration tests for PRs - builds images locally first
   # Note: Only runs on ubuntu-latest as Docker images are Linux-based
   # (macOS runners don't have Docker, Windows Docker can't run Linux containers)
-  test-airlock-pr:
-    name: Test Airlock (PR)
+  test-airlock:
+    name: Test Airlock
     needs: [test-bash-zsh, test-windows]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Build images locally
         run: |
           chmod +x ./dev-build.sh
           ./dev-build.sh
-        
+
       - name: Make test script executable
         run: chmod +x tests/integration/test_airlock.sh
-        
+
       - name: Run airlock integration tests
         run: ./tests/integration/test_airlock.sh --use-local
 
   build-and-publish:
     name: Build and Publish Images
-    needs: [test-bash-zsh, test-windows]  # Tests must pass before building/publishing
+    needs: [test-airlock]
     runs-on: ubuntu-latest
     # Only publish on main branch push, schedule, or manual dispatch
     # PRs will run tests but not publish
@@ -176,17 +152,17 @@ jobs:
           PLAYWRIGHT_VERSION=$(npm view playwright version)
           echo "playwright_version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
           echo "Latest Playwright version: $PLAYWRIGHT_VERSION"
-          
+
           # .NET 8
           DOTNET_8_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json | jq -r '."latest-sdk"')
           echo "dotnet_8_version=$DOTNET_8_VERSION" >> $GITHUB_OUTPUT
           echo "Latest .NET 8 SDK version: $DOTNET_8_VERSION"
-          
+
           # .NET 9
           DOTNET_9_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/9.0/releases.json | jq -r '."latest-sdk"')
           echo "dotnet_9_version=$DOTNET_9_VERSION" >> $GITHUB_OUTPUT
           echo "Latest .NET 9 SDK version: $DOTNET_9_VERSION"
-          
+
           # .NET 10
           DOTNET_10_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
           echo "dotnet_10_version=$DOTNET_10_VERSION" >> $GITHUB_OUTPUT
@@ -470,7 +446,7 @@ jobs:
           echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tests:** ✅ Passed (required before build)" >> $GITHUB_STEP_SUMMARY
-          
+
           if [[ "${{ steps.push_decision.outputs.push_needed }}" == "true" ]]; then
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ steps.repo.outputs.name }}:latest\`" >> $GITHUB_STEP_SUMMARY
