@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-28.3
+# Version: 2025-11-28.4
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1839,7 +1839,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.3
+VERSION: 2025-11-28.4
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }
@@ -1865,6 +1865,8 @@ function Invoke-CopilotMain {
         [switch]$Dotnet9,
         [switch]$d10,
         [switch]$Dotnet10,
+        [switch]$pw,
+        [switch]$Playwright,
         [switch]$dp,
         [switch]$DotnetPlaywright,
         [string[]]$Mount,
@@ -1999,6 +2001,7 @@ function Invoke-CopilotMain {
     if ($d8 -or $Dotnet8) { $imageTag = "dotnet8" }
     if ($d9 -or $Dotnet9) { $imageTag = "dotnet9" }
     if ($d10 -or $Dotnet10) { $imageTag = "dotnet10" }
+    if ($pw -or $Playwright) { $imageTag = "playwright" }
     if ($dp -or $DotnetPlaywright) { $imageTag = "dotnet-playwright" }
 
     if ($EnableAirlock -or $EnableGlobalAirlock) {
@@ -2027,6 +2030,8 @@ function Copilot-Here {
         [switch]$Dotnet9,
         [switch]$d10,
         [switch]$Dotnet10,
+        [switch]$pw,
+        [switch]$Playwright,
         [switch]$dp,
         [switch]$DotnetPlaywright,
         [string[]]$Mount,
@@ -2075,6 +2080,8 @@ function Copilot-Yolo {
         [switch]$Dotnet9,
         [switch]$d10,
         [switch]$Dotnet10,
+        [switch]$pw,
+        [switch]$Playwright,
         [switch]$dp,
         [switch]$DotnetPlaywright,
         [string[]]$Mount,
