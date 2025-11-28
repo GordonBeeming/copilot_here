@@ -57,7 +57,7 @@ try {
     Write-Host "TEST: Standard Mode"
     # Capture output to check title
     try {
-        $output = Copilot-Here -NoPull -NoCleanup -p "test" *>&1 | Out-String
+        $output = Copilot-Here -NoPull -NoCleanup -Prompt "test" *>&1 | Out-String
     } catch {
         Write-Host "Error: $_" -ForegroundColor Red
         Write-Host "ScriptStackTrace: $($_.ScriptStackTrace)" -ForegroundColor Red
@@ -74,7 +74,7 @@ try {
 
     # Test 2: YOLO Mode
     Write-Host "TEST: YOLO Mode"
-    $output = Copilot-Yolo -NoPull -NoCleanup -p "test" *>&1 | Out-String
+    $output = Copilot-Yolo -NoPull -NoCleanup -Prompt "test" *>&1 | Out-String
 
     if ($output -match "MOCK_TITLE_CHECK: .*🤖⚡️ $currentDirName") {
         Write-Host "✅ PASS: YOLO mode title set correctly" -ForegroundColor Green
