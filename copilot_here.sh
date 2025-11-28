@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-28.4
+# Version: 2025-11-28.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -825,103 +825,14 @@ __copilot_run() {
   # Add current working directory to display
   mount_display+=("📁 $container_work_dir")
   
-  # Process global config mounts
+  # Priority order: CLI > LOCAL > GLOBAL
+  # Process in priority order so higher priority mounts are added first
+  # Lower priority mounts will be skipped if path already seen
+  
   # Initialize seen_paths with current directory to avoid duplicates
   local seen_paths=("$current_dir")
-  for mount in "${global_mounts[@]}"; do
-    local mount_path="${mount%:*}"
-    local mount_mode="${mount##*:}"
-    
-    # If no mode specified, default to ro
-    if [ "$mount_path" = "$mount_mode" ]; then
-      mount_mode="ro"
-    fi
-    
-    local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
-    if [ $? -ne 0 ]; then
-      continue  # Skip this mount if user cancelled
-    fi
-    
-    # Skip if already seen (dedup)
-    if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
-      continue
-    fi
-    seen_paths+=("$resolved_path")
-    
-    # Determine container path - if under home directory, map to container home
-    local container_path="$resolved_path"
-    if [[ "$resolved_path" == "$HOME"* ]]; then
-      # Path is under user's home directory - map to container's home
-      local relative_path="${resolved_path#$HOME}"
-      container_path="/home/appuser${relative_path}"
-    fi
-    
-    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
-    all_mount_paths+=("$container_path")
-    
-    # Store resolved mount for airlock (host path:container path format)
-    if [ "$mount_mode" = "rw" ]; then
-      all_resolved_mounts_rw+=("$resolved_path:$container_path")
-    else
-      all_resolved_mounts_ro+=("$resolved_path:$container_path")
-    fi
-    
-    # Global mount icon
-    if __copilot_supports_emoji; then
-      mount_display+=("   🌍 $container_path ($mount_mode)")
-    else
-      mount_display+=("   G: $container_path ($mount_mode)")
-    fi
-  done
   
-  # Process local config mounts
-  for mount in "${local_mounts[@]}"; do
-    local mount_path="${mount%:*}"
-    local mount_mode="${mount##*:}"
-    
-    # If no mode specified, default to ro
-    if [ "$mount_path" = "$mount_mode" ]; then
-      mount_mode="ro"
-    fi
-    
-    local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
-    if [ $? -ne 0 ]; then
-      continue  # Skip this mount if user cancelled
-    fi
-    
-    # Skip if already seen (dedup)
-    if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
-      continue
-    fi
-    seen_paths+=("$resolved_path")
-    
-    # Determine container path - if under home directory, map to container home
-    local container_path="$resolved_path"
-    if [[ "$resolved_path" == "$HOME"* ]]; then
-      # Path is under user's home directory - map to container's home
-      local relative_path="${resolved_path#$HOME}"
-      container_path="/home/appuser${relative_path}"
-    fi
-    
-    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
-    all_mount_paths+=("$container_path")
-    
-    # Store resolved mount for airlock (host path:container path format)
-    if [ "$mount_mode" = "rw" ]; then
-      all_resolved_mounts_rw+=("$resolved_path:$container_path")
-    else
-      all_resolved_mounts_ro+=("$resolved_path:$container_path")
-    fi
-    
-    # Local mount icon
-    if __copilot_supports_emoji; then
-      mount_display+=("   📍 $container_path ($mount_mode)")
-    else
-      mount_display+=("   L: $container_path ($mount_mode)")
-    fi
-  done
-  
-  # Process CLI read-only mounts
+  # Process CLI read-only mounts (highest priority)
   eval "local mounts_ro_array=(\"\${${mounts_ro_name}[@]}\")"
   for mount_path in "${mounts_ro_array[@]}"; do
     local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
@@ -953,7 +864,7 @@ __copilot_run() {
     fi
   done
   
-  # Process CLI read-write mounts
+  # Process CLI read-write mounts (highest priority, rw overrides ro)
   eval "local mounts_rw_array=(\"\${${mounts_rw_name}[@]}\")"
   for mount_path in "${mounts_rw_array[@]}"; do
     local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
@@ -968,24 +879,16 @@ __copilot_run() {
       container_path="/home/appuser${relative_path}"
     fi
     
-    # Skip if already seen (CLI overrides config)
+    # Check if already seen (rw overrides ro from CLI)
     local override=false
     for seen_path in "${seen_paths[@]}"; do
       if [ "$seen_path" = "$resolved_path" ]; then
-        # Replace read-only with read-write
         override=true
         # Update docker args to rw - rebuild array to avoid bash-specific array indexing
         local new_docker_args=()
-        local skip_next=false
         local prev_arg=""
         for arg in "${docker_args[@]}"; do
-          if [ "$skip_next" = "true" ]; then
-            skip_next=false
-            continue
-          fi
-          
           if [ "$prev_arg" = "-v" ] && [ "$arg" = "$resolved_path:$container_path:ro" ]; then
-            # Replace this mount with rw version
             new_docker_args+=("$resolved_path:$container_path:rw")
           else
             new_docker_args+=("$arg")
@@ -994,7 +897,7 @@ __copilot_run() {
         done
         docker_args=("${new_docker_args[@]}")
         
-        # Also update resolved mounts arrays - move from ro to rw
+        # Update resolved mounts arrays - move from ro to rw
         local new_resolved_ro=()
         for m in "${all_resolved_mounts_ro[@]}"; do
           if [ "$m" != "$resolved_path:$container_path" ]; then
@@ -1013,12 +916,104 @@ __copilot_run() {
       docker_args+=(-v "$resolved_path:$container_path:rw")
       all_mount_paths+=("$container_path")
       all_resolved_mounts_rw+=("$resolved_path:$container_path")
+      
+      if __copilot_supports_emoji; then
+        mount_display+=("   🔧 $container_path (rw)")
+      else
+        mount_display+=("   CLI: $container_path (rw)")
+      fi
+    fi
+  done
+  
+  # Process local config mounts (second priority)
+  for mount in "${local_mounts[@]}"; do
+    local mount_path="${mount%:*}"
+    local mount_mode="${mount##*:}"
+    
+    # If no mode specified, default to ro
+    if [ "$mount_path" = "$mount_mode" ]; then
+      mount_mode="ro"
     fi
     
-    if __copilot_supports_emoji; then
-      mount_display+=("   🔧 $container_path (rw)")
+    local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
+    
+    # Skip if already seen (CLI takes priority)
+    if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
+      continue
+    fi
+    seen_paths+=("$resolved_path")
+    
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
+    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
+    all_mount_paths+=("$container_path")
+    
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
     else
-      mount_display+=("   CLI: $container_path (rw)")
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
+    
+    # Local mount icon
+    if __copilot_supports_emoji; then
+      mount_display+=("   📍 $container_path ($mount_mode)")
+    else
+      mount_display+=("   L: $container_path ($mount_mode)")
+    fi
+  done
+  
+  # Process global config mounts (lowest priority)
+  for mount in "${global_mounts[@]}"; do
+    local mount_path="${mount%:*}"
+    local mount_mode="${mount##*:}"
+    
+    # If no mode specified, default to ro
+    if [ "$mount_path" = "$mount_mode" ]; then
+      mount_mode="ro"
+    fi
+    
+    local resolved_path=$(__copilot_resolve_mount_path "$mount_path")
+    if [ $? -ne 0 ]; then
+      continue  # Skip this mount if user cancelled
+    fi
+    
+    # Skip if already seen (CLI and local take priority)
+    if [[ " ${seen_paths[@]} " =~ " ${resolved_path} " ]]; then
+      continue
+    fi
+    seen_paths+=("$resolved_path")
+    
+    # Determine container path - if under home directory, map to container home
+    local container_path="$resolved_path"
+    if [[ "$resolved_path" == "$HOME"* ]]; then
+      local relative_path="${resolved_path#$HOME}"
+      container_path="/home/appuser${relative_path}"
+    fi
+    
+    docker_args+=(-v "$resolved_path:$container_path:$mount_mode")
+    all_mount_paths+=("$container_path")
+    
+    # Store resolved mount for airlock (host path:container path format)
+    if [ "$mount_mode" = "rw" ]; then
+      all_resolved_mounts_rw+=("$resolved_path:$container_path")
+    else
+      all_resolved_mounts_ro+=("$resolved_path:$container_path")
+    fi
+    
+    # Global mount icon
+    if __copilot_supports_emoji; then
+      mount_display+=("   🌍 $container_path ($mount_mode)")
+    else
+      mount_display+=("   G: $container_path ($mount_mode)")
     fi
   done
   
@@ -1936,7 +1931,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.4
+VERSION: 2025-11-28.6
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }
@@ -1962,10 +1957,6 @@ __copilot_main() {
   local args=()
   local mounts_ro=()
   local mounts_rw=()
-  
-  # Load saved mounts
-  __copilot_load_mounts "$HOME/.config/copilot_here/mounts.conf" mounts_ro mounts_rw
-  __copilot_load_mounts ".copilot_here/mounts.conf" mounts_ro mounts_rw
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do

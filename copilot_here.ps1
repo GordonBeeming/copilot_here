@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-28.5
+# Version: 2025-11-28.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1319,9 +1319,10 @@ function Invoke-CopilotRun {
     $globalConfig = "$userHome/.config/copilot_here/mounts.conf".Replace('\', '/')
     $localConfig = ".copilot_here/mounts.conf"
     
-    $configMounts = @()
-    $configMounts += Get-ConfigMounts $globalConfig.Replace('/', '\')
-    $configMounts += Get-ConfigMounts $localConfig
+    $globalMounts = @()
+    $localMounts = @()
+    $globalMounts += Get-ConfigMounts $globalConfig.Replace('/', '\')
+    $localMounts += Get-ConfigMounts $localConfig
     
     # Track all mounted paths for display and --add-dir
     $allMountPaths = @()
@@ -1336,49 +1337,11 @@ function Invoke-CopilotRun {
     # Add current working directory to display
     $mountDisplay += "📁 $containerWorkDir"
     
-    # Process config mounts
-    foreach ($mount in $configMounts) {
-        $mountPath = $mount
-        $mountMode = "ro"
-        
-        if ($mount.Contains(':')) {
-            $parts = $mount -split ':'
-            $mountPath = $parts[0]
-            $mountMode = $parts[1]
-        }
-        
-        $resolvedPath = Resolve-MountPath $mountPath
-        if ($null -eq $resolvedPath) {
-            continue  # Skip this mount if user cancelled
-        }
-        
-        # Skip if already seen (dedup)
-        if ($seenPaths.ContainsKey($resolvedPath)) {
-            continue
-        }
-        $seenPaths[$resolvedPath] = $mountMode
-        
-        $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
-        $allMountPaths += $resolvedPath
-        
-        # Store resolved mount for airlock (host_path:container_path format)
-        if ($mountMode -eq "rw") {
-            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
-        } else {
-            $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
-        }
-        
-        # Determine source for display
-        $sourceIcon = if (Test-EmojiSupport) {
-            if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "🌍" } else { "📍" }
-        } else {
-            if ((Test-Path $globalConfig.Replace('/', '\')) -and (Select-String -Path $globalConfig.Replace('/', '\') -Pattern ([regex]::Escape($mount)) -Quiet)) { "G:" } else { "L:" }
-        }
-        
-        $mountDisplay += "   $sourceIcon $resolvedPath ($mountMode)"
-    }
+    # Priority order: CLI > LOCAL > GLOBAL
+    # Process in priority order so higher priority mounts are added first
+    # Lower priority mounts will be skipped if path already seen
     
-    # Process CLI read-only mounts
+    # Process CLI read-only mounts (highest priority)
     foreach ($mountPath in $MountsRO) {
         $resolvedPath = Resolve-MountPath $mountPath
         if ($null -eq $resolvedPath) {
@@ -1399,14 +1362,14 @@ function Invoke-CopilotRun {
         $mountDisplay += "   $icon $resolvedPath (ro)"
     }
     
-    # Process CLI read-write mounts
+    # Process CLI read-write mounts (highest priority, rw overrides ro)
     foreach ($mountPath in $MountsRW) {
         $resolvedPath = Resolve-MountPath $mountPath
         if ($null -eq $resolvedPath) {
             continue  # Skip this mount if user cancelled
         }
         
-        # Update to rw if already mounted as ro
+        # Update to rw if already mounted as ro from CLI
         if ($seenPaths.ContainsKey($resolvedPath)) {
             $seenPaths[$resolvedPath] = "rw"
             # Find and update the docker arg
@@ -1416,7 +1379,7 @@ function Invoke-CopilotRun {
                     break
                 }
             }
-            # Also update resolved mounts arrays - move from ro to rw
+            # Update resolved mounts arrays - move from ro to rw
             $allResolvedMountsRO = $allResolvedMountsRO | Where-Object { $_ -ne "$($resolvedPath):$($resolvedPath)" }
             $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
         } else {
@@ -1424,10 +1387,82 @@ function Invoke-CopilotRun {
             $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):rw"
             $allMountPaths += $resolvedPath
             $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
+            
+            $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
+            $mountDisplay += "   $icon $resolvedPath (rw)"
+        }
+    }
+    
+    # Process local config mounts (second priority)
+    foreach ($mount in $localMounts) {
+        $mountPath = $mount
+        $mountMode = "ro"
+        
+        if ($mount.Contains(':')) {
+            $parts = $mount -split ':'
+            $mountPath = $parts[0]
+            $mountMode = $parts[1]
         }
         
-        $icon = if (Test-EmojiSupport) { "🔧" } else { "CLI:" }
-        $mountDisplay += "   $icon $resolvedPath (rw)"
+        $resolvedPath = Resolve-MountPath $mountPath
+        if ($null -eq $resolvedPath) {
+            continue  # Skip this mount if user cancelled
+        }
+        
+        # Skip if already seen (CLI takes priority)
+        if ($seenPaths.ContainsKey($resolvedPath)) {
+            continue
+        }
+        $seenPaths[$resolvedPath] = $mountMode
+        
+        $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
+        $allMountPaths += $resolvedPath
+        
+        # Store resolved mount for airlock (host_path:container_path format)
+        if ($mountMode -eq "rw") {
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
+        } else {
+            $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
+        }
+        
+        $icon = if (Test-EmojiSupport) { "📍" } else { "L:" }
+        $mountDisplay += "   $icon $resolvedPath ($mountMode)"
+    }
+    
+    # Process global config mounts (lowest priority)
+    foreach ($mount in $globalMounts) {
+        $mountPath = $mount
+        $mountMode = "ro"
+        
+        if ($mount.Contains(':')) {
+            $parts = $mount -split ':'
+            $mountPath = $parts[0]
+            $mountMode = $parts[1]
+        }
+        
+        $resolvedPath = Resolve-MountPath $mountPath
+        if ($null -eq $resolvedPath) {
+            continue  # Skip this mount if user cancelled
+        }
+        
+        # Skip if already seen (CLI and local take priority)
+        if ($seenPaths.ContainsKey($resolvedPath)) {
+            continue
+        }
+        $seenPaths[$resolvedPath] = $mountMode
+        
+        $dockerBaseArgs += "-v", "$($resolvedPath):$($resolvedPath):$mountMode"
+        $allMountPaths += $resolvedPath
+        
+        # Store resolved mount for airlock (host_path:container_path format)
+        if ($mountMode -eq "rw") {
+            $allResolvedMountsRW += "$($resolvedPath):$($resolvedPath)"
+        } else {
+            $allResolvedMountsRO += "$($resolvedPath):$($resolvedPath)"
+        }
+        
+        $icon = if (Test-EmojiSupport) { "🌍" } else { "G:" }
+        $mountDisplay += "   $icon $resolvedPath ($mountMode)"
     }
     
     # Display mounts if there are extras
@@ -1876,7 +1911,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.5
+VERSION: 2025-11-28.7
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }
