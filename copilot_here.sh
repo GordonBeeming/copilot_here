@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025-11-28.2
+# Version: 2025-11-28.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -1447,7 +1447,8 @@ __copilot_run_airlock() {
   local session_id=$(echo "$$-$(date +%s%N 2>/dev/null || date +%s)" | sha256sum | head -c 8)
   
   # Project name matches the terminal title format: dirname + session
-  local project_name="${current_dir_name}-${session_id}"
+  # Docker Compose requires lowercase project names
+  local project_name=$(echo "${current_dir_name}-${session_id}" | tr '[:upper:]' '[:lower:]')
   
   # Create temporary compose file
   local temp_compose=$(mktemp)
@@ -1935,7 +1936,7 @@ MODES:
   copilot_here  - Safe mode (asks for confirmation before executing)
   copilot_yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.2
+VERSION: 2025-11-28.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 EOF
 }

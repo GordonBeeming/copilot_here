@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-28.2
+# Version: 2025-11-28.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
@@ -807,7 +807,8 @@ function Invoke-CopilotAirlock {
     $sessionId = [System.Guid]::NewGuid().ToString().Substring(0, 8)
     
     # Project name matches terminal title format
-    $projectName = "$currentDirName-$sessionId"
+    # Docker Compose requires lowercase project names
+    $projectName = "$currentDirName-$sessionId".ToLower()
     
     # Create temporary compose file
     $tempCompose = [System.IO.Path]::GetTempFileName() + ".yml"
@@ -1838,7 +1839,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.2
+VERSION: 2025-11-28.3
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }
