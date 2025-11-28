@@ -152,6 +152,51 @@ When enabling Airlock for the first time, you'll be prompted to choose between e
 **Logging:**
 When `enable_logging` is true (or in monitor mode), request logs are saved to `.copilot_here/logs/` (excluded from git by default).
 
+**Network Topology View**
+
+```mermaid
+graph LR
+    subgraph Docker_Host [🐳 Docker Host]
+        style Docker_Host fill:#F8F9FA,stroke:#1A1A1A,color:#1A1A1A
+        
+        subgraph Airlock_Net [🔒 Network: airlock_net]
+            style Airlock_Net fill:#E9ECEF,stroke:#1A1A1A,stroke-width:2px,stroke-dasharray: 5 5,color:#1A1A1A
+            
+            App[("🤖 Copilot Container<br/>(Single Homed)")]
+            style App fill:#FFFFFF,stroke:#0063B2,stroke-width:2px,color:#1A1A1A
+            
+            ProxyInt["Proxy Interface<br/>(eth0)"]
+            style ProxyInt fill:none,stroke:none,color:#1A1A1A
+        end
+
+        subgraph Proxy_Container [🛡️ Secure Proxy Container]
+            style Proxy_Container fill:#46CBFF,stroke:#0063B2,stroke-width:3px,color:#1A1A1A
+            ProxyApp["Proxy Process"]
+            style ProxyApp fill:#F8F9FA,stroke:#0063B2,color:#1A1A1A
+        end
+
+        App == "1. Traffic via Airlock" ==> ProxyApp
+    end
+
+    Internet((☁️ Internet / GitHub))
+    style Internet fill:#F8F9FA,stroke:#1A1A1A,stroke-width:2px,color:#1A1A1A
+
+    ProxyApp == "2. Traffic via Bridge" ==> Internet
+
+    linkStyle 0 stroke:#0063B2,stroke-width:3px,color:#0063B2
+    linkStyle 1 stroke:#0063B2,stroke-width:3px,color:#0063B2
+```
+
+1.  **🔒 The Sealed Chamber (Airlock Network):**
+    The `copilot_here` container is launched into a private, internal-only network. It has **zero** direct access to the internet. If an application tries to bypass the proxy, the connection simply fails because there is no route out.
+
+2.  **🛡️ The Sentry (Secure Proxy):**
+    The Proxy is the only component with a "key" to the outside world. It sits with one foot in the Airlock (to listen for requests) and one foot in the Bridge network (to reach GitHub).
+
+3.  **✅ The Controlled Exit:**
+    Traffic can only leave the Airlock if it explicitly asks the Proxy to carry it. The Proxy inspects the destination against your allow-list and decides whether to let the request pass or block it.
+
+
 ### For Linux/macOS (Bash/Zsh)
 
 **Quick Install (Recommended):**
