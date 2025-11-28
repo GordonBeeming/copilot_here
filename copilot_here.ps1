@@ -1,10 +1,17 @@
 # copilot_here PowerShell functions
-# Version: 2025-11-28.4
+# Version: 2025-11-28.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Test mode flag (set by tests to skip auth checks)
 if (-not $env:COPILOT_HERE_TEST_MODE) {
     $env:COPILOT_HERE_TEST_MODE = "false"
+}
+
+# Helper function to get cross-platform user home directory
+function Get-UserHome {
+    if ($env:USERPROFILE) { return $env:USERPROFILE }
+    if ($env:HOME) { return $env:HOME }
+    return $null
 }
 
 # Helper function to detect emoji support (PowerShell typically supports it)
@@ -103,7 +110,8 @@ function Resolve-MountPath {
 
 # Helper function to display mounts list
 function Show-ConfiguredMounts {
-    $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+    $userHome = Get-UserHome
+    $globalConfig = "$userHome/.config/copilot_here/mounts.conf".Replace('\', '/')
     $localConfig = ".copilot_here/mounts.conf"
     
     $globalMounts = Get-ConfigMounts $globalConfig.Replace('/', '\')
@@ -157,9 +165,10 @@ function Save-MountToConfig {
     if ($IsGlobal) {
         # Expand environment variables and tilde
         $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
+        $userHome = Get-UserHome
         # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
-        if ($expandedPath.StartsWith('~')) {
-            $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+        if ($expandedPath.StartsWith('~') -and $userHome) {
+            $expandedPath = $userHome + $expandedPath.Substring(1)
         }
         
         # Convert to absolute if relative
@@ -172,8 +181,8 @@ function Save-MountToConfig {
         # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
         
         # If in user profile, convert to tilde format
-        if ($expandedPath.StartsWith($env:USERPROFILE)) {
-            $normalizedPath = "~" + $expandedPath.Substring($env:USERPROFILE.Length)
+        if ($userHome -and $expandedPath.StartsWith($userHome)) {
+            $normalizedPath = "~" + $expandedPath.Substring($userHome.Length)
         } else {
             $normalizedPath = $expandedPath
         }
@@ -181,7 +190,7 @@ function Save-MountToConfig {
         # Normalize to forward slashes for consistency
         $normalizedPath = $normalizedPath.Replace('\', '/')
         
-        $configFile = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+        $configFile = "$userHome/.config/copilot_here/mounts.conf".Replace('\', '/')
         $configDir = Split-Path $configFile.Replace('/', '\')
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -219,7 +228,8 @@ function Save-MountToConfig {
 function Remove-MountFromConfig {
     param([string]$Path)
     
-    $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('/', '\')
+    $userHome = Get-UserHome
+    $globalConfig = "$userHome/.config/copilot_here/mounts.conf".Replace('/', '\')
     $localConfig = ".copilot_here/mounts.conf"
     $removed = $false
     
@@ -227,8 +237,8 @@ function Remove-MountFromConfig {
     $normalizedPath = $Path
     $expandedPath = [System.Environment]::ExpandEnvironmentVariables($Path)
     # Only replace ~ at the start of the path to avoid corrupting paths like RUNNER~1
-    if ($expandedPath.StartsWith('~')) {
-        $expandedPath = $env:USERPROFILE + $expandedPath.Substring(1)
+    if ($expandedPath.StartsWith('~') -and $userHome) {
+        $expandedPath = $userHome + $expandedPath.Substring(1)
     }
     
     # Convert to absolute if relative
@@ -241,8 +251,8 @@ function Remove-MountFromConfig {
     # For absolute paths, don't call GetFullPath as it can corrupt paths on Windows
     
     # If in user profile, convert to tilde format
-    if ($expandedPath.StartsWith($env:USERPROFILE)) {
-        $normalizedPath = "~" + $expandedPath.Substring($env:USERPROFILE.Length)
+    if ($userHome -and $expandedPath.StartsWith($userHome)) {
+        $normalizedPath = "~" + $expandedPath.Substring($userHome.Length)
     } else {
         $normalizedPath = $expandedPath
     }
@@ -366,7 +376,8 @@ function Save-ImageConfig {
     )
     
     if ($IsGlobal) {
-        $configFile = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+        $userHome = Get-UserHome
+        $configFile = "$userHome/.config/copilot_here/image.conf".Replace('\', '/')
         $configDir = Split-Path $configFile.Replace('/', '\')
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -392,8 +403,8 @@ function Clear-ImageConfig {
     )
     
     if ($IsGlobal) {
-        $configFile = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
-        $configFilePath = $configFile.Replace('/', '\')
+        $userHome = Get-UserHome
+        $configFile = "$userHome/.config/copilot_here/image.conf".Replace('\', '/')
         
         if (Test-Path $configFilePath) {
             Remove-Item $configFilePath -Force
@@ -416,8 +427,9 @@ function Clear-ImageConfig {
 
 # Helper function to get default image
 function Get-DefaultImage {
+    $userHome = Get-UserHome
     $localConfig = ".copilot_here/image.conf"
-    $globalConfig = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+    $globalConfig = "$userHome/.config/copilot_here/image.conf".Replace('\', '/')
     
     if (Test-Path $localConfig) {
         $image = Get-Content $localConfig -TotalCount 1
@@ -450,8 +462,9 @@ function Show-AvailableImages {
 }
 
 function Show-ImageConfig {
+    $userHome = Get-UserHome
     $localConfig = ".copilot_here/image.conf"
-    $globalConfig = "$env:USERPROFILE/.config/copilot_here/image.conf".Replace('\', '/')
+    $globalConfig = "$userHome/.config/copilot_here/image.conf".Replace('\', '/')
     $currentDefault = Get-DefaultImage
     
     Write-Host "🖼️  Image Configuration:"
@@ -504,8 +517,9 @@ function Ensure-NetworkConfig {
         [bool]$IsGlobal
     )
     
+    $userHome = Get-UserHome
     if ($IsGlobal) {
-        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configDir = "$userHome\.config\copilot_here"
         $configFile = "$configDir\network.json"
     } else {
         $configDir = ".copilot_here"
@@ -559,7 +573,7 @@ function Ensure-NetworkConfig {
     }
     
     # Load default rules if available
-    $defaultRulesFile = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
+    $defaultRulesFile = "$userHome\.config\copilot_here\default-airlock-rules.json"
     $allowedRules = $null
     
     if (Test-Path $defaultRulesFile) {
@@ -617,8 +631,9 @@ function Disable-Airlock {
         [bool]$IsGlobal
     )
     
+    $userHome = Get-UserHome
     if ($IsGlobal) {
-        $configFile = "$env:USERPROFILE\.config\copilot_here\network.json"
+        $configFile = "$userHome\.config\copilot_here\network.json"
     } else {
         $configFile = ".copilot_here\network.json"
     }
@@ -652,9 +667,10 @@ function Disable-Airlock {
 
 # Helper function to show network rules
 function Show-AirlockRules {
+    $userHome = Get-UserHome
     $localConfig = ".copilot_here\network.json"
-    $globalConfig = "$env:USERPROFILE\.config\copilot_here\network.json"
-    $defaultRules = "$env:USERPROFILE\.config\copilot_here\default-airlock-rules.json"
+    $globalConfig = "$userHome\.config\copilot_here\network.json"
+    $defaultRules = "$userHome\.config\copilot_here\default-airlock-rules.json"
     
     Write-Host "📋 Airlock Proxy Rules"
     Write-Host "======================"
@@ -700,8 +716,9 @@ function Edit-AirlockRules {
         [bool]$IsGlobal
     )
     
+    $userHome = Get-UserHome
     if ($IsGlobal) {
-        $configDir = "$env:USERPROFILE\.config\copilot_here"
+        $configDir = "$userHome\.config\copilot_here"
         $configFile = "$configDir\network.json"
     } else {
         $configDir = ".copilot_here"
@@ -812,7 +829,8 @@ function Invoke-CopilotAirlock {
     
     # Create temporary compose file
     $tempCompose = [System.IO.Path]::GetTempFileName() + ".yml"
-    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    $userHome = Get-UserHome
+    $configDir = "$userHome\.config\copilot_here"
     $templateFile = "$configDir\docker-compose.airlock.yml.template"
     
     # Download template if not exists
@@ -834,7 +852,7 @@ function Invoke-CopilotAirlock {
     }
     
     # Prepare copilot config path
-    $copilotConfig = "$env:USERPROFILE\.config\copilot-cli-docker"
+    $copilotConfig = "$userHome\.config\copilot-cli-docker"
     if (-not (Test-Path $copilotConfig)) {
         New-Item -ItemType Directory -Path $copilotConfig -Force | Out-Null
     }
@@ -842,10 +860,10 @@ function Invoke-CopilotAirlock {
     # Container work directory - use same path mapping as non-airlock mode
     # Windows paths get mapped to /home/appuser/work for consistency
     $containerWorkDir = "/home/appuser/work"
-    $userHome = $env:USERPROFILE.Replace('\', '/')
+    $userHomeUnix = $userHome.Replace('\', '/')
     $currentDirUnix = $currentDir.Replace('\', '/')
-    if ($currentDirUnix.StartsWith($userHome)) {
-        $relativePath = $currentDirUnix.Substring($userHome.Length)
+    if ($currentDirUnix.StartsWith($userHomeUnix)) {
+        $relativePath = $currentDirUnix.Substring($userHomeUnix.Length)
         $containerWorkDir = "/home/appuser$relativePath"
     }
     
@@ -923,11 +941,23 @@ function Invoke-CopilotAirlock {
         -replace '\{\{CONTAINER_WORK_DIR\}\}', $containerWorkDir `
         -replace '\{\{COPILOT_CONFIG\}\}', ($copilotConfig -replace '\\', '/') `
         -replace '\{\{NETWORK_CONFIG\}\}', ($processedConfigFile -replace '\\', '/') `
-        -replace '\{\{LOGS_MOUNT\}\}', $logsMount `
         -replace '\{\{PUID\}\}', [System.Environment]::GetEnvironmentVariable("PUID", "Process") ?? "1000" `
         -replace '\{\{PGID\}\}', [System.Environment]::GetEnvironmentVariable("PGID", "Process") ?? "1000" `
-        -replace '\{\{EXTRA_MOUNTS\}\}', $extraMounts `
         -replace '\{\{COPILOT_ARGS\}\}', $copilotCmd
+    
+    # Handle LOGS_MOUNT - replace placeholder line with content or remove if empty
+    if ($logsMount) {
+        $compose = $compose -replace '(?m)^\{\{LOGS_MOUNT\}\}$', $logsMount
+    } else {
+        $compose = $compose -replace '(?m)^\{\{LOGS_MOUNT\}\}\r?\n', ''
+    }
+    
+    # Handle EXTRA_MOUNTS - replace placeholder line with content or remove if empty
+    if ($extraMounts) {
+        $compose = $compose -replace '(?m)^\{\{EXTRA_MOUNTS\}\}$', $extraMounts
+    } else {
+        $compose = $compose -replace '(?m)^\{\{EXTRA_MOUNTS\}\}\r?\n', ''
+    }
     
     Set-Content $tempCompose $compose -Encoding UTF8
     
@@ -1047,8 +1077,7 @@ function Get-ProcessedNetworkConfig {
     
     # Write to temp file in a location Docker can access (user's config dir)
     # Fall back to system temp if config dir creation fails
-    # Use USERPROFILE on Windows, HOME on macOS/Linux
-    $userHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+    $userHome = Get-UserHome
     $tempDir = "$userHome/.config/copilot_here/tmp"
     try {
         if (-not (Test-Path $tempDir)) {
@@ -1261,7 +1290,8 @@ function Invoke-CopilotRun {
         Write-Host "⏭️  Skipping image cleanup"
     }
 
-    $copilotConfigPath = Join-Path $env:USERPROFILE ".config\copilot-cli-docker"
+    $userHome = Get-UserHome
+    $copilotConfigPath = Join-Path $userHome ".config/copilot-cli-docker"
     if (-not (Test-Path $copilotConfigPath)) {
         New-Item -Path $copilotConfigPath -ItemType Directory -Force | Out-Null
     }
@@ -1286,7 +1316,7 @@ function Invoke-CopilotRun {
     )
 
     # Load mounts from config files
-    $globalConfig = "$env:USERPROFILE/.config/copilot_here/mounts.conf".Replace('\', '/')
+    $globalConfig = "$userHome/.config/copilot_here/mounts.conf".Replace('\', '/')
     $localConfig = ".copilot_here/mounts.conf"
     
     $configMounts = @()
@@ -1409,11 +1439,9 @@ function Invoke-CopilotRun {
     }
     
     # Display Airlock status
+    $userHome = Get-UserHome
     $localNetworkConfig = ".copilot_here/network.json"
-    $globalNetworkConfig = "$env:HOME/.config/copilot_here/network.json"
-    if (-not $env:HOME) {
-        $globalNetworkConfig = "$env:USERPROFILE/.config/copilot_here/network.json"
-    }
+    $globalNetworkConfig = "$userHome/.config/copilot_here/network.json"
     $airlockEnabled = $false
     $airlockSource = ""
     $airlockMode = ""
@@ -1534,22 +1562,27 @@ function Update-CopilotScripts {
     Write-Host "📦 Updating copilot_here scripts from GitHub..."
     
     # Ensure config directory exists
-    $configDir = "$env:USERPROFILE\.config\copilot_here"
+    $userHome = Get-UserHome
+    $configDir = "$userHome\.config\copilot_here"
     if (-not (Test-Path $configDir)) {
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
     }
     
     # Get current version
     $currentVersion = ""
-    $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-    if (Test-Path $standalonePath) {
+    $userHome = Get-UserHome
+    $standalonePath = if ($userHome) { Join-Path $userHome "Documents\PowerShell\copilot_here.ps1" } else { "" }
+    if ($standalonePath -and (Test-Path $standalonePath)) {
         $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
     } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
-        $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+        $scriptContent = (Get-Command Copilot-Here).ScriptBlock.ToString()
+        if ($scriptContent -match '# Version: (.+)') {
+            $currentVersion = $matches[1]
+        }
     }
     
     # Check for standalone file
-    if (Test-Path $standalonePath) {
+    if ($standalonePath -and (Test-Path $standalonePath)) {
         # Check if it's a symlink (junction/symbolic link)
         $targetFile = $standalonePath
         $item = Get-Item $standalonePath -Force
@@ -1671,11 +1704,15 @@ function Test-CopilotUpdate {
 
     # Get current version
     $currentVersion = ""
-    $standalonePath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-    if (Test-Path $standalonePath) {
+    $userHome = Get-UserHome
+    $standalonePath = if ($userHome) { Join-Path $userHome "Documents\PowerShell\copilot_here.ps1" } else { "" }
+    if ($standalonePath -and (Test-Path $standalonePath)) {
         $currentVersion = (Get-Content $standalonePath -TotalCount 2)[1] -replace '# Version: ', ''
     } elseif (Get-Command Copilot-Here -ErrorAction SilentlyContinue) {
-        $currentVersion = (Get-Command Copilot-Here).ScriptBlock.ToString() -match '# Version: (.+)' | Out-Null; $matches[1]
+        $scriptContent = (Get-Command Copilot-Here).ScriptBlock.ToString()
+        if ($scriptContent -match '# Version: (.+)') {
+            $currentVersion = $matches[1]
+        }
     }
     
     if (-not $currentVersion) { return $false }
@@ -1839,7 +1876,7 @@ MODES:
   Copilot-Here  - Safe mode (asks for confirmation before executing)
   Copilot-Yolo  - YOLO mode (auto-approves all tool usage + all paths)
 
-VERSION: 2025-11-28.4
+VERSION: 2025-11-28.5
 REPOSITORY: https://github.com/GordonBeeming/copilot_here
 "@
 }
