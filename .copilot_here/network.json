@@ -17,7 +17,33 @@
         "/models",
         "/mcp/readonly",
         "/chat/completions",
-        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}"
+        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
+      ]
+    },
+    {
+      "host": "api.nuget.org",
+      "allowed_paths": [
+        "/v3/*",
+        "/v3-index/*",
+        "/v3-flatcontainer/*"
+      ]
+    },
+    {
+      "host": "index.crates.io",
+      "allowed_paths": [
+        "*"
+      ]
+    },
+    {
+      "host": "static.crates.io",
+      "allowed_paths": [
+        "*"
+      ]
+    },
+    {
+      "host": "crates.io",
+      "allowed_paths": [
+        "*"
       ]
     }
   ]

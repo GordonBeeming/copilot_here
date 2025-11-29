@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# If --include-all, discover all variants
+# If --include-all, discover all variants from both folders
 if $INCLUDE_ALL; then
   for variant_file in "${SCRIPT_DIR}/docker/variants/Dockerfile."*; do
     if [[ -f "$variant_file" ]]; then
@@ -44,7 +44,33 @@ if $INCLUDE_ALL; then
       INCLUDE_VARIANTS+=("$variant_name")
     fi
   done
+  for variant_file in "${SCRIPT_DIR}/docker/compound-variants/Dockerfile."*; do
+    if [[ -f "$variant_file" ]]; then
+      variant_name=$(basename "$variant_file" | sed 's/Dockerfile\.//')
+      INCLUDE_VARIANTS+=("$variant_name")
+    fi
+  done
 fi
+
+# Define compound variants that depend on other variants (not base)
+# These will be built after all regular variants
+is_compound_variant() {
+  case "$1" in
+    dotnet-playwright|dotnet-rust) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Separate variants into regular and compound
+declare -a REGULAR_VARIANTS=()
+declare -a COMPOUND_VARIANTS=()
+for variant in "${INCLUDE_VARIANTS[@]}"; do
+  if is_compound_variant "$variant"; then
+    COMPOUND_VARIANTS+=("$variant")
+  else
+    REGULAR_VARIANTS+=("$variant")
+  fi
+done
 
 echo "========================================"
 echo "   Building Docker Images Locally"
@@ -91,32 +117,46 @@ echo "   ✓ Tagged as ${REGISTRY}:latest"
 echo ""
 
 # Build variant images (only if explicitly requested)
-if [[ ${#INCLUDE_VARIANTS[@]} -gt 0 ]]; then
-  for variant_name in "${INCLUDE_VARIANTS[@]}"; do
-    variant_file="${SCRIPT_DIR}/docker/variants/Dockerfile.${variant_name}"
-    if [[ -f "$variant_file" ]]; then
-      echo "🔧 Building variant: $variant_name..."
-      # Determine build args based on variant type
-      BUILD_ARGS="--build-arg BASE_IMAGE_TAG=latest"
-      case "$variant_name" in
-        dotnet-playwright)
-          # Playwright builds on dotnet, not base
-          BUILD_ARGS="--build-arg DOTNET_IMAGE_TAG=dotnet"
-          ;;
-      esac
-      docker build $NO_CACHE \
-        $BUILD_ARGS \
-        -t "${REGISTRY}:${variant_name}" \
-        -f "$variant_file" \
-        "${SCRIPT_DIR}"
-      echo "   ✓ Tagged as ${REGISTRY}:${variant_name}"
-      echo ""
-    else
-      echo "⚠️  Variant not found: $variant_name (expected ${variant_file})"
-      echo ""
-    fi
+build_variant() {
+  local variant_name="$1"
+  local build_args="$2"
+  
+  # Check variants folder first, then compound-variants
+  local variant_file="${SCRIPT_DIR}/docker/variants/Dockerfile.${variant_name}"
+  if [[ ! -f "$variant_file" ]]; then
+    variant_file="${SCRIPT_DIR}/docker/compound-variants/Dockerfile.${variant_name}"
+  fi
+  
+  if [[ -f "$variant_file" ]]; then
+    echo "🔧 Building variant: $variant_name..."
+    docker build $NO_CACHE \
+      $build_args \
+      -t "${REGISTRY}:${variant_name}" \
+      -f "$variant_file" \
+      "${SCRIPT_DIR}"
+    echo "   ✓ Tagged as ${REGISTRY}:${variant_name}"
+    echo ""
+  else
+    echo "⚠️  Variant not found: $variant_name"
+    echo ""
+  fi
+}
+
+# Build regular variants first (depend on base)
+if [[ ${#REGULAR_VARIANTS[@]} -gt 0 ]]; then
+  for variant_name in "${REGULAR_VARIANTS[@]}"; do
+    build_variant "$variant_name" "--build-arg BASE_IMAGE_TAG=latest"
   done
-else
+fi
+
+# Build compound variants (depend on other variants like dotnet)
+if [[ ${#COMPOUND_VARIANTS[@]} -gt 0 ]]; then
+  for variant_name in "${COMPOUND_VARIANTS[@]}"; do
+    build_variant "$variant_name" "--build-arg DOTNET_IMAGE_TAG=dotnet"
+  done
+fi
+
+if [[ ${#INCLUDE_VARIANTS[@]} -eq 0 ]]; then
   echo "ℹ️  Skipping variants (use --include-<variant> to build, e.g., --include-dotnet)"
   echo ""
 fi

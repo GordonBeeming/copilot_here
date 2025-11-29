@@ -16,9 +16,15 @@ if ! id appuser >/dev/null 2>&1; then
     exec "$@"
 fi
 
-# Set up the .copilot directory with correct ownership
+# Set up directories with correct ownership
 mkdir -p /home/appuser/.copilot
+mkdir -p /home/appuser/.dotnet
+mkdir -p /home/appuser/.nuget
+mkdir -p /home/appuser/.local
 chown -R $USER_ID:$GROUP_ID /home/appuser/.copilot
+chown -R $USER_ID:$GROUP_ID /home/appuser/.dotnet
+chown -R $USER_ID:$GROUP_ID /home/appuser/.nuget
+chown -R $USER_ID:$GROUP_ID /home/appuser/.local
 
 # Switch to the new user and execute the command passed to the script.
 exec gosu appuser "$@"
