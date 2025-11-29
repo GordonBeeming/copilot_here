@@ -164,6 +164,22 @@ public class AliasTests
     await Assert.That(normalized).IsEqualTo(expected);
   }
 
+  // ===== COPILOT PASSTHROUGH ALIASES =====
+
+  [Test]
+  [Arguments("-Prompt", "--prompt")]
+  [Arguments("-Model", "--model")]
+  [Arguments("-Continue", "--continue")]
+  [Arguments("-Resume", "--resume")]
+  public async Task CopilotPassthroughAlias_NormalizesToCanonicalForm(string alias, string expected)
+  {
+    // Arrange & Act
+    var normalized = NormalizeArg(alias);
+
+    // Assert
+    await Assert.That(normalized).IsEqualTo(expected);
+  }
+
   // ===== CANONICAL FORMS PASS THROUGH =====
 
   [Test]
@@ -200,6 +216,11 @@ public class AliasTests
   [Arguments("--edit-airlock-rules")]
   [Arguments("--edit-global-airlock-rules")]
   [Arguments("--yolo")]
+  // Copilot passthrough canonical forms
+  [Arguments("--prompt")]
+  [Arguments("--model")]
+  [Arguments("--continue")]
+  [Arguments("--resume")]
   public async Task CanonicalForm_PassesThroughUnchanged(string arg)
   {
     // Arrange & Act
@@ -349,6 +370,12 @@ public class AliasTests
     { "-EditAirlockRules", "--edit-airlock-rules" },
     { "-EditGlobalAirlockRules", "--edit-global-airlock-rules" },
     { "-Yolo", "--yolo" },
+
+    // Copilot passthrough options (PowerShell-style aliases)
+    { "-Prompt", "--prompt" },
+    { "-Model", "--model" },
+    { "-Continue", "--continue" },
+    { "-Resume", "--resume" },
   };
 
   private static string NormalizeArg(string arg)

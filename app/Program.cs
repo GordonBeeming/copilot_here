@@ -62,6 +62,12 @@ class Program
     { "-EditAirlockRules", "--edit-airlock-rules" },
     { "-EditGlobalAirlockRules", "--edit-global-airlock-rules" },
     { "-Yolo", "--yolo" },
+
+    // Copilot passthrough options (PowerShell-style aliases)
+    { "-Prompt", "--prompt" },
+    { "-Model", "--model" },
+    { "-Continue", "--continue" },
+    { "-Resume", "--resume" },
   };
 
   static async Task<int> Main(string[] args)

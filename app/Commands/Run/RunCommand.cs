@@ -37,6 +37,16 @@ public sealed class RunCommand : ICommand
   // === SELF-UPDATE OPTIONS ===
   private readonly Option<bool> _updateScriptsOption;
 
+  // === COPILOT PASSTHROUGH OPTIONS ===
+  // These are passed directly to the Copilot CLI inside the container
+  private readonly Option<string?> _promptOption;
+  private readonly Option<string?> _modelOption;
+  private readonly Option<bool> _continueOption;
+  private readonly Option<string?> _resumeOption;
+
+  // For any additional args after -- separator
+  private readonly Argument<string[]> _passthroughArgs;
+
   public RunCommand(bool isYolo = false)
   {
     _isYolo = isYolo;
@@ -75,6 +85,20 @@ public sealed class RunCommand : ICommand
     _help2Option = new Option<bool>("--help2") { Description = "Show GitHub Copilot CLI native help" };
 
     _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update from GitHub repository" };
+
+    // Copilot passthrough options
+    _promptOption = new Option<string?>("--prompt") { Description = "Execute a prompt directly" };
+    _promptOption.Aliases.Add("-p");
+    _modelOption = new Option<string?>("--model") { Description = "Set AI model (claude-sonnet-4.5, gpt-5, etc.)" };
+    _continueOption = new Option<bool>("--continue") { Description = "Resume most recent session" };
+    _resumeOption = new Option<string?>("--resume") { Description = "Resume from a previous session [sessionId]", Arity = ArgumentArity.ZeroOrOne };
+
+    // Passthrough args after -- separator
+    _passthroughArgs = new Argument<string[]>("copilot-args")
+    {
+      Description = "Additional arguments passed to GitHub Copilot CLI",
+      Arity = ArgumentArity.ZeroOrMore
+    };
   }
 
   public void Configure(RootCommand root)
@@ -94,6 +118,13 @@ public sealed class RunCommand : ICommand
     root.Add(_help2Option);
     root.Add(_updateScriptsOption);
 
+    // Copilot passthrough options
+    root.Add(_promptOption);
+    root.Add(_modelOption);
+    root.Add(_continueOption);
+    root.Add(_resumeOption);
+    root.Add(_passthroughArgs);
+
     root.SetAction(parseResult =>
     {
       var ctx = Infrastructure.AppContext.Create();
@@ -112,6 +143,13 @@ public sealed class RunCommand : ICommand
       var noPull = parseResult.GetValue(_noPullOption);
       var help2 = parseResult.GetValue(_help2Option);
       var updateScripts = parseResult.GetValue(_updateScriptsOption);
+
+      // Copilot passthrough options
+      var prompt = parseResult.GetValue(_promptOption);
+      var model = parseResult.GetValue(_modelOption);
+      var continueSession = parseResult.GetValue(_continueOption);
+      var resumeSession = parseResult.GetValue(_resumeOption);
+      var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
 
       // Handle --help2 (native copilot help)
       if (help2)
@@ -163,6 +201,35 @@ public sealed class RunCommand : ICommand
       Console.WriteLine($"  Airlock: {(ctx.AirlockConfig.Enabled ? "enabled" : "disabled")} (from {ctx.AirlockConfig.EnabledSource})");
       Console.WriteLine($"  Skip cleanup: {noCleanup}");
       Console.WriteLine($"  Skip pull: {noPull}");
+
+      // Build copilot args list
+      var copilotArgs = new List<string>();
+      if (!string.IsNullOrEmpty(prompt))
+      {
+        copilotArgs.Add("--prompt");
+        copilotArgs.Add(prompt);
+      }
+      if (!string.IsNullOrEmpty(model))
+      {
+        copilotArgs.Add("--model");
+        copilotArgs.Add(model);
+      }
+      if (continueSession)
+      {
+        copilotArgs.Add("--continue");
+      }
+      if (resumeSession != null)
+      {
+        copilotArgs.Add("--resume");
+        if (!string.IsNullOrEmpty(resumeSession))
+          copilotArgs.Add(resumeSession);
+      }
+      copilotArgs.AddRange(passthroughArgs);
+
+      if (copilotArgs.Count > 0)
+      {
+        Console.WriteLine($"  Copilot args: {string.Join(" ", copilotArgs)}");
+      }
 
       return 0;
     });
