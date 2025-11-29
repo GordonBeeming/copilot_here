@@ -24,18 +24,18 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `--dotnet` / `-d` | ✅ Done | |
-| `--dotnet8` / `-d8` | ⬜ TODO | |
-| `--dotnet9` / `-d9` | ⬜ TODO | |
-| `--dotnet10` / `-d10` | ⬜ TODO | |
-| `--playwright` / `-pw` | ⬜ TODO | |
-| `--dotnet-playwright` / `-dp` | ⬜ TODO | |
-| `--list-images` | ⬜ TODO | |
-| `--show-image` | ⬜ TODO | |
-| `--set-image <tag>` | ⬜ TODO | Local config |
-| `--set-image-global <tag>` | ⬜ TODO | Global config |
-| `--clear-image` | ⬜ TODO | |
-| `--clear-image-global` | ⬜ TODO | |
-| Default image from config | ⬜ TODO | Priority: local > global > latest |
+| `--dotnet8` / `-d8` | ✅ Done | |
+| `--dotnet9` / `-d9` | ✅ Done | |
+| `--dotnet10` / `-d10` | ✅ Done | |
+| `--playwright` / `-pw` | ✅ Done | |
+| `--dotnet-playwright` / `-dp` | ✅ Done | |
+| `--list-images` | ✅ Done | Lists all available tags |
+| `--show-image` | ✅ Done | Shows active/local/global config |
+| `--set-image <tag>` | ✅ Done | Local config |
+| `--set-image-global <tag>` | ✅ Done | Global config |
+| `--clear-image` | ✅ Done | |
+| `--clear-image-global` | ✅ Done | |
+| Default image from config | ✅ Done | Priority: local > global > latest |
 | Image cleanup (7+ days old) | ⬜ TODO | |
 | Image pull with spinner | ⬜ TODO | |
 
@@ -45,29 +45,29 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 |---------|--------|-------|
 | `--mount <path>` (read-only) | ✅ Done | |
 | `--mount-rw <path>` (read-write) | ✅ Done | |
-| `--list-mounts` | ⬜ TODO | |
-| `--save-mount <path>` | ⬜ TODO | Local config |
-| `--save-mount-global <path>` | ⬜ TODO | Global config |
-| `--remove-mount <path>` | ⬜ TODO | |
-| Load mounts from local config | ⬜ TODO | `.copilot_here/mounts.conf` |
-| Load mounts from global config | ⬜ TODO | `~/.config/copilot_here/mounts.conf` |
+| `--list-mounts` | ✅ Done | Shows global/local mounts |
+| `--save-mount <path>` | ✅ Done | Local config |
+| `--save-mount-global <path>` | ✅ Done | Global config |
+| `--remove-mount <path>` | ✅ Done | Removes from both configs |
+| Load mounts from local config | ✅ Done | `.copilot_here/mounts.conf` |
+| Load mounts from global config | ✅ Done | `~/.config/copilot_here/mounts.conf` |
 | Symlink following for configs | ⬜ TODO | |
-| Path normalization (tilde, relative) | ⬜ Partial | Basic tilde expansion |
+| Path normalization (tilde, relative) | ✅ Done | Tilde expansion, relative paths |
 | Sensitive path warnings | ⬜ TODO | `/etc`, `~/.ssh`, etc. |
-| Mount priority (CLI > local > global) | ⬜ TODO | |
+| Mount priority (CLI > local > global) | ⬜ TODO | Runtime merge logic |
 | Mount display with icons | ⬜ TODO | 📁, 🌍, 📍, 🔧 |
 
 ### Airlock (Network Proxy)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `--enable-airlock` | ⬜ TODO | Local config |
-| `--enable-global-airlock` | ⬜ TODO | Global config |
-| `--disable-airlock` | ⬜ TODO | |
-| `--disable-global-airlock` | ⬜ TODO | |
-| `--show-airlock-rules` | ⬜ TODO | |
-| `--edit-airlock-rules` | ⬜ TODO | |
-| `--edit-global-airlock-rules` | ⬜ TODO | |
+| `--enable-airlock` | ✅ Done | Local config |
+| `--enable-global-airlock` | ✅ Done | Global config |
+| `--disable-airlock` | ✅ Done | |
+| `--disable-global-airlock` | ✅ Done | |
+| `--show-airlock-rules` | ✅ Done | Shows enabled status and rules content |
+| `--edit-airlock-rules` | ✅ Done | Opens in $EDITOR |
+| `--edit-global-airlock-rules` | ✅ Done | Opens in $EDITOR |
 | Docker Compose generation | ⬜ Partial | `AirlockComposer.cs` exists |
 | Proxy container management | ⬜ TODO | |
 | Network config placeholder replacement | ⬜ TODO | `{{GITHUB_OWNER}}`, `{{GITHUB_REPO}}` |
@@ -87,8 +87,8 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `-h` / `--help` | ⬜ TODO | |
-| `--help2` | ⬜ TODO | Show native copilot help |
+| `-h` / `--help` | ✅ Done | System.CommandLine auto-generated |
+| `--help2` | ✅ Done | Alias registered |
 | `--no-cleanup` | ✅ Done | |
 | `--no-pull` / `--skip-pull` | ✅ Done | |
 | `--update-scripts` / `--upgrade-scripts` | ⬜ TODO | Self-update mechanism |

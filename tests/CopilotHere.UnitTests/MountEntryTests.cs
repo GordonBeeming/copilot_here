@@ -1,4 +1,5 @@
 using CopilotHere.Commands.Mounts;
+using TUnit.Core;
 
 namespace CopilotHere.Tests;
 
