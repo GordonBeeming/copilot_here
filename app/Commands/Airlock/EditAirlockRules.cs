@@ -9,7 +9,6 @@ public sealed partial class AirlockCommands
   private static Command SetEditAirlockRulesCommand()
   {
     var command = new Command("--edit-airlock-rules", "Edit local Airlock rules in $EDITOR");
-    command.Aliases.Add("-EditAirlockRules");
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();

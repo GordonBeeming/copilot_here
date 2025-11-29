@@ -8,7 +8,6 @@ public sealed partial class MountCommands
   private static Command SetSaveMountGlobalCommand()
   {
     var command = new Command("--save-mount-global", "Save mount to global config (~/.config/copilot_here/mounts.conf)");
-    command.Aliases.Add("-SaveMountGlobal");
 
     var pathArg = new Argument<string>("path") { Description = "Path to mount" };
     command.Add(pathArg);

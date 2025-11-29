@@ -8,7 +8,6 @@ public sealed partial class ImageCommands
   private static Command SetClearImageGlobalCommand()
   {
     var command = new Command("--clear-image-global", "Clear default image from global config");
-    command.Aliases.Add("-ClearImageGlobal");
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();

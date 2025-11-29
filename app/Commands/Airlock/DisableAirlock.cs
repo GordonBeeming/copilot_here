@@ -8,7 +8,6 @@ public sealed partial class AirlockCommands
   private static Command SetDisableAirlockCommand()
   {
     var command = new Command("--disable-airlock", "Disable Airlock for local config");
-    command.Aliases.Add("-DisableAirlock");
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();

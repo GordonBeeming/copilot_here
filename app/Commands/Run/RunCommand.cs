@@ -11,6 +11,8 @@ namespace CopilotHere.Commands.Run;
 /// </summary>
 public sealed class RunCommand : ICommand
 {
+  private readonly bool _isYolo;
+
   // === IMAGE SELECTION OPTIONS ===
   private readonly Option<bool> _dotnetOption;
   private readonly Option<bool> _dotnet8Option;
@@ -18,6 +20,8 @@ public sealed class RunCommand : ICommand
   private readonly Option<bool> _dotnet10Option;
   private readonly Option<bool> _playwrightOption;
   private readonly Option<bool> _dotnetPlaywrightOption;
+  private readonly Option<bool> _rustOption;
+  private readonly Option<bool> _dotnetRustOption;
 
   // === MOUNT OPTIONS ===
   private readonly Option<string[]> _mountOption;
@@ -33,53 +37,44 @@ public sealed class RunCommand : ICommand
   // === SELF-UPDATE OPTIONS ===
   private readonly Option<bool> _updateScriptsOption;
 
-  public RunCommand()
+  public RunCommand(bool isYolo = false)
   {
-    _dotnetOption = new Option<bool>("--dotnet") { Description = "Use .NET image variant (all versions)" };
-    _dotnetOption.Aliases.Add("-d");
-    _dotnetOption.Aliases.Add("-Dotnet");
+    _isYolo = isYolo;
 
-    _dotnet8Option = new Option<bool>("--dotnet8") { Description = "Use .NET 8 image variant" };
-    _dotnet8Option.Aliases.Add("-d8");
-    _dotnet8Option.Aliases.Add("-Dotnet8");
+    // Note on aliases:
+    // - Primary aliases use standard Unix conventions (--long)
+    // - Short aliases like -d, -d8, -d9 are handled in Program.NormalizeArgs
+    // - PowerShell-style aliases are also handled in Program.NormalizeArgs for backwards compatibility
+    // - Descriptions show available short aliases in brackets
 
-    _dotnet9Option = new Option<bool>("--dotnet9") { Description = "Use .NET 9 image variant" };
-    _dotnet9Option.Aliases.Add("-d9");
-    _dotnet9Option.Aliases.Add("-Dotnet9");
+    _dotnetOption = new Option<bool>("--dotnet") { Description = "[-d] Use .NET image variant (all versions)" };
 
-    _dotnet10Option = new Option<bool>("--dotnet10") { Description = "Use .NET 10 image variant" };
-    _dotnet10Option.Aliases.Add("-d10");
-    _dotnet10Option.Aliases.Add("-Dotnet10");
+    _dotnet8Option = new Option<bool>("--dotnet8") { Description = "[-d8] Use .NET 8 image variant" };
 
-    _playwrightOption = new Option<bool>("--playwright") { Description = "Use Playwright image variant" };
-    _playwrightOption.Aliases.Add("-pw");
-    _playwrightOption.Aliases.Add("-Playwright");
+    _dotnet9Option = new Option<bool>("--dotnet9") { Description = "[-d9] Use .NET 9 image variant" };
 
-    _dotnetPlaywrightOption = new Option<bool>("--dotnet-playwright") { Description = "Use .NET + Playwright image variant" };
-    _dotnetPlaywrightOption.Aliases.Add("-dp");
-    _dotnetPlaywrightOption.Aliases.Add("-DotnetPlaywright");
+    _dotnet10Option = new Option<bool>("--dotnet10") { Description = "[-d10] Use .NET 10 image variant" };
+
+    _playwrightOption = new Option<bool>("--playwright") { Description = "[-pw] Use Playwright image variant" };
+
+    _dotnetPlaywrightOption = new Option<bool>("--dotnet-playwright") { Description = "[-dp] Use .NET + Playwright image variant" };
+
+    _rustOption = new Option<bool>("--rust") { Description = "[-rs] Use Rust image variant" };
+
+    _dotnetRustOption = new Option<bool>("--dotnet-rust") { Description = "[-dr] Use .NET + Rust image variant" };
 
     _mountOption = new Option<string[]>("--mount") { Description = "Mount additional directory (read-only)" };
-    _mountOption.Aliases.Add("-Mount");
 
     _mountRwOption = new Option<string[]>("--mount-rw") { Description = "Mount additional directory (read-write)" };
-    _mountRwOption.Aliases.Add("-MountRW");
 
     _noCleanupOption = new Option<bool>("--no-cleanup") { Description = "Skip cleanup of unused Docker images" };
-    _noCleanupOption.Aliases.Add("-NoCleanup");
 
     _noPullOption = new Option<bool>("--no-pull") { Description = "Skip pulling the latest image" };
     _noPullOption.Aliases.Add("--skip-pull");
-    _noPullOption.Aliases.Add("-NoPull");
-    _noPullOption.Aliases.Add("-SkipPull");
 
     _help2Option = new Option<bool>("--help2") { Description = "Show GitHub Copilot CLI native help" };
-    _help2Option.Aliases.Add("-Help2");
 
-    _updateScriptsOption = new Option<bool>("--update-scripts") { Description = "Update from GitHub repository" };
-    _updateScriptsOption.Aliases.Add("--upgrade-scripts");
-    _updateScriptsOption.Aliases.Add("-UpdateScripts");
-    _updateScriptsOption.Aliases.Add("-UpgradeScripts");
+    _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update from GitHub repository" };
   }
 
   public void Configure(RootCommand root)
@@ -90,6 +85,8 @@ public sealed class RunCommand : ICommand
     root.Add(_dotnet10Option);
     root.Add(_playwrightOption);
     root.Add(_dotnetPlaywrightOption);
+    root.Add(_rustOption);
+    root.Add(_dotnetRustOption);
     root.Add(_mountOption);
     root.Add(_mountRwOption);
     root.Add(_noCleanupOption);
@@ -107,6 +104,8 @@ public sealed class RunCommand : ICommand
       var dotnet10 = parseResult.GetValue(_dotnet10Option);
       var playwright = parseResult.GetValue(_playwrightOption);
       var dotnetPlaywright = parseResult.GetValue(_dotnetPlaywrightOption);
+      var rust = parseResult.GetValue(_rustOption);
+      var dotnetRust = parseResult.GetValue(_dotnetRustOption);
       var cliMountsRo = parseResult.GetValue(_mountOption) ?? [];
       var cliMountsRw = parseResult.GetValue(_mountRwOption) ?? [];
       var noCleanup = parseResult.GetValue(_noCleanupOption);
@@ -138,6 +137,8 @@ public sealed class RunCommand : ICommand
       else if (dotnet10) { imageTag = "dotnet-10"; imageSource = ImageConfigSource.CommandLine; }
       else if (playwright) { imageTag = "playwright"; imageSource = ImageConfigSource.CommandLine; }
       else if (dotnetPlaywright) { imageTag = "dotnet-playwright"; imageSource = ImageConfigSource.CommandLine; }
+      else if (rust) { imageTag = "rust"; imageSource = ImageConfigSource.CommandLine; }
+      else if (dotnetRust) { imageTag = "dotnet-rust"; imageSource = ImageConfigSource.CommandLine; }
 
       // Collect all mounts: config mounts + CLI mounts
       var allMounts = new List<MountEntry>();

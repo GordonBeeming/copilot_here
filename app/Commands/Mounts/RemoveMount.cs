@@ -8,7 +8,6 @@ public sealed partial class MountCommands
   private static Command SetRemoveMountCommand()
   {
     var command = new Command("--remove-mount", "Remove mount from configs");
-    command.Aliases.Add("-RemoveMount");
 
     var pathArg = new Argument<string>("path") { Description = "Path to remove" };
     command.Add(pathArg);

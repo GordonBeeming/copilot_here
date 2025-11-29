@@ -8,7 +8,6 @@ public sealed partial class MountCommands
   private static Command SetSaveMountCommand()
   {
     var command = new Command("--save-mount", "Save mount to local config (.copilot_here/mounts.conf)");
-    command.Aliases.Add("-SaveMount");
 
     var pathArg = new Argument<string>("path") { Description = "Path to mount" };
     command.Add(pathArg);

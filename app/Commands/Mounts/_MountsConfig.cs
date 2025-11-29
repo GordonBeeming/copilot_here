@@ -77,14 +77,21 @@ public sealed record MountsConfig
       var existingPath = existing.TrimEnd(":ro".ToCharArray()).TrimEnd(":rw".ToCharArray());
       if (existingPath.Equals(path, StringComparison.OrdinalIgnoreCase))
       {
-        Console.WriteLine($"⚠️  Mount already exists: {path}");
+        Console.WriteLine($"⚠️  Mount already exists in config: {path}");
         return;
       }
     }
 
     var suffix = isReadWrite ? ":rw" : "";
     ConfigFile.AppendLine(configPath, $"{path}{suffix}");
-    Console.WriteLine($"✅ Saved mount: {path}{suffix}");
+
+    var isGlobal = configPath.Contains(".config/copilot_here") || configPath.Contains(".config\\copilot_here");
+    if (isGlobal)
+      Console.WriteLine($"✅ Saved to global config: {path}{suffix}");
+    else
+      Console.WriteLine($"✅ Saved to local config: {path}{suffix}");
+
+    Console.WriteLine($"   Config file: {configPath}");
   }
 
   /// <summary>Removes a mount from all configs.</summary>

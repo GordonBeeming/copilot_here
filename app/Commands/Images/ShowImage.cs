@@ -8,23 +8,26 @@ public sealed partial class ImageCommands
   private static Command SetShowImageCommand()
   {
     var command = new Command("--show-image", "Show current default image configuration");
-    command.Aliases.Add("-ShowImage");
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();
       var config = ImageConfig.Load(paths);
 
-      Console.WriteLine("Image configuration:");
+      Console.WriteLine("🖼️  Image Configuration:");
       Console.WriteLine();
-      Console.WriteLine($"  Active: {config.Tag} (from {config.Source})");
 
       if (config.LocalTag is not null)
-        Console.WriteLine($"  Local:  {config.LocalTag}");
+        Console.WriteLine($"  📍 Local config (.copilot_here/image.conf): {config.LocalTag}");
+      else
+        Console.WriteLine("  📍 Local config: (not set)");
 
       if (config.GlobalTag is not null)
-        Console.WriteLine($"  Global: {config.GlobalTag}");
+        Console.WriteLine($"  🌍 Global config (~/.config/copilot_here/image.conf): {config.GlobalTag}");
+      else
+        Console.WriteLine("  🌍 Global config: (not set)");
 
-      Console.WriteLine($"  Default: latest");
+      Console.WriteLine();
+      Console.WriteLine("  🏭 Application default: latest");
       return 0;
     });
     return command;

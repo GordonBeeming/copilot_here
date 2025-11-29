@@ -8,7 +8,6 @@ public sealed partial class ImageCommands
   private static Command SetSetImageGlobalCommand()
   {
     var command = new Command("--set-image-global", "Set default image in global config");
-    command.Aliases.Add("-SetImageGlobal");
 
     var tagArg = new Argument<string>("tag") { Description = "Image tag to set" };
     command.Add(tagArg);
