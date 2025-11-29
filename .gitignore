@@ -4,3 +4,30 @@ StartupProfileData-NonInteractive
 
 # Rust build artifacts
 proxy/target/
+
+# --- .NET & Build Artifacts ---
+bin/
+obj/
+
+# --- IDE & Editor Settings ---
+.vs/
+.vscode/
+*.user
+*.suo
+*.diff
+*.patch
+
+# --- Native AOT & Publish Outputs ---
+output/
+publish/
+release/
+artifacts/
+
+# --- OS System Files ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Temporary files or test artifacts
+*.log
+*.tmp
