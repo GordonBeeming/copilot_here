@@ -48,16 +48,51 @@ jobs:
       - name: Test
         run: dotnet test --no-build --verbosity normal
 
-  # Note: Only runs on ubuntu-latest as Docker images are Linux-based
-  # (macOS runners don't have Docker, Windows Docker can't run Linux containers)
+  # CLI integration tests on all platforms
+  test-cli-integration:
+    name: Integration Tests (${{ matrix.os }})
+    needs: [test-cli]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Make test script executable (Unix)
+        if: runner.os != 'Windows'
+        run: chmod +x tests/integration/test_cli.sh
+
+      - name: Run CLI integration tests (Unix)
+        if: runner.os != 'Windows'
+        run: ./tests/integration/test_cli.sh
+
+      - name: Run CLI integration tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/integration/test_cli.ps1
+
+  # Airlock tests - Linux only (Docker with Linux containers required)
   test-airlock:
     name: Test Airlock
-    needs: [test-cli]
+    needs: [test-cli-integration]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
 
       - name: Build images locally
         run: |
@@ -352,7 +387,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-airlock]
+    needs: [test-airlock, test-cli-integration]
     runs-on: ${{ matrix.os }}
     if: github.ref == 'refs/heads/main'
     strategy:
