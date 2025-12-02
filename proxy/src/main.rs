@@ -127,9 +127,19 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
         None => (false, "Host Not Allowed".to_string()),
         Some(rule) => {
             if rule.allowed_paths.is_empty() {
-                return (true, "Host Match".to_string());
+                // Empty allowed_paths means no paths are allowed - require explicit "*" for all paths
+                return (false, "No Paths Configured".to_string());
             }
-            let path_match = rule.allowed_paths.iter().any(|p| path.starts_with(p));
+            let path_match = rule.allowed_paths.iter().any(|p| {
+                if p == "*" {
+                    // Explicit wildcard for all paths
+                    true
+                } else if let Some(prefix) = p.strip_suffix('*') {
+                    path.starts_with(prefix)
+                } else {
+                    path == p
+                }
+            });
             if path_match {
                 (true, "Path Match".to_string())
             } else {

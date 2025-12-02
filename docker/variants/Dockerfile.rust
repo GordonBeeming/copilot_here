@@ -1,0 +1,30 @@
+# Build on top of the base copilot_here image
+# ARG will be provided by the build process with the commit hash
+ARG BASE_IMAGE_TAG=latest
+FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
+
+# Switch to root to install packages
+USER root
+
+# Install Rust using rustup
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  pkg-config \
+  libssl-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain to system-wide location
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+
+# Make cargo registry writable by all users (for downloading crates)
+RUN chmod -R a+rwX /usr/local/cargo
+
+# Verify installation
+RUN rustc --version && cargo --version
+
+# The entrypoint and CMD remain the same as the base image
+# They are inherited automatically

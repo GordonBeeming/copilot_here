@@ -1,118 +1,62 @@
-# Integration Tests
+# Tests
 
-This directory contains integration tests for the copilot_here shell scripts.
+This directory contains tests for the copilot_here project.
 
-## Test Files
+## Structure
 
-- **test_bash.sh** - Tests for Bash shell compatibility
-- **test_zsh.sh** - Tests for Zsh shell compatibility  
-- **test_powershell.ps1** - Tests for PowerShell compatibility
-- **test_docker_commands.sh** - Tests Docker command generation (uses mocking)
+```
+tests/
+├── CopilotHere.UnitTests/    # .NET unit tests for the CLI app
+├── integration/               # Docker/Airlock integration tests
+│   └── test_airlock.sh       # Tests Airlock proxy functionality
+└── README.md                  # This file
+```
 
-## Running Tests Locally
+## Unit Tests
 
-### Run All Tests
+The CLI application is tested using TUnit (a modern .NET testing framework).
+
+### Running Unit Tests
+
 ```bash
-./tests/run_all_tests.sh
+dotnet test
 ```
 
-### Run Individual Test Suites
+Tests run on all platforms (Linux, macOS, Windows) as part of CI.
 
-**Bash:**
+### What Gets Tested
+
+- **Argument parsing** - All CLI arguments and aliases
+- **Configuration loading** - Global/local config file handling
+- **Command registration** - All commands properly registered
+- **Hidden aliases** - PowerShell compatibility aliases work but aren't advertised
+
+## Integration Tests
+
+### Airlock Tests
+
+Tests the Docker Airlock proxy functionality:
+
 ```bash
-bash tests/integration/test_bash.sh
+# Run with local images (after dev-build.sh)
+./tests/integration/test_airlock.sh --use-local
+
+# Run with registry images
+./tests/integration/test_airlock.sh
 ```
 
-**Zsh:**
-```bash
-zsh tests/integration/test_zsh.sh
-```
-
-**PowerShell:**
-```powershell
-pwsh tests/integration/test_powershell.ps1
-```
-
-**Docker Commands:**
-```bash
-bash tests/integration/test_docker_commands.sh
-```
-
-## What Gets Tested
-
-Each test suite validates:
-
-1. **Function Definitions** - Ensures all functions are properly defined
-2. **Help Output** - Verifies help text is displayed correctly
-3. **Version Information** - Checks version info is present
-4. **Config File Parsing** - Tests mount configuration file loading
-5. **Comment Handling** - Ensures comments and empty lines are ignored
-6. **Path Resolution** - Tests tilde/home directory expansion
-7. **Absolute Paths** - Verifies absolute paths remain unchanged
-8. **Documentation** - Checks that options are properly documented
-
-### Docker Command Tests
-
-The Docker command tests validate:
-
-1. **Image Variants** - Correct tags for base, dotnet, and playwright images
-2. **Short Flags** - `-d` and `-dp` shortcuts work correctly
-3. **Docker Flags** - `--rm` and `-it` flags are present
-4. **Volume Mounts** - Working directory and additional mounts
-5. **Environment Variables** - User context and config variables
-6. **Mount Modes** - Read-only vs read-write mounts
-
-These tests use function mocking to capture Docker commands without actually running containers, making them fast and reliable.
+Tests validate:
+- Proxy health and startup
+- Allowed hosts/paths work through proxy
+- Blocked hosts/paths are rejected
+- CA certificate is properly shared
+- Direct internet access is blocked (airlock isolation)
 
 ## CI/CD Integration
 
 Tests run automatically on:
 - Push to main branch
-- Pull requests
+- Pull requests to main
 - Manual workflow dispatch
 
-The workflow tests on:
-- **Linux** (Ubuntu) with Bash and Zsh
-- **macOS** with Bash and Zsh  
-- **Windows** with PowerShell
-
-See `.github/workflows/test.yml` for the full CI configuration.
-
-## Adding New Tests
-
-When adding a new test:
-
-1. Add the test to all three test files (bash, zsh, powershell)
-2. Use the test helper functions (`test_start`, `test_pass`, `test_fail`)
-3. Increment the test count properly
-4. Update this README if testing new functionality
-
-## Test Output
-
-Successful test run:
-```
-✓ PASS: Test description
-```
-
-Failed test run:
-```
-✗ FAIL: Test description
-```
-
-Summary at the end shows:
-- Total tests run
-- Number passed (green)
-- Number failed (red)
-- Exit code 1 if any failures
-
-## Docker Command Testing
-
-For information on testing Docker command generation without running containers, see:
-- [Docker Command Testing Strategy](../docs/testing-docker-commands.md)
-
-Currently, the integration tests focus on shell function behavior. Docker command generation testing requires either:
-1. A `--test-mode` flag to skip auth checks
-2. Refactoring to separate command building from execution
-3. Using snapshot/assertion testing on dry-run output
-
-See the testing strategy document for detailed approaches and recommendations.
+See `.github/workflows/publish.yml` for the full CI configuration.
