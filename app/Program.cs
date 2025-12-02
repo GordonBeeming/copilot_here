@@ -77,7 +77,6 @@ class Program
     var appName = isYolo ? "copilot_yolo" : GetAppName();
 
     // Preprocess args to normalize aliases (short multi-char and PowerShell-style)
-    // This also strips out --yolo since it only affects the app name
     args = NormalizeArgs(args);
 
     var rootCommand = new RootCommand($"{appName} - GitHub Copilot CLI in a secure Docker container");

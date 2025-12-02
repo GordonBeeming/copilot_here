@@ -264,10 +264,12 @@ public class AliasTests
     await Assert.That(isYolo).IsEqualTo(expected);
   }
 
-  // ===== YOLO FLAG STRIPPING =====
+  // ===== YOLO FLAG NORMALIZATION =====
+  // Note: --yolo is NOT stripped from args, it's kept so it appears in help.
+  // The yolo mode is detected separately before normalization.
 
   [Test]
-  public async Task NormalizeArgs_StripsYoloFlag()
+  public async Task NormalizeArgs_KeepsYoloFlag()
   {
     // Arrange
     var args = new[] { "--dotnet", "--yolo", "--no-pull" };
@@ -275,15 +277,15 @@ public class AliasTests
     // Act
     var normalized = NormalizeArgs(args);
 
-    // Assert
-    await Assert.That(normalized).HasCount().EqualTo(2);
+    // Assert - yolo is kept, not stripped
+    await Assert.That(normalized).HasCount().EqualTo(3);
     await Assert.That(normalized).Contains("--dotnet");
     await Assert.That(normalized).Contains("--no-pull");
-    await Assert.That(normalized).DoesNotContain("--yolo");
+    await Assert.That(normalized).Contains("--yolo");
   }
 
   [Test]
-  public async Task NormalizeArgs_StripsPowerShellYoloFlag()
+  public async Task NormalizeArgs_NormalizesPowerShellYoloFlag()
   {
     // Arrange
     var args = new[] { "-Dotnet", "-Yolo", "-NoPull" };
@@ -291,11 +293,11 @@ public class AliasTests
     // Act
     var normalized = NormalizeArgs(args);
 
-    // Assert
-    await Assert.That(normalized).HasCount().EqualTo(2);
+    // Assert - -Yolo is normalized to --yolo, not stripped
+    await Assert.That(normalized).HasCount().EqualTo(3);
     await Assert.That(normalized).Contains("--dotnet");
     await Assert.That(normalized).Contains("--no-pull");
-    await Assert.That(normalized).DoesNotContain("--yolo");
+    await Assert.That(normalized).Contains("--yolo");
     await Assert.That(normalized).DoesNotContain("-Yolo");
   }
 
@@ -392,16 +394,11 @@ public class AliasTests
 
   private static string[] NormalizeArgs(string[] args)
   {
+    // This mirrors the actual implementation in Program.cs
+    // --yolo is NOT stripped, just normalized like other aliases
     var normalized = new List<string>(args.Length);
     foreach (var arg in args)
     {
-      // Skip --yolo flag (already processed for app name)
-      if (arg.Equals("--yolo", StringComparison.OrdinalIgnoreCase) ||
-          arg.Equals("-Yolo", StringComparison.OrdinalIgnoreCase))
-      {
-        continue;
-      }
-
       normalized.Add(AliasMap.TryGetValue(arg, out var mapped) ? mapped : arg);
     }
     return [.. normalized];
