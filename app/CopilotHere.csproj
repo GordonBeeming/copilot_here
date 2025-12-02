@@ -37,4 +37,8 @@
     <InternalsVisibleTo Include="CopilotHere.UnitTests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\docker-compose.airlock.yml.template" />
+  </ItemGroup>
+
 </Project>

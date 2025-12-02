@@ -134,10 +134,6 @@ if [ -f "${SCRIPT_DIR}/default-airlock-rules.json" ]; then
   cp "${SCRIPT_DIR}/default-airlock-rules.json" "$CONFIG_DIR/"
   echo "   ✓ Copied default-airlock-rules.json"
 fi
-if [ -f "${SCRIPT_DIR}/docker-compose.airlock.yml.template" ]; then
-  cp "${SCRIPT_DIR}/docker-compose.airlock.yml.template" "$CONFIG_DIR/"
-  echo "   ✓ Copied docker-compose.airlock.yml.template"
-fi
 echo ""
 
 # Build proxy image

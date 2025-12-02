@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using CopilotHere.Commands.Mounts;
@@ -10,8 +11,29 @@ namespace CopilotHere.Infrastructure;
 /// </summary>
 public static class AirlockRunner
 {
-  private const string TemplateUrl = "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/docker-compose.airlock.yml.template";
   private const string ImagePrefix = "ghcr.io/gordonbeeming/copilot_here";
+
+  /// <summary>
+  /// Gets the embedded compose template from assembly resources.
+  /// </summary>
+  private static string? GetEmbeddedTemplate()
+  {
+    try
+    {
+      var assembly = Assembly.GetExecutingAssembly();
+      var resourceName = "CopilotHere.Resources.docker-compose.airlock.yml.template";
+      
+      using var stream = assembly.GetManifestResourceStream(resourceName);
+      if (stream is null) return null;
+      
+      using var reader = new StreamReader(stream);
+      return reader.ReadToEnd();
+    }
+    catch
+    {
+      return null;
+    }
+  }
 
   /// <summary>
   /// Runs the Copilot CLI in Airlock mode with a proxy container.
@@ -45,16 +67,12 @@ public static class AirlockRunner
     var sessionId = GenerateSessionId();
     var projectName = $"{SystemInfo.GetCurrentDirectoryName()}-{sessionId}".ToLowerInvariant();
 
-    // Get or download compose template
-    var templatePath = GetTemplatePath(ctx.Paths);
-    if (!File.Exists(templatePath))
+    // Get compose template from embedded resource
+    var templateContent = GetEmbeddedTemplate();
+    if (templateContent is null)
     {
-      Console.WriteLine("📥 Downloading compose template...");
-      if (!DownloadFile(TemplateUrl, templatePath))
-      {
-        Console.WriteLine("❌ Failed to download compose template");
-        return 1;
-      }
+      Console.WriteLine("❌ Failed to load compose template");
+      return 1;
     }
 
     // Process network config with placeholders
@@ -70,13 +88,24 @@ public static class AirlockRunner
 
     // Generate compose file
     var composeFile = GenerateComposeFile(
-      ctx, templatePath, projectName, appImage, proxyImage,
+      ctx, templateContent, projectName, appImage, proxyImage,
       processedConfigPath, mounts, copilotArgs, isYolo);
 
     if (composeFile is null)
     {
       Console.WriteLine("❌ Failed to generate compose file");
       return 1;
+    }
+
+    // Debug: show compose file location for troubleshooting
+    if (Environment.GetEnvironmentVariable("COPILOT_HERE_DEBUG") == "1")
+    {
+      var content = File.ReadAllText(composeFile);
+      Console.WriteLine($"   Compose file: {composeFile}");
+      Console.WriteLine($"   File length: {content.Length} chars");
+      Console.WriteLine("   --- BEGIN COMPOSE FILE ---");
+      Console.WriteLine(content);
+      Console.WriteLine("   --- END COMPOSE FILE ---");
     }
 
     try
@@ -117,40 +146,6 @@ public static class AirlockRunner
     var input = $"{Environment.ProcessId}-{DateTime.UtcNow.Ticks}";
     var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
     return Convert.ToHexString(hash)[..8].ToLowerInvariant();
-  }
-
-  private static string GetTemplatePath(AppPaths paths)
-  {
-    return Path.Combine(paths.GlobalConfigPath, "docker-compose.airlock.yml.template");
-  }
-
-  private static bool DownloadFile(string url, string targetPath)
-  {
-    try
-    {
-      var startInfo = new ProcessStartInfo
-      {
-        FileName = "curl",
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        CreateNoWindow = true
-      };
-      startInfo.ArgumentList.Add("-fsSL");
-      startInfo.ArgumentList.Add(url);
-      startInfo.ArgumentList.Add("-o");
-      startInfo.ArgumentList.Add(targetPath);
-
-      using var process = Process.Start(startInfo);
-      if (process is null) return false;
-
-      process.WaitForExit();
-      return process.ExitCode == 0;
-    }
-    catch
-    {
-      return false;
-    }
   }
 
   private static string? ProcessNetworkConfig(string rulesPath, AppPaths paths)
@@ -214,7 +209,7 @@ public static class AirlockRunner
 
   private static string? GenerateComposeFile(
     AppContext ctx,
-    string templatePath,
+    string template,
     string projectName,
     string appImage,
     string proxyImage,
@@ -225,8 +220,6 @@ public static class AirlockRunner
   {
     try
     {
-      var template = File.ReadAllText(templatePath);
-
       // Build extra mounts string
       var extraMounts = new StringBuilder();
       foreach (var mount in mounts)
@@ -306,8 +299,8 @@ public static class AirlockRunner
 
       result = string.Join('\n', lines);
 
-      // Write to temp file
-      var tempFile = Path.GetTempFileName();
+      // Write to temp file with .yml extension (required for Docker Compose)
+      var tempFile = Path.Combine(Path.GetTempPath(), $"copilot-airlock-{Guid.NewGuid():N}.yml");
       File.WriteAllText(tempFile, result);
       return tempFile;
     }
