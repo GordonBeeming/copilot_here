@@ -74,7 +74,7 @@ jobs:
     name: Build Base Image
     needs: [test-airlock]
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     outputs:
       push_needed: ${{ steps.push_decision.outputs.push_needed }}
       repo_name: ${{ steps.repo.outputs.name }}
@@ -354,7 +354,7 @@ jobs:
     name: Build CLI ${{ matrix.rid }}
     needs: [test-airlock]
     runs-on: ${{ matrix.os }}
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
