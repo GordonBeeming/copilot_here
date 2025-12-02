@@ -601,6 +601,10 @@ jobs:
             cd ../..
           done
           
+          # Include shell scripts in release
+          cp copilot_here.sh release/
+          cp copilot_here.ps1 release/
+          
           ls -la release/
 
       - name: Get version from shell script

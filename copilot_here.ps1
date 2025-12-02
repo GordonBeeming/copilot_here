@@ -1,10 +1,10 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.02.4
+# Version: 2025.12.02.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
-$script:CopilotHereScriptUrl = "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1"
+$script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
 
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
@@ -18,7 +18,7 @@ function Download-CopilotHereBinary {
     }
     
     # Download latest release archive
-    $downloadUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here-win-${arch}.zip"
+    $downloadUrl = "$script:CopilotHereReleaseUrl/copilot_here-win-${arch}.zip"
     $tmpArchive = [System.IO.Path]::GetTempFileName() + ".zip"
     
     Write-Host "📦 Downloading binary from: $downloadUrl"
@@ -75,7 +75,7 @@ function Update-CopilotHere {
     Write-Host "✅ Update complete!"
     Write-Host ""
     Write-Host "⚠️  To update the PowerShell functions, please re-import the script:" -ForegroundColor Yellow
-    Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereScriptUrl).Content"
+    Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content"
     Write-Host ""
     Write-Host "   Or restart your terminal."
     return $true

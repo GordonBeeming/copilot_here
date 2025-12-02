@@ -1,10 +1,10 @@
 # copilot_here shell functions
-# Version: 2025.12.02.4
+# Version: 2025.12.02.5
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
-COPILOT_HERE_SCRIPT_URL="https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh"
+COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
 
 # Helper function to download and install binary
 __copilot_download_binary() {
@@ -30,7 +30,7 @@ __copilot_download_binary() {
   mkdir -p "$bin_dir"
   
   # Download latest release archive
-  local download_url="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here-${os}-${arch}.tar.gz"
+  local download_url="${COPILOT_HERE_RELEASE_URL}/copilot_here-${os}-${arch}.tar.gz"
   local tmp_archive
   tmp_archive="$(mktemp)"
   
@@ -83,7 +83,7 @@ __copilot_update() {
   echo "✅ Update complete!"
   echo ""
   echo "⚠️  To update the shell functions, please re-source the script:"
-  echo "   source <(curl -fsSL $COPILOT_HERE_SCRIPT_URL)"
+  echo "   source <(curl -fsSL ${COPILOT_HERE_RELEASE_URL}/copilot_here.sh)"
   echo ""
   echo "   Or restart your terminal."
   return 0
