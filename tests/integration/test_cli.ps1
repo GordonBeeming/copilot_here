@@ -88,8 +88,8 @@ function Setup-Cli {
         }
         
         # Find binary
-        $exePath = Join-Path $publishDir "CopilotHere.exe"
-        $binPath = Join-Path $publishDir "CopilotHere"
+        $exePath = Join-Path $publishDir "copilot_here.exe"
+        $binPath = Join-Path $publishDir "copilot_here"
         
         if (Test-Path $exePath) {
             $script:CliBinary = $exePath

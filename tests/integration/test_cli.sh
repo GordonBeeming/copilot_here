@@ -107,10 +107,10 @@ setup_cli() {
     fi
     
     # Find binary (different name on different platforms)
-    if [ -f "$publish_dir/CopilotHere" ]; then
-      CLI_BINARY="$publish_dir/CopilotHere"
-    elif [ -f "$publish_dir/CopilotHere.exe" ]; then
-      CLI_BINARY="$publish_dir/CopilotHere.exe"
+    if [ -f "$publish_dir/copilot_here" ]; then
+      CLI_BINARY="$publish_dir/copilot_here"
+    elif [ -f "$publish_dir/copilot_here.exe" ]; then
+      CLI_BINARY="$publish_dir/copilot_here.exe"
     else
       echo "❌ CLI binary not found after build"
       exit 1
