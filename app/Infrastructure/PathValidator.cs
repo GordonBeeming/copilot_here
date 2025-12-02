@@ -18,8 +18,9 @@ public static class PathValidator
   /// </summary>
   public static string ResolvePath(string path, string userHome)
   {
-    // Expand tilde
-    var expanded = path.Replace("~", userHome);
+    // Expand tilde only at the start of the path (e.g., ~/foo, but not com~apple~CloudDocs)
+    var expanded = path.StartsWith("~/") ? userHome + path[1..] :
+                   path == "~" ? userHome : path;
 
     // Get absolute path
     var absolute = Path.GetFullPath(expanded);
@@ -30,7 +31,6 @@ public static class PathValidator
       var resolved = ResolveSymlink(absolute);
       if (resolved != absolute)
       {
-        Console.WriteLine($"🔗 Following symlink: {path} → {resolved}");
         return resolved;
       }
     }

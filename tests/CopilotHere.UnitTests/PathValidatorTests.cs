@@ -23,6 +23,35 @@ public class PathValidatorTests
   }
 
   [Test]
+  public async Task ResolvePath_OnlyExpandsTildeAtStart()
+  {
+    // Arrange - path with tilde in the middle (like macOS iCloud paths: com~apple~CloudDocs)
+    var path = "~/Library/Mobile Documents/com~apple~CloudDocs/screenshots";
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/Users/testuser";
+
+    // Act
+    var resolved = PathValidator.ResolvePath(path, userHome);
+
+    // Assert - should NOT replace ~ in com~apple~CloudDocs
+    await Assert.That(resolved).Contains("com~apple~CloudDocs");
+    await Assert.That(resolved).Contains(IsWindows ? @"C:\Users\testuser" : "/Users/testuser");
+  }
+
+  [Test]
+  public async Task ResolvePath_HandlesJustTilde()
+  {
+    // Arrange
+    var path = "~";
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
+
+    // Act
+    var resolved = PathValidator.ResolvePath(path, userHome);
+
+    // Assert
+    await Assert.That(resolved).IsEqualTo(userHome);
+  }
+
+  [Test]
   public async Task ResolvePath_HandlesAbsolutePath()
   {
     // Arrange
