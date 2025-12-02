@@ -7,8 +7,8 @@ namespace CopilotHere.Infrastructure;
 public static class BuildInfo
 {
   /// <summary>
-  /// The build date in yyyy.MM.dd format.
+  /// The build date in yyyy.MM.dd or yyyy.MM.dd.N format.
   /// This is replaced during build via MSBuild property.
   /// </summary>
-  public const string BuildDate = "2025.12.02";
+  public const string BuildDate = "2025.12.02.1";
 }

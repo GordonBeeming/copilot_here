@@ -5,34 +5,34 @@ This is a secure, portable Docker environment for running the GitHub Copilot CLI
 
 ## Script Versioning
 
-**IMPORTANT**: Shell function scripts (Bash/Zsh and PowerShell) in the README must have version headers updated when modified.
+**IMPORTANT**: Shell function scripts (Bash/Zsh and PowerShell) must have version headers updated when modified.
 
 ### Version Format
-- **Primary version**: Use current date in format `YYYY-MM-DD` (e.g., `2025-10-27`)
+- **Primary version**: Use current date in format `YYYY.MM.DD` (e.g., `2025.12.02`)
 - **Same-day updates**: If the version date already matches today's date, append `.1`, `.2`, `.3`, etc.
-  - Example: `2025-10-27` → `2025-10-27.1` → `2025-10-27.2`
+  - Example: `2025.12.02` → `2025.12.02.1` → `2025.12.02.2`
+- **CRITICAL**: Always increment the version when making changes - this triggers re-download for users
 
 ### Where to Update Versions
 When modifying shell functions in the standalone script files, update ALL version references:
-1. Bash/Zsh script header comment: `# Version: YYYY-MM-DD`
-2. PowerShell script header comment: `# Version: YYYY-MM-DD`
-3. Bash copilot_here help text: `VERSION: YYYY-MM-DD`
-4. Bash copilot_yolo help text: `VERSION: YYYY-MM-DD`
-5. PowerShell Copilot-Here help text: `VERSION: YYYY-MM-DD`
-6. PowerShell Copilot-Yolo help text: `VERSION: YYYY-MM-DD`
+1. Bash/Zsh script header comment: `# Version: YYYY.MM.DD` or `# Version: YYYY.MM.DD.N`
+2. PowerShell script header comment: `# Version: YYYY.MM.DD` or `# Version: YYYY.MM.DD.N`
+3. `Directory.Build.props`: `<CopilotHereVersion>YYYY.MM.DD</CopilotHereVersion>`
+4. `app/Infrastructure/BuildInfo.cs`: `BuildDate = "YYYY.MM.DD"`
 
 ### When to Update Version
 - Any modification to shell function code
 - Adding new features or options
 - Bug fixes in the scripts
-- Changes to help text or documentation within scripts
+- Changes to the CLI binary code
+- **Any commit that affects functionality should increment the version**
 
 ### Script File Synchronization
 **CRITICAL**: The standalone script files (`copilot_here.sh` and `copilot_here.ps1`) are the source of truth.
 - The README.md now uses `curl` commands to download these files directly from the repository.
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 
-**Current version**: 2025-11-20
+**Current version**: 2025.12.02.1
 
 ## Technology Stack
 - **Base OS**: Debian (node:20-slim)
@@ -449,7 +449,7 @@ Each image variant gets multiple tags:
 
 ---
 
-**Last Updated**: 2025-11-20
+**Last Updated**: 2025-12-02
 **Version**: 1.0.0
 **Docker Base**: node:20-slim
 **Image Variants**: 3 (base, playwright, dotnet)

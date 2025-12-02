@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <!-- Central version for all projects - use date format YYYY.MM.DD -->
-    <CopilotHereVersion>2025.12.02</CopilotHereVersion>
+    <!-- Central version for all projects - use date format YYYY.MM.DD or YYYY.MM.DD.N for same-day updates -->
+    <CopilotHereVersion>2025.12.02.1</CopilotHereVersion>
   </PropertyGroup>
 </Project>
