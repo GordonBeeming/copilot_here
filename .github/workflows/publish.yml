@@ -443,7 +443,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-      - name: Create or update release
+      - name: Create versioned release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}
@@ -470,3 +470,33 @@ jobs:
           files: release/*
           draft: false
           prerelease: false
+          make_latest: false
+
+      - name: Delete existing cli-latest tag
+        run: |
+          gh release delete cli-latest --yes || true
+          git push origin :refs/tags/cli-latest || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create latest release (for easy download)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cli-latest
+          name: CLI Latest
+          body: |
+            ## Latest Native AOT CLI Binary
+            
+            **Version:** ${{ steps.version.outputs.version }}
+            **Commit:** ${{ github.sha }}
+            
+            This release is automatically updated with the latest CLI build.
+            For versioned releases, see the [releases page](https://github.com/${{ github.repository }}/releases).
+            
+            ### Installation
+            
+            See [README](https://github.com/${{ github.repository }}#installation) for installation instructions.
+          files: release/*
+          draft: false
+          prerelease: false
+          make_latest: true
