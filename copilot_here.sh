@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025.12.02.5
+# Version: 2025.12.02.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -79,13 +79,25 @@ __copilot_update() {
     return 1
   fi
   
+  # Download and source fresh shell script
   echo ""
-  echo "✅ Update complete!"
-  echo ""
-  echo "⚠️  To update the shell functions, please re-source the script:"
-  echo "   source <(curl -fsSL ${COPILOT_HERE_RELEASE_URL}/copilot_here.sh)"
-  echo ""
-  echo "   Or restart your terminal."
+  echo "📥 Downloading latest shell script..."
+  local tmp_script
+  tmp_script="$(mktemp)"
+  if curl -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" -o "$tmp_script" 2>/dev/null; then
+    echo "✅ Update complete! Reloading shell functions..."
+    source "$tmp_script"
+    rm -f "$tmp_script"
+  else
+    rm -f "$tmp_script"
+    echo ""
+    echo "✅ Binary updated!"
+    echo ""
+    echo "⚠️  Could not auto-reload shell functions. Please re-source manually:"
+    echo "   source <(curl -fsSL ${COPILOT_HERE_RELEASE_URL}/copilot_here.sh)"
+    echo ""
+    echo "   Or restart your terminal."
+  fi
   return 0
 }
 

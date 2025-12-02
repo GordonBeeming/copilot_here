@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.02.5
+# Version: 2025.12.02.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -54,7 +54,7 @@ function Ensure-CopilotHereBinary {
     return $true
 }
 
-# Update function - downloads fresh binary
+# Update function - downloads fresh binary and script
 function Update-CopilotHere {
     Write-Host "🔄 Updating copilot_here..."
     
@@ -71,13 +71,22 @@ function Update-CopilotHere {
         return $false
     }
     
+    # Download and execute fresh PowerShell script
     Write-Host ""
-    Write-Host "✅ Update complete!"
-    Write-Host ""
-    Write-Host "⚠️  To update the PowerShell functions, please re-import the script:" -ForegroundColor Yellow
-    Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content"
-    Write-Host ""
-    Write-Host "   Or restart your terminal."
+    Write-Host "📥 Downloading latest PowerShell script..."
+    try {
+        $scriptContent = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing).Content
+        Write-Host "✅ Update complete! Reloading PowerShell functions..."
+        Invoke-Expression $scriptContent
+    } catch {
+        Write-Host ""
+        Write-Host "✅ Binary updated!"
+        Write-Host ""
+        Write-Host "⚠️  Could not auto-reload PowerShell functions. Please re-import manually:" -ForegroundColor Yellow
+        Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content"
+        Write-Host ""
+        Write-Host "   Or restart your terminal."
+    }
     return $true
 }
 
