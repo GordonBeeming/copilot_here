@@ -5,14 +5,17 @@ namespace CopilotHere.Tests;
 
 public class MountEntryTests
 {
+  private static bool IsWindows => OperatingSystem.IsWindows();
+  
   [Test]
   public async Task MountEntry_ReadOnly_SetsCorrectly()
   {
     // Arrange & Act
-    var mount = new MountEntry("/path/to/dir", IsReadWrite: false, MountSource.Local);
+    var path = IsWindows ? @"C:\path\to\dir" : "/path/to/dir";
+    var mount = new MountEntry(path, IsReadWrite: false, MountSource.Local);
 
     // Assert
-    await Assert.That(mount.Path).IsEqualTo("/path/to/dir");
+    await Assert.That(mount.Path).IsEqualTo(path);
     await Assert.That(mount.IsReadWrite).IsFalse();
     await Assert.That(mount.Source).IsEqualTo(MountSource.Local);
   }
@@ -33,9 +36,10 @@ public class MountEntryTests
   public async Task MountEntry_Equality_WorksCorrectly()
   {
     // Arrange
-    var mount1 = new MountEntry("/path", false, MountSource.Local);
-    var mount2 = new MountEntry("/path", false, MountSource.Local);
-    var mount3 = new MountEntry("/path", true, MountSource.Local);
+    var path = IsWindows ? @"C:\path" : "/path";
+    var mount1 = new MountEntry(path, false, MountSource.Local);
+    var mount2 = new MountEntry(path, false, MountSource.Local);
+    var mount3 = new MountEntry(path, true, MountSource.Local);
 
     // Assert
     await Assert.That(mount1).IsEqualTo(mount2);
@@ -47,37 +51,52 @@ public class MountEntryTests
   {
     // Arrange
     var mount = new MountEntry("~/projects", false, MountSource.CommandLine);
-    var userHome = "/home/testuser";
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
 
     // Act
     var resolved = mount.ResolvePath(userHome);
 
     // Assert
-    await Assert.That(resolved).Contains("/home/testuser");
+    await Assert.That(resolved).Contains("testuser");
     await Assert.That(resolved).Contains("projects");
   }
 
   [Test]
+  [Category("Unix")]
   public async Task GetContainerPath_MapsToAppuserHome()
   {
-    // Arrange
-    var userHome = "/home/testuser";
-    var mount = new MountEntry("/home/testuser/projects/myapp", false, MountSource.Local);
-
-    // Act
-    var containerPath = mount.GetContainerPath(userHome);
-
-    // Assert
-    await Assert.That(containerPath).IsEqualTo("/home/appuser/projects/myapp");
+    // This test is Unix-specific since container paths are always Linux-style
+    if (IsWindows)
+    {
+      // On Windows, the path transformation works differently
+      // The container path should still map correctly
+      var userHome = @"C:\Users\testuser";
+      var mount = new MountEntry(@"C:\Users\testuser\projects\myapp", false, MountSource.Local);
+      var containerPath = mount.GetContainerPath(userHome);
+      
+      // Container paths are always Linux-style, mapped from Windows paths
+      await Assert.That(containerPath).Contains("/home/appuser");
+      await Assert.That(containerPath).Contains("projects");
+      await Assert.That(containerPath).Contains("myapp");
+    }
+    else
+    {
+      var userHome = "/home/testuser";
+      var mount = new MountEntry("/home/testuser/projects/myapp", false, MountSource.Local);
+      var containerPath = mount.GetContainerPath(userHome);
+      await Assert.That(containerPath).IsEqualTo("/home/appuser/projects/myapp");
+    }
   }
 
   [Test]
   public async Task ToDockerVolume_FormatsCorrectly()
   {
     // Arrange
-    var userHome = "/home/testuser";
-    var mountRo = new MountEntry("/home/testuser/data", IsReadWrite: false, MountSource.Local);
-    var mountRw = new MountEntry("/home/testuser/output", IsReadWrite: true, MountSource.Local);
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
+    var dataPath = IsWindows ? @"C:\Users\testuser\data" : "/home/testuser/data";
+    var outputPath = IsWindows ? @"C:\Users\testuser\output" : "/home/testuser/output";
+    var mountRo = new MountEntry(dataPath, IsReadWrite: false, MountSource.Local);
+    var mountRw = new MountEntry(outputPath, IsReadWrite: true, MountSource.Local);
 
     // Act
     var volumeRo = mountRo.ToDockerVolume(userHome);

@@ -5,18 +5,20 @@ namespace CopilotHere.Tests;
 
 public class PathValidatorTests
 {
+  private static bool IsWindows => OperatingSystem.IsWindows();
+  
   [Test]
   public async Task ResolvePath_ExpandsTilde()
   {
     // Arrange
     var path = "~/projects";
-    var userHome = "/home/testuser";
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
 
     // Act
     var resolved = PathValidator.ResolvePath(path, userHome);
 
     // Assert
-    await Assert.That(resolved).Contains("/home/testuser");
+    await Assert.That(resolved).Contains("testuser");
     await Assert.That(resolved).Contains("projects");
   }
 
@@ -24,14 +26,15 @@ public class PathValidatorTests
   public async Task ResolvePath_HandlesAbsolutePath()
   {
     // Arrange
-    var path = "/var/data";
-    var userHome = "/home/testuser";
+    var path = IsWindows ? @"C:\var\data" : "/var/data";
+    var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
 
     // Act
     var resolved = PathValidator.ResolvePath(path, userHome);
 
     // Assert
-    await Assert.That(resolved).IsEqualTo("/var/data");
+    var expected = IsWindows ? @"C:\var\data" : "/var/data";
+    await Assert.That(resolved).IsEqualTo(expected);
   }
 
   [Test]

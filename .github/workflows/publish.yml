@@ -352,7 +352,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-cli]
+    needs: [test-airlock]
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'pull_request'
     strategy:
