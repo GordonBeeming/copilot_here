@@ -39,27 +39,36 @@ All images support both **AMD64** (x86_64) and **ARM64** (Apple Silicon, etc.) a
 
 All functions support switching between Docker image variants using flags:
 - **No flag** - Base image (Node.js, Git, basic tools)
-- **`-d` or `--dotnet`** - .NET image (includes .NET 8, 9 & 10 SDKs)
-- **`-d8` or `--dotnet8`** - .NET 8 image (includes .NET 8 SDK)
-- **`-d9` or `--dotnet9`** - .NET 9 image (includes .NET 9 SDK)
-- **`-d10` or `--dotnet10`** - .NET 10 image (includes .NET 10 SDK)
-- **`-pw` or `--playwright`** - Playwright image (includes browser automation)
-- **`-dp` or `--dotnet-playwright`** - .NET + Playwright image (includes browser automation)
+- **`--dotnet`** (`-d`) - .NET image (includes .NET 8, 9 & 10 SDKs)
+- **`--dotnet8`** (`-d8`) - .NET 8 image (includes .NET 8 SDK)
+- **`--dotnet9`** (`-d9`) - .NET 9 image (includes .NET 9 SDK)
+- **`--dotnet10`** (`-d10`) - .NET 10 image (includes .NET 10 SDK)
+- **`--playwright`** (`-pw`) - Playwright image (includes browser automation)
+- **`--dotnet-playwright`** (`-dp`) - .NET + Playwright image (includes browser automation)
+- **`--rust`** (`-rs`) - Rust image (includes Rust toolchain)
+- **`--dotnet-rust`** (`-dr`) - .NET + Rust image
 
 ### Additional Options
 
-- **`-h` or `--help`** - Show usage help and examples (Bash/Zsh) or `-h` / `-Help` (PowerShell)
-- **`--no-cleanup`** - Skip cleanup of unused Docker images (Bash/Zsh) or `-NoCleanup` (PowerShell)
-- **`--no-pull`** - Skip pulling the latest image (Bash/Zsh) or `-NoPull` (PowerShell)
-- **`--mount <path>`** - Mount a directory as read-only (Bash/Zsh) or `-Mount <path>` (PowerShell)
-- **`--mount-rw <path>`** - Mount a directory as read-write (Bash/Zsh) or `-MountRw <path>` (PowerShell)
-- **`--save-mount <path>`** - Save a mount to local config (Bash/Zsh) or `-SaveMount <path>` (PowerShell)
-- **`--save-mount-global <path>`** - Save a mount to global config (Bash/Zsh) or `-SaveMountGlobal <path>` (PowerShell)
-- **`--remove-mount <path>`** - Remove a saved mount (Bash/Zsh) or `-RemoveMount <path>` (PowerShell)
-- **`--list-mounts`** - List all configured mounts (Bash/Zsh) or `-ListMounts` (PowerShell)
-- **`--update-scripts`** - Update scripts from GitHub repository (Bash/Zsh) or `-UpdateScripts` (PowerShell)
+- **`-h` or `--help`** - Show usage help and examples
+- **`--no-cleanup`** - Skip cleanup of unused Docker images
+- **`--no-pull`** - Skip pulling the latest image
+- **`--mount <path>`** - Mount a directory as read-only
+- **`--mount-rw <path>`** - Mount a directory as read-write
+- **`--save-mount <path>`** - Save a mount to local config
+- **`--save-mount-global <path>`** - Save a mount to global config
+- **`--remove-mount <path>`** - Remove a saved mount
+- **`--list-mounts`** - List all configured mounts
+- **`--update`** (`-u`) - Update from GitHub repository
 
-> **Note:** The script automatically checks for updates before running and prompts you if a new version is available.
+### Copilot CLI Options
+
+These options are passed directly to the GitHub Copilot CLI:
+- **`-p <prompt>` or `--prompt <prompt>`** - Execute a prompt directly
+- **`--model <model>`** - Set AI model (e.g., `claude-sonnet-4.5`, `gpt-5`)
+- **`--continue`** - Resume most recent session
+- **`--resume <sessionId>`** - Resume from a previous session
+- **`--help2`** - Show GitHub Copilot CLI native help
 
 > ⚠️ **Security Note:** Both modes check for proper GitHub token scopes and warn about overly privileged tokens.
 
@@ -85,12 +94,12 @@ Use `--save-mount`, `--save-mount-global`, `--remove-mount`, and `--list-mounts`
 You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwright`, or a specific SHA) so you don't have to pass flags every time.
 
 **Management Commands:**
-- `--list-images` - List all available Docker images (Bash/Zsh) or `-ListImages` (PowerShell)
-- `--show-image` - Show current default image configuration (Bash/Zsh) or `-ShowImage` (PowerShell)
-- `--set-image <tag>` - Set default image in local config (Bash/Zsh) or `-SetImage <tag>` (PowerShell)
-- `--set-image-global <tag>` - Set default image in global config (Bash/Zsh) or `-SetImageGlobal <tag>` (PowerShell)
-- `--clear-image` - Clear default image from local config (Bash/Zsh) or `-ClearImage` (PowerShell)
-- `--clear-image-global` - Clear default image from global config (Bash/Zsh) or `-ClearImageGlobal` (PowerShell)
+- `--list-images` - List all available Docker images
+- `--show-image` - Show current default image configuration
+- `--set-image <tag>` - Set default image in local config
+- `--set-image-global <tag>` - Set default image in global config
+- `--clear-image` - Clear default image from local config
+- `--clear-image-global` - Clear default image from global config
 
 **Configuration Files:**
 - Global: `~/.config/copilot_here/image.conf`
@@ -108,15 +117,15 @@ Airlock provides an additional layer of security by routing all network traffic 
 - **Inherit Default Rules**: Optionally inherit rules from updates for easier maintenance
 
 **Setup Commands:**
-- `--enable-airlock` - Enable Airlock for current project (Bash/Zsh) or `-EnableAirlock` (PowerShell)
-- `--enable-global-airlock` - Enable Airlock globally (Bash/Zsh) or `-EnableGlobalAirlock` (PowerShell)
-- `--disable-airlock` - Disable Airlock for current project (Bash/Zsh) or `-DisableAirlock` (PowerShell)
-- `--disable-global-airlock` - Disable Airlock globally (Bash/Zsh) or `-DisableGlobalAirlock` (PowerShell)
+- `--enable-airlock` - Enable Airlock for current project
+- `--enable-global-airlock` - Enable Airlock globally
+- `--disable-airlock` - Disable Airlock for current project
+- `--disable-global-airlock` - Disable Airlock globally
 
 **Management Commands:**
-- `--show-airlock-rules` - Display current Airlock configuration (Bash/Zsh) or `-ShowAirlockRules` (PowerShell)
-- `--edit-airlock-rules` - Edit local Airlock rules (Bash/Zsh) or `-EditAirlockRules` (PowerShell)
-- `--edit-global-airlock-rules` - Edit global Airlock rules (Bash/Zsh) or `-EditGlobalAirlockRules` (PowerShell)
+- `--show-airlock-rules` - Display current Airlock configuration
+- `--edit-airlock-rules` - Edit local Airlock rules in $EDITOR
+- `--edit-global-airlock-rules` - Edit global Airlock rules in $EDITOR
 
 **Configuration Files:**
 - Global: `~/.config/copilot_here/network.json`
@@ -217,7 +226,7 @@ fi
 source ~/.zshrc  # or source ~/.bashrc
 ```
 
-To update later, just run: `copilot_here --update-scripts`
+To update later, just run: `copilot_here --update`
 
 
 
@@ -264,7 +273,7 @@ if (-not (Select-String -Path $PROFILE -Pattern "copilot_here.ps1" -Quiet -Error
 . $PROFILE
 ```
 
-To update later, just run: `Copilot-Here -UpdateScripts`
+To update later, just run: `copilot_here --update`
 
 
 
@@ -294,59 +303,35 @@ If you prefer not to use the quick install method, you can manually copy the scr
    . $PROFILE
    ```
 
-**Note:** If you want to disable the auto-update functionality, you can remove the `-UpdateScripts` and `-UpgradeScripts` parameter blocks from the downloaded script file.
+**Note:** The auto-update functionality can be removed by editing the downloaded script file.
 
 
 
 
 ## Usage
 
-Once set up, using it is simple on any platform.
+Once set up, using it is simple on any platform. All commands work identically on Linux, macOS, and Windows.
 
 ### Interactive Mode
 
 Start a full chat session with the welcome banner:
 
-**Base image (default):**
 ```bash
-# Linux/macOS
+# Base image (default)
 copilot_here
 
-# Windows
-copilot_here
-```
-
-**With .NET image:**
-```bash
-# Linux/macOS
-copilot_here -d
+# With .NET image
 copilot_here --dotnet
 
-# Windows
-copilot_here -d
-copilot_here -Dotnet
-```
-
-**With .NET + Playwright image:**
-```bash
-# Linux/macOS
-copilot_here -dp
+# With .NET + Playwright image
 copilot_here --dotnet-playwright
 
-# Windows
-copilot_here -dp
-copilot_here -DotnetPlaywright
-```
+# With Rust image
+copilot_here --rust
 
-**Get help:**
-```bash
-# Linux/macOS
+# Get help
 copilot_here --help
 copilot_yolo --help
-
-# Windows
-copilot_here -Help
-copilot_yolo -Help
 ```
 
 ### Non-Interactive Mode
@@ -356,63 +341,40 @@ Pass a prompt directly to get a quick response.
 **Safe Mode** (asks for confirmation before executing):
 
 ```bash
-# Linux/macOS - Base image
+# Base image
 copilot_here "suggest a git command to view the last 5 commits"
 copilot_here "explain the code in ./my-script.js"
 
-# Linux/macOS - .NET image
-copilot_here -d "build and test this .NET project"
+# .NET image
+copilot_here --dotnet "build and test this .NET project"
 copilot_here --dotnet "explain this C# code"
 
-# Linux/macOS - .NET + Playwright image
-copilot_here -dp "run playwright tests for this app"
+# .NET + Playwright image
+copilot_here --dotnet-playwright "run playwright tests for this app"
 
-# Linux/macOS - Skip cleanup and pull for faster startup
+# Skip cleanup and pull for faster startup
 copilot_here --no-cleanup --no-pull "quick question about this code"
 
-# Windows - Base image
-copilot_here "suggest a git command to view the last 5 commits"
-
-# Windows - .NET image
-copilot_here -d "build and test this .NET project"
-copilot_here -Dotnet "explain this C# code"
-
-# Windows - .NET + Playwright image
-copilot_here -dp "run playwright tests for this app"
-
-# Windows - Skip cleanup and pull for faster startup
-copilot_here -NoCleanup -NoPull "quick question about this code"
+# Use specific model
+copilot_here --model claude-sonnet-4.5 "explain this algorithm"
 ```
 
 **YOLO Mode** (auto-approves execution):
 
 ```bash
-# Linux/macOS - Base image
+# Base image
 copilot_yolo "write a function that reverses a string"
 copilot_yolo "run the tests and fix any failures"
 
-# Linux/macOS - .NET image
-copilot_yolo -d "create a new ASP.NET Core API project"
+# .NET image
+copilot_yolo --dotnet "create a new ASP.NET Core API project"
 copilot_yolo --dotnet "add unit tests for this controller"
 
-# Linux/macOS - .NET + Playwright image
-copilot_yolo -dp "write playwright tests for the login page"
+# .NET + Playwright image
+copilot_yolo --dotnet-playwright "write playwright tests for the login page"
 
-# Linux/macOS - Skip cleanup for faster execution
+# Skip cleanup for faster execution
 copilot_yolo --no-cleanup "generate a README for this project"
-
-# Windows - Base image
-copilot_yolo "write a function that reverses a string"
-
-# Windows - .NET image
-copilot_yolo -d "create a new ASP.NET Core API project"
-copilot_yolo -Dotnet "add unit tests for this controller"
-
-# Windows - .NET + Playwright image
-copilot_yolo -dp "write playwright tests for the login page"
-
-# Windows - Skip cleanup for faster execution
-copilot_yolo -NoCleanup "generate a README for this project"
 ```
 
 
@@ -422,110 +384,17 @@ This project provides multiple Docker image variants for different development s
 
 ### Available Images
 
-#### Base Image
-**Tag:** `latest`
-
-The standard Copilot CLI environment with Node.js 20, Git, and essential tools. Use this for general-purpose development and scripting tasks.
-
-```bash
-# Already configured in the setup instructions above
-copilot_here() {
-  local image_name="ghcr.io/gordonbeeming/copilot_here:latest"
-  # ... rest of function
-}
-```
-
-#### .NET Image
-**Tag:** `dotnet`
-
-Extends the base image with .NET SDK support for building and testing .NET applications.
-
-**Includes:**
-- .NET 8.0 SDK
-- .NET 9.0 SDK
-- .NET 10.0 SDK
-- ASP.NET Core runtimes
-- All base image features
-
-**Usage:**
-```bash
-# Update the image_name in your function to use the .NET variant
-local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet"
-```
-
-**Best for:** .NET development, building/testing .NET applications, ASP.NET Core projects
-
-#### .NET 8 Image
-**Tag:** `dotnet-8`
-
-Extends the base image with .NET 8 SDK support.
-
-**Includes:**
-- .NET 8.0 SDK
-- All base image features
-
-**Best for:** .NET 8 specific development
-
-#### .NET 9 Image
-**Tag:** `dotnet-9`
-
-Extends the base image with .NET 9 SDK support.
-
-**Includes:**
-- .NET 9.0 SDK
-- All base image features
-
-**Best for:** .NET 9 specific development
-
-#### .NET 10 Image
-**Tag:** `dotnet-10`
-
-Extends the base image with .NET 10 SDK support.
-
-**Includes:**
-- .NET 10.0 SDK
-- All base image features
-
-**Best for:** .NET 10 specific development
-
-#### Playwright Image
-**Tag:** `playwright`
-
-Extends the base image with Playwright browser automation capabilities.
-
-**Includes:**
-- Playwright (latest)
-- Chromium browser with dependencies
-- All base image features
-
-**Usage:**
-```bash
-# Update the image_name in your function to use the Playwright variant
-local image_name="ghcr.io/gordonbeeming/copilot_here:playwright"
-```
-
-**Best for:** Node.js web testing, browser automation, E2E testing with Playwright (no .NET)
-
-#### .NET + Playwright Image
-**Tag:** `dotnet-playwright`
-
-Extends the .NET image with Playwright browser automation capabilities.
-
-**Includes:**
-- Everything from the .NET image
-- Playwright 1.56.0
-- Chromium browser with dependencies
-- FFmpeg for video recording
-
-**Usage:**
-```bash
-# Update the image_name in your function to use the .NET + Playwright variant
-local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet-playwright"
-```
-
-**Best for:** .NET web testing, browser automation, E2E testing with Playwright
-
-**Note:** This image is approximately 500-600MB larger than the .NET image due to Chromium browser binaries.
+| Tag | Flag | Description |
+|-----|------|-------------|
+| `latest` | *(default)* | Base image with Node.js 20, Git, and essential tools |
+| `dotnet` | `--dotnet` | .NET 8, 9 & 10 SDKs |
+| `dotnet-8` | `--dotnet8` | .NET 8 SDK only |
+| `dotnet-9` | `--dotnet9` | .NET 9 SDK only |
+| `dotnet-10` | `--dotnet10` | .NET 10 SDK only |
+| `playwright` | `--playwright` | Playwright with Chromium browser |
+| `dotnet-playwright` | `--dotnet-playwright` | .NET + Playwright combined |
+| `rust` | `--rust` | Rust toolchain |
+| `dotnet-rust` | `--dotnet-rust` | .NET + Rust combined |
 
 ### Choosing the Right Image
 
@@ -533,12 +402,14 @@ local image_name="ghcr.io/gordonbeeming/copilot_here:dotnet-playwright"
 - Use **`dotnet`** when working with .NET projects without browser testing needs
 - Use **`playwright`** when working with Node.js projects that need browser automation
 - Use **`dotnet-playwright`** when you need both .NET and browser automation capabilities
-
-Future variants may include Python, Java, and other language-specific toolchains.
+- Use **`rust`** for Rust development
+- Use **`dotnet-rust`** for projects combining .NET and Rust
 
 ## 📚 Documentation
 
 - [Docker Images Documentation](docs/docker-images.md) - Details about available image variants
+- [CLI Icon Legend](docs/icon-legend.md) - Meaning of icons in CLI output
+- [Migration Guide](docs/migration-to-native-binary.md) - Details about the native binary implementation
 - [Task Documentation](docs/tasks/) - Development task history and changes
 
 ## 📜 License
