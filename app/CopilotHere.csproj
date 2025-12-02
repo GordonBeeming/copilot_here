@@ -8,6 +8,9 @@
     <Version>$(CopilotHereVersion)</Version>
     <AssemblyName>copilot_here</AssemblyName>
 
+    <!-- Disable automatic +sha suffix, we add it with . instead -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
     <PublishAot>true</PublishAot>
 
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -15,6 +18,16 @@
     <StackTraceSupport>false</StackTraceSupport>
     <OptimizationPreference>Size</OptimizationPreference>
   </PropertyGroup>
+
+  <!-- Add git SHA with . separator -->
+  <Target Name="SetInformationalVersionWithGitSha" BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo" DependsOnTargets="InitializeSourceControlInformation">
+    <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitSha" />
+    </Exec>
+    <PropertyGroup Condition="'$(GitSha)' != ''">
+      <InformationalVersion>$(Version).$(GitSha)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />

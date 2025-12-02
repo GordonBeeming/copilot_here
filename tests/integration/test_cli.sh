@@ -146,7 +146,8 @@ test_version() {
   local result
   result=$("$CLI_BINARY" --version 2>&1) || true
   
-  if echo "$result" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
+  # Version format: YYYY.MM.DD or YYYY.MM.DD.sha (e.g., 2025.12.02 or 2025.12.02.abc123)
+  if echo "$result" | grep -qE "^[0-9]{4}\.[0-9]{2}\.[0-9]{2}"; then
     test_pass "Version: $(echo "$result" | head -1)"
   else
     test_fail "Did not show version: $result"

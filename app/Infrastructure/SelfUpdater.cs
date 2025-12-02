@@ -12,7 +12,7 @@ public static class SelfUpdater
   private const string ShellScriptUrl = "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh";
 
   /// <summary>
-  /// Gets the current application version from the shell script version format (YYYY-MM-DD).
+  /// Gets the current application version from the shell script version format (YYYY.MM.DD).
   /// </summary>
   public static string CurrentVersion => GetVersionFromDate(BuildInfo.BuildDate);
 
@@ -21,7 +21,7 @@ public static class SelfUpdater
   /// </summary>
   private static string GetVersionFromDate(string buildDate)
   {
-    // BuildDate is in format "yyyy-MM-dd", use as-is for version
+    // BuildDate is in format "yyyy.MM.dd", use as-is for version
     return buildDate;
   }
 
@@ -100,7 +100,7 @@ public static class SelfUpdater
 
   /// <summary>
   /// Gets the latest version from the shell script on GitHub.
-  /// Parses the "# Version: YYYY-MM-DD" header from copilot_here.sh.
+  /// Parses the "# Version: YYYY.MM.DD" header from copilot_here.sh.
   /// </summary>
   private static string? GetLatestVersion()
   {
@@ -125,7 +125,7 @@ public static class SelfUpdater
 
       if (process.ExitCode != 0) return null;
 
-      // Parse "# Version: YYYY-MM-DD" from the script
+      // Parse "# Version: YYYY.MM.DD" from the script
       foreach (var line in output.Split('\n'))
       {
         if (line.StartsWith("# Version:", StringComparison.OrdinalIgnoreCase))
@@ -148,7 +148,7 @@ public static class SelfUpdater
 
   /// <summary>
   /// Compares version strings to check if current is latest or newer.
-  /// Handles date-based versions (YYYY-MM-DD or YYYY-MM-DD.N).
+  /// Handles date-based versions (YYYY.MM.DD or YYYY.MM.DD.sha).
   /// </summary>
   private static bool IsCurrentVersionLatest(string current, string latest)
   {
@@ -181,19 +181,24 @@ public static class SelfUpdater
   }
 
   /// <summary>
-  /// Tries to compare versions as dates (YYYY-MM-DD or YYYY-MM-DD.N format).
+  /// Tries to compare versions as dates (YYYY.MM.DD or YYYY.MM.DD.sha format).
   /// </summary>
   private static bool TryCompareDateVersions(string current, string latest, out bool isCurrentLatest)
   {
     isCurrentLatest = false;
 
-    // Parse current: "2025-12-02" or "2025-12-02.1"
+    // Parse current: "2025.12.02" or "2025.12.02.abc123"
+    // Version format: YYYY.MM.DD[.sha]
     var currentParts = current.Split('.');
     var latestParts = latest.Split('.');
 
-    // Try to parse the date part
-    if (!TryParseDatePart(currentParts[0], out var currentDate) ||
-        !TryParseDatePart(latestParts[0], out var latestDate))
+    // Need at least 3 parts for date (YYYY.MM.DD)
+    if (currentParts.Length < 3 || latestParts.Length < 3)
+      return false;
+
+    // Try to parse the date parts
+    if (!TryParseDateParts(currentParts, out var currentDate) ||
+        !TryParseDateParts(latestParts, out var latestDate))
     {
       return false;
     }
@@ -211,27 +216,38 @@ public static class SelfUpdater
       return true;
     }
 
-    // Same date, compare patch numbers (e.g., .1, .2)
-    var currentPatch = currentParts.Length > 1 && int.TryParse(currentParts[1], out var cp) ? cp : 0;
-    var latestPatch = latestParts.Length > 1 && int.TryParse(latestParts[1], out var lp) ? lp : 0;
-
-    isCurrentLatest = currentPatch >= latestPatch;
+    // Same date - if both have sha, they're equal; otherwise latest wins
+    isCurrentLatest = currentParts.Length >= latestParts.Length;
     return true;
   }
 
   /// <summary>
-  /// Tries to parse a YYYY-MM-DD string into a DateTime.
+  /// Tries to parse YYYY.MM.DD parts into a DateTime.
   /// </summary>
-  private static bool TryParseDatePart(string datePart, out DateTime date)
+  private static bool TryParseDateParts(string[] parts, out DateTime date)
   {
-    return DateTime.TryParseExact(datePart, "yyyy-MM-dd", 
-      System.Globalization.CultureInfo.InvariantCulture,
-      System.Globalization.DateTimeStyles.None, out date);
+    date = default;
+    if (parts.Length < 3) return false;
+    
+    if (!int.TryParse(parts[0], out var year) ||
+        !int.TryParse(parts[1], out var month) ||
+        !int.TryParse(parts[2], out var day))
+      return false;
+
+    try
+    {
+      date = new DateTime(year, month, day);
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   private static int[] ParseVersion(string version)
   {
-    return version.Split('.', '-')
+    return version.Split('.')
       .Select(part => int.TryParse(part, out var num) ? num : (int?)null)
       .Where(n => n.HasValue)
       .Select(n => n!.Value)

@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025-12-02
+# Version: 2025.12.02
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration

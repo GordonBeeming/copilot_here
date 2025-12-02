@@ -131,7 +131,8 @@ function Test-Version {
     
     $result = & $script:CliBinary --version 2>&1 | Out-String
     
-    if ($result -match "\d+\.\d+\.\d+") {
+    # Version format: YYYY.MM.DD or YYYY.MM.DD.sha (e.g., 2025.12.02 or 2025.12.02.abc123)
+    if ($result -match "^\d{4}\.\d{2}\.\d{2}") {
         Write-TestPass "Version: $($result.Trim().Split("`n")[0])"
     } else {
         Write-TestFail "Did not show version: $result"

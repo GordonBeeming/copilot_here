@@ -571,7 +571,8 @@ test_cli_binary() {
   local result
   result=$("$CLI_BINARY" --version 2>&1) || true
   
-  if echo "$result" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
+  # Version format: YYYY.MM.DD or YYYY.MM.DD.sha
+  if echo "$result" | grep -qE "^[0-9]{4}\.[0-9]{2}\.[0-9]{2}"; then
     test_pass "CLI binary shows version: $(echo "$result" | head -1)"
   else
     test_fail "CLI binary did not show version: $result"
