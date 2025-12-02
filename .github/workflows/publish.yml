@@ -146,6 +146,8 @@ jobs:
           file: ./docker/Dockerfile.proxy
           platforms: ${{ matrix.platform }}
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-${{ matrix.suffix }}
           labels: project=copilot_here
