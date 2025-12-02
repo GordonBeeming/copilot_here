@@ -156,10 +156,10 @@ setup_cli() {
       return 1
     fi
     
-    CLI_BINARY="$publish_dir/CopilotHere"
+    CLI_BINARY="$publish_dir/copilot_here"
     if [ ! -f "$CLI_BINARY" ]; then
       # Try with .exe extension on Windows
-      CLI_BINARY="$publish_dir/CopilotHere.exe"
+      CLI_BINARY="$publish_dir/copilot_here.exe"
     fi
     
     if [ ! -f "$CLI_BINARY" ]; then
