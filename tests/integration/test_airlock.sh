@@ -351,9 +351,15 @@ cleanup_containers() {
   fi
   
   # Clean up publish directory
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local repo_root="$(cd "$script_dir/../.." && pwd)"
-  rm -rf "$repo_root/publish/test" 2>/dev/null || true
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || true
+  if [ -n "$script_dir" ]; then
+    local repo_root
+    repo_root="$(cd "$script_dir/../.." 2>/dev/null && pwd)" || true
+    if [ -n "$repo_root" ]; then
+      rm -rf "$repo_root/publish/test" 2>/dev/null || true
+    fi
+  fi
   
   echo "✓ Cleanup complete"
 }
@@ -399,10 +405,11 @@ test_allowed_host_http() {
   # HTTP requests should work through the proxy (forwarded, not tunneled like HTTPS)
   local result exit_code max_retries=3 retry=0
   while [ $retry -lt $max_retries ]; do
+    exit_code=0
     result=$(run_in_client curl -sf --max-time 15 "http://httpbin.org/get" 2>&1) || exit_code=$?
-    exit_code=${exit_code:-0}
     
-    if [ $exit_code -eq 0 ] && echo "$result" | grep -q '"url"'; then
+    # Check if response contains expected content (success even if curl exit code is non-zero due to timeout after receiving data)
+    if echo "$result" | grep -q '"url"'; then
       test_pass "HTTP request to httpbin.org/get succeeded"
       return
     fi
