@@ -213,8 +213,8 @@ graph LR
 Download and source the script in your shell profile:
 
 ```bash
-# Download the script
-curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
+# Download the script (from latest release)
+curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh -o ~/.copilot_here.sh
 
 # Add to your shell profile (~/.zshrc or ~/.bashrc) - only if not already there
 if ! grep -q "source ~/.copilot_here.sh" ~/.zshrc 2>/dev/null; then
@@ -236,7 +236,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
 
 1. **Download the script:**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
+   curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh -o ~/.copilot_here.sh
    ```
 
 2. **Add to your shell profile** (`~/.zshrc` or `~/.bashrc`):
@@ -260,9 +260,9 @@ If you prefer not to use the quick install method, you can manually copy the scr
 Download and source the script in your PowerShell profile:
 
 ```powershell
-# Download the script
+# Download the script (from latest release)
 $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $scriptPath
+Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
 
 # Add to your PowerShell profile - only if not already there
 if (-not (Select-String -Path $PROFILE -Pattern "copilot_here.ps1" -Quiet -ErrorAction SilentlyContinue)) {
@@ -284,7 +284,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
 1. **Download the script:**
    ```powershell
    $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1" -OutFile $scriptPath
+   Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
    ```
 
 2. **Add to your PowerShell profile:**
