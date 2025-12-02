@@ -8,20 +8,21 @@ namespace CopilotHere.Infrastructure;
 /// </summary>
 public static class SelfUpdater
 {
-  private const string ReleasesApiUrl = "https://api.github.com/repos/GordonBeeming/copilot_here/releases/latest";
   private const string RepoUrl = "https://github.com/GordonBeeming/copilot_here";
+  private const string ShellScriptUrl = "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh";
 
   /// <summary>
-  /// Gets the current application version.
+  /// Gets the current application version from the shell script version format (YYYY-MM-DD).
   /// </summary>
-  public static string CurrentVersion
+  public static string CurrentVersion => GetVersionFromDate(BuildInfo.BuildDate);
+
+  /// <summary>
+  /// Converts a build date to version format.
+  /// </summary>
+  private static string GetVersionFromDate(string buildDate)
   {
-    get
-    {
-      var assembly = typeof(SelfUpdater).Assembly;
-      var version = assembly.GetName().Version;
-      return version is not null ? $"{version.Major}.{version.Minor}.{version.Build}" : "0.0.0";
-    }
+    // BuildDate is in format "yyyy-MM-dd", use as-is for version
+    return buildDate;
   }
 
   /// <summary>
@@ -98,14 +99,13 @@ public static class SelfUpdater
   }
 
   /// <summary>
-  /// Gets the latest version from GitHub releases.
-  /// Looks for the cli-latest release which contains the version in its name.
+  /// Gets the latest version from the shell script on GitHub.
+  /// Parses the "# Version: YYYY-MM-DD" header from copilot_here.sh.
   /// </summary>
   private static string? GetLatestVersion()
   {
     try
     {
-      // First try the cli-latest release which has the version in the release name
       var startInfo = new ProcessStartInfo
       {
         FileName = "curl",
@@ -115,9 +115,7 @@ public static class SelfUpdater
         CreateNoWindow = true
       };
       startInfo.ArgumentList.Add("-fsSL");
-      startInfo.ArgumentList.Add("-H");
-      startInfo.ArgumentList.Add("Accept: application/vnd.github+json");
-      startInfo.ArgumentList.Add($"{ReleasesApiUrl.Replace("/latest", "")}/tags/cli-latest");
+      startInfo.ArgumentList.Add(ShellScriptUrl);
 
       using var process = Process.Start(startInfo);
       if (process is null) return null;
@@ -127,51 +125,15 @@ public static class SelfUpdater
 
       if (process.ExitCode != 0) return null;
 
-      // The cli-latest release has the version in the "name" field: "CLI v0.1.0"
-      // Look for "name": "CLI vX.Y.Z"
-      var nameIndex = output.IndexOf("\"name\":", StringComparison.Ordinal);
-      if (nameIndex >= 0)
+      // Parse "# Version: YYYY-MM-DD" from the script
+      foreach (var line in output.Split('\n'))
       {
-        var valueStart = output.IndexOf('"', nameIndex + 7);
-        if (valueStart >= 0)
+        if (line.StartsWith("# Version:", StringComparison.OrdinalIgnoreCase))
         {
-          var valueEnd = output.IndexOf('"', valueStart + 1);
-          if (valueEnd > valueStart)
+          var version = line["# Version:".Length..].Trim();
+          if (!string.IsNullOrEmpty(version))
           {
-            var name = output.Substring(valueStart + 1, valueEnd - valueStart - 1);
-            // Extract version from "CLI v0.1.0" or similar
-            var vIndex = name.LastIndexOf('v');
-            if (vIndex >= 0)
-            {
-              return name[(vIndex + 1)..].Trim();
-            }
-          }
-        }
-      }
-
-      // Fallback: try to get version from tag_name (cli-vX.Y.Z-sha pattern)
-      var tagIndex = output.IndexOf("\"tag_name\":", StringComparison.Ordinal);
-      if (tagIndex >= 0)
-      {
-        var valueStart = output.IndexOf('"', tagIndex + 11);
-        if (valueStart >= 0)
-        {
-          var valueEnd = output.IndexOf('"', valueStart + 1);
-          if (valueEnd > valueStart)
-          {
-            var tagName = output.Substring(valueStart + 1, valueEnd - valueStart - 1);
-            // Try to extract version from cli-v0.1.0-abc123 pattern
-            if (tagName.StartsWith("cli-v", StringComparison.Ordinal))
-            {
-              var versionPart = tagName[5..]; // Remove "cli-v"
-              var dashIndex = versionPart.IndexOf('-');
-              if (dashIndex > 0)
-              {
-                return versionPart[..dashIndex];
-              }
-            }
-            // Strip 'v' prefix if present
-            return tagName.StartsWith('v') ? tagName[1..] : tagName;
+            return version;
           }
         }
       }
@@ -186,10 +148,17 @@ public static class SelfUpdater
 
   /// <summary>
   /// Compares version strings to check if current is latest or newer.
+  /// Handles date-based versions (YYYY-MM-DD or YYYY-MM-DD.N).
   /// </summary>
   private static bool IsCurrentVersionLatest(string current, string latest)
   {
-    // Parse versions as numeric components
+    // Try to compare as dates first
+    if (TryCompareDateVersions(current, latest, out var isLatest))
+    {
+      return isLatest;
+    }
+
+    // Fall back to numeric version comparison
     var currentParts = ParseVersion(current);
     var latestParts = ParseVersion(latest);
 
@@ -209,6 +178,55 @@ public static class SelfUpdater
     }
 
     return true; // Equal
+  }
+
+  /// <summary>
+  /// Tries to compare versions as dates (YYYY-MM-DD or YYYY-MM-DD.N format).
+  /// </summary>
+  private static bool TryCompareDateVersions(string current, string latest, out bool isCurrentLatest)
+  {
+    isCurrentLatest = false;
+
+    // Parse current: "2025-12-02" or "2025-12-02.1"
+    var currentParts = current.Split('.');
+    var latestParts = latest.Split('.');
+
+    // Try to parse the date part
+    if (!TryParseDatePart(currentParts[0], out var currentDate) ||
+        !TryParseDatePart(latestParts[0], out var latestDate))
+    {
+      return false;
+    }
+
+    // Compare dates
+    var dateComparison = currentDate.CompareTo(latestDate);
+    if (dateComparison > 0)
+    {
+      isCurrentLatest = true;
+      return true;
+    }
+    if (dateComparison < 0)
+    {
+      isCurrentLatest = false;
+      return true;
+    }
+
+    // Same date, compare patch numbers (e.g., .1, .2)
+    var currentPatch = currentParts.Length > 1 && int.TryParse(currentParts[1], out var cp) ? cp : 0;
+    var latestPatch = latestParts.Length > 1 && int.TryParse(latestParts[1], out var lp) ? lp : 0;
+
+    isCurrentLatest = currentPatch >= latestPatch;
+    return true;
+  }
+
+  /// <summary>
+  /// Tries to parse a YYYY-MM-DD string into a DateTime.
+  /// </summary>
+  private static bool TryParseDatePart(string datePart, out DateTime date)
+  {
+    return DateTime.TryParseExact(datePart, "yyyy-MM-dd", 
+      System.Globalization.CultureInfo.InvariantCulture,
+      System.Globalization.DateTimeStyles.None, out date);
   }
 
   private static int[] ParseVersion(string version)

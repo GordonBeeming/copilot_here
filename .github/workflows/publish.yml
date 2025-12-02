@@ -496,6 +496,21 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Extract version from shell script
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Update BuildInfo with version
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i.bak "s/BuildDate = \".*\"/BuildDate = \"$VERSION\"/" app/Infrastructure/BuildInfo.cs
+          cat app/Infrastructure/BuildInfo.cs
+
       - name: Publish AOT binary
         run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
 
@@ -544,10 +559,13 @@ jobs:
           
           ls -la release/
 
-      - name: Get version from project
+      - name: Get version from shell script
         id: version
         run: |
-          VERSION=$(grep -oP '<Version>\K[^<]+' app/CopilotHere.csproj 2>/dev/null || echo "0.1.0")
+          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
+          if [ -z "$VERSION" ]; then
+            VERSION="0.1.0"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
