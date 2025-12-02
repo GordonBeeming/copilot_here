@@ -46,6 +46,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Capture script directory at startup (before any cd commands)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 TEST_COUNT=0
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -133,9 +137,6 @@ setup_cli() {
   echo ""
   echo "🔧 Setting up CLI binary..."
   
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local repo_root="$(cd "$script_dir/../.." && pwd)"
-  
   if [ -n "$CLI_PATH" ] && [ -f "$CLI_PATH" ]; then
     CLI_BINARY="$CLI_PATH"
     echo "   Using provided CLI: $CLI_BINARY"
@@ -148,10 +149,10 @@ setup_cli() {
       return 1
     fi
     
-    local publish_dir="$repo_root/publish/test"
+    local publish_dir="$REPO_ROOT/publish/test"
     mkdir -p "$publish_dir"
     
-    if ! dotnet publish "$repo_root/app/CopilotHere.csproj" -c Release -o "$publish_dir" --nologo -v q 2>&1; then
+    if ! dotnet publish "$REPO_ROOT/app/CopilotHere.csproj" -c Release -o "$publish_dir" --nologo -v q 2>&1; then
       echo -e "${RED}❌ Failed to build CLI${NC}"
       return 1
     fi
@@ -185,9 +186,6 @@ setup_test_env() {
   echo ""
   echo "🔧 Setting up test environment..."
   
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local repo_root="$(cd "$script_dir/../.." && pwd)"
-  
   # Create temp directory for test files
   TEST_DIR=$(mktemp -d)
   mkdir -p "$TEST_DIR/.copilot_here"
@@ -219,8 +217,8 @@ EOF
   local global_config="$HOME/.config/copilot_here"
   mkdir -p "$global_config"
   
-  if [ -f "$repo_root/docker-compose.airlock.yml.template" ]; then
-    cp "$repo_root/docker-compose.airlock.yml.template" "$global_config/"
+  if [ -f "$REPO_ROOT/docker-compose.airlock.yml.template" ]; then
+    cp "$REPO_ROOT/docker-compose.airlock.yml.template" "$global_config/"
   fi
   
   echo "   Test directory: $TEST_DIR"
@@ -270,9 +268,7 @@ start_containers() {
   # For now, fall back to the compose-based approach but use CLI to verify it works
   # The key is we're testing the actual Airlock images and compose template
   
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local repo_root="$(cd "$script_dir/../.." && pwd)"
-  local template_file="$repo_root/docker-compose.airlock.yml.template"
+  local template_file="$REPO_ROOT/docker-compose.airlock.yml.template"
   
   if [ ! -f "$template_file" ]; then
     template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
@@ -351,14 +347,8 @@ cleanup_containers() {
   fi
   
   # Clean up publish directory
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || true
-  if [ -n "$script_dir" ]; then
-    local repo_root
-    repo_root="$(cd "$script_dir/../.." 2>/dev/null && pwd)" || true
-    if [ -n "$repo_root" ]; then
-      rm -rf "$repo_root/publish/test" 2>/dev/null || true
-    fi
+  if [ -n "$REPO_ROOT" ]; then
+    rm -rf "$REPO_ROOT/publish/test" 2>/dev/null || true
   fi
   
   echo "✓ Cleanup complete"
