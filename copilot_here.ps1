@@ -3,12 +3,12 @@
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
-$script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot-here.exe" }
+$script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
 
 # Helper function to ensure binary is installed
 function Ensure-CopilotHereBinary {
     if (-not (Test-Path $script:CopilotHereBin)) {
-        Write-Host "📥 copilot-here binary not found. Installing..."
+        Write-Host "📥 copilot_here binary not found. Installing..."
         
         # Detect architecture
         $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq "Arm64") { "arm64" } else { "x64" }
@@ -20,7 +20,7 @@ function Ensure-CopilotHereBinary {
         }
         
         # Download latest release archive
-        $downloadUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot-here-win-${arch}.zip"
+        $downloadUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here-win-${arch}.zip"
         $tmpArchive = [System.IO.Path]::GetTempFileName() + ".zip"
         
         Write-Host "📦 Downloading from: $downloadUrl"

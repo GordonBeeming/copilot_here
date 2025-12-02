@@ -396,22 +396,22 @@ jobs:
         include:
           - os: ubuntu-latest
             rid: linux-x64
-            binary: copilot-here
+            binary: copilot_here
           - os: ubuntu-24.04-arm
             rid: linux-arm64
-            binary: copilot-here
+            binary: copilot_here
           - os: macos-13
             rid: osx-x64
-            binary: copilot-here
+            binary: copilot_here
           - os: macos-latest
             rid: osx-arm64
-            binary: copilot-here
+            binary: copilot_here
           - os: windows-latest
             rid: win-x64
-            binary: copilot-here.exe
+            binary: copilot_here.exe
           - os: windows-11-arm
             rid: win-arm64
-            binary: copilot-here.exe
+            binary: copilot_here.exe
 
     steps:
       - name: Checkout repository
@@ -428,7 +428,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: copilot-here-${{ matrix.rid }}
+          name: copilot_here-${{ matrix.rid }}
           path: publish/${{ matrix.rid }}/${{ matrix.binary }}
           if-no-files-found: error
 
@@ -452,18 +452,18 @@ jobs:
           mkdir -p release
           for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
             if [[ "$rid" == win-* ]]; then
-              binary="copilot-here.exe"
+              binary="copilot_here.exe"
             else
-              binary="copilot-here"
+              binary="copilot_here"
             fi
             
             # Create archive
-            cd artifacts/copilot-here-$rid
+            cd artifacts/copilot_here-$rid
             if [[ "$rid" == win-* ]]; then
-              zip ../../release/copilot-here-$rid.zip $binary
+              zip ../../release/copilot_here-$rid.zip $binary
             else
               chmod +x $binary
-              tar -czvf ../../release/copilot-here-$rid.tar.gz $binary
+              tar -czvf ../../release/copilot_here-$rid.tar.gz $binary
             fi
             cd ../..
           done
@@ -492,12 +492,12 @@ jobs:
             
             | Platform | Architecture | Download |
             |----------|--------------|----------|
-            | Linux | x64 | [copilot-here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-linux-x64.tar.gz) |
-            | Linux | ARM64 | [copilot-here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-linux-arm64.tar.gz) |
-            | macOS | x64 | [copilot-here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-osx-x64.tar.gz) |
-            | macOS | ARM64 | [copilot-here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-osx-arm64.tar.gz) |
-            | Windows | x64 | [copilot-here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-win-x64.zip) |
-            | Windows | ARM64 | [copilot-here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-win-arm64.zip) |
+            | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
+            | Linux | ARM64 | [copilot_here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-arm64.tar.gz) |
+            | macOS | x64 | [copilot_here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-x64.tar.gz) |
+            | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
+            | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-x64.zip) |
+            | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
             
             ### Installation
             

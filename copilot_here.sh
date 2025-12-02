@@ -3,12 +3,12 @@
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
-COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot-here}"
+COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 
 # Helper function to ensure binary is installed
 __copilot_ensure_binary() {
   if [ ! -f "$COPILOT_HERE_BIN" ]; then
-    echo "📥 copilot-here binary not found. Installing..."
+    echo "📥 copilot_here binary not found. Installing..."
     
     # Detect OS and architecture
     local os=""
@@ -32,7 +32,7 @@ __copilot_ensure_binary() {
     mkdir -p "$bin_dir"
     
     # Download latest release archive
-    local download_url="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot-here-${os}-${arch}.tar.gz"
+    local download_url="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here-${os}-${arch}.tar.gz"
     local tmp_archive
     tmp_archive="$(mktemp)"
     
@@ -44,7 +44,7 @@ __copilot_ensure_binary() {
     fi
     
     # Extract binary from archive
-    if ! tar -xzf "$tmp_archive" -C "$bin_dir" copilot-here; then
+    if ! tar -xzf "$tmp_archive" -C "$bin_dir" copilot_here; then
       rm -f "$tmp_archive"
       echo "❌ Failed to extract binary"
       return 1

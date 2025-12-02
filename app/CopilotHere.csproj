@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Version>0.1.0</Version>
-    <AssemblyName>copilot-here</AssemblyName>
+    <AssemblyName>copilot_here</AssemblyName>
 
     <PublishAot>true</PublishAot>
 

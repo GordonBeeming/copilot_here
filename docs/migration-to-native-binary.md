@@ -189,12 +189,12 @@ Native AOT binaries are built for multiple platforms:
 
 | Platform | Runtime Identifier | Binary Name |
 |----------|-------------------|-------------|
-| Linux x64 | `linux-x64` | `copilot-here` |
-| Linux ARM64 | `linux-arm64` | `copilot-here` |
-| macOS x64 | `osx-x64` | `copilot-here` |
-| macOS ARM64 | `osx-arm64` | `copilot-here` |
-| Windows x64 | `win-x64` | `copilot-here.exe` |
-| Windows ARM64 | `win-arm64` | `copilot-here.exe` |
+| Linux x64 | `linux-x64` | `copilot_here` |
+| Linux ARM64 | `linux-arm64` | `copilot_here` |
+| macOS x64 | `osx-x64` | `copilot_here` |
+| macOS ARM64 | `osx-arm64` | `copilot_here` |
+| Windows x64 | `win-x64` | `copilot_here.exe` |
+| Windows ARM64 | `win-arm64` | `copilot_here.exe` |
 
 ### Installation Flow
 
@@ -209,7 +209,7 @@ Native AOT binaries are built for multiple platforms:
    ```
 
 2. **First Run** - Shell wrapper:
-   - Checks for binary at `~/.config/copilot_here/bin/copilot-here[.exe]`
+   - Checks for binary at `~/.local/bin/copilot_here[.exe]`
    - If missing, downloads from GitHub releases
    - Passes all arguments to binary
    - Adds `--yolo` flag when called as `copilot_yolo`

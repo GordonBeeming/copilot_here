@@ -105,7 +105,7 @@ function Setup-Cli {
 }
 
 function Setup-TestDir {
-    $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "copilot-here-test-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+    $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "copilot_here-test-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Force -Path $script:TestDir | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $script:TestDir ".copilot_here") | Out-Null
 }
