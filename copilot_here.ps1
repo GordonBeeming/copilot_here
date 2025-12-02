@@ -1,9 +1,10 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.02.3
+# Version: 2025.12.02.4
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
+$script:CopilotHereScriptUrl = "https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1"
 
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
@@ -20,7 +21,7 @@ function Download-CopilotHereBinary {
     $downloadUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here-win-${arch}.zip"
     $tmpArchive = [System.IO.Path]::GetTempFileName() + ".zip"
     
-    Write-Host "📦 Downloading from: $downloadUrl"
+    Write-Host "📦 Downloading binary from: $downloadUrl"
     try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpArchive -UseBasicParsing
     } catch {
@@ -39,28 +40,12 @@ function Download-CopilotHereBinary {
     }
     
     Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
-    Write-Host "✅ Installed to: $script:CopilotHereBin"
+    Write-Host "✅ Binary installed to: $script:CopilotHereBin"
     return $true
-}
-
-# Helper function to apply pending update
-function Apply-CopilotHereUpdate {
-    $updateFile = "$script:CopilotHereBin.update"
-    if (Test-Path $updateFile) {
-        Write-Host "🔄 Applying pending update..."
-        if (Test-Path $script:CopilotHereBin) {
-            Remove-Item -Path $script:CopilotHereBin -Force
-        }
-        Move-Item -Path $updateFile -Destination $script:CopilotHereBin -Force
-        Write-Host "✅ Update applied!"
-    }
 }
 
 # Helper function to ensure binary is installed
 function Ensure-CopilotHereBinary {
-    # Apply any pending update first
-    Apply-CopilotHereUpdate
-    
     if (-not (Test-Path $script:CopilotHereBin)) {
         Write-Host "📥 copilot_here binary not found. Installing..."
         return Download-CopilotHereBinary
@@ -69,31 +54,50 @@ function Ensure-CopilotHereBinary {
     return $true
 }
 
-# Reset function - re-downloads binary
-function Reset-CopilotHere {
-    Write-Host "🔄 Resetting copilot_here..."
+# Update function - downloads fresh binary
+function Update-CopilotHere {
+    Write-Host "🔄 Updating copilot_here..."
     
     # Remove existing binary
     if (Test-Path $script:CopilotHereBin) {
         Remove-Item -Path $script:CopilotHereBin -Force
-        Write-Host "🗑️  Removed existing binary"
     }
     
     # Download fresh binary
-    Write-Host "📥 Downloading fresh binary..."
+    Write-Host ""
+    Write-Host "📥 Downloading latest binary..."
     if (-not (Download-CopilotHereBinary)) {
         Write-Host "❌ Failed to download binary" -ForegroundColor Red
         return $false
     }
     
     Write-Host ""
-    Write-Host "✅ Reset complete!"
+    Write-Host "✅ Update complete!"
     Write-Host ""
-    Write-Host "⚠️  To complete the reset, please re-import the PowerShell script:" -ForegroundColor Yellow
-    Write-Host "   iex (iwr -UseBasicParsing https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1).Content"
+    Write-Host "⚠️  To update the PowerShell functions, please re-import the script:" -ForegroundColor Yellow
+    Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereScriptUrl).Content"
     Write-Host ""
     Write-Host "   Or restart your terminal."
     return $true
+}
+
+# Reset function - same as update (kept for backwards compatibility)
+function Reset-CopilotHere {
+    Update-CopilotHere
+}
+
+# Check if argument is an update command
+function Test-UpdateArg {
+    param([string]$Arg)
+    $updateArgs = @("--update", "-u", "--upgrade", "-Update", "-UpdateScripts", "-UpgradeScripts", "--update-scripts", "--upgrade-scripts")
+    return $updateArgs -contains $Arg
+}
+
+# Check if argument is a reset command
+function Test-ResetArg {
+    param([string]$Arg)
+    $resetArgs = @("--reset", "-Reset")
+    return $resetArgs -contains $Arg
 }
 
 # Safe Mode: Asks for confirmation before executing
@@ -104,8 +108,14 @@ function Copilot-Here {
         [string[]]$Arguments
     )
     
+    # Handle --update and variants before binary check
+    if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+        Update-CopilotHere
+        return
+    }
+    
     # Handle --reset before binary check
-    if ($Arguments -and ($Arguments[0] -eq "--reset" -or $Arguments[0] -eq "-Reset")) {
+    if ($Arguments -and (Test-ResetArg $Arguments[0])) {
         Reset-CopilotHere
         return
     }
@@ -122,8 +132,14 @@ function Copilot-Yolo {
         [string[]]$Arguments
     )
     
+    # Handle --update and variants before binary check
+    if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+        Update-CopilotHere
+        return
+    }
+    
     # Handle --reset before binary check
-    if ($Arguments -and ($Arguments[0] -eq "--reset" -or $Arguments[0] -eq "-Reset")) {
+    if ($Arguments -and (Test-ResetArg $Arguments[0])) {
         Reset-CopilotHere
         return
     }

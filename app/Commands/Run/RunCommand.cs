@@ -35,7 +35,7 @@ public sealed class RunCommand : ICommand
   // === HELP OPTIONS ===
   private readonly Option<bool> _help2Option;
 
-  // === SELF-UPDATE OPTIONS ===
+  // === SELF-UPDATE OPTIONS (handled by shell scripts, shown in help) ===
   private readonly Option<bool> _updateScriptsOption;
 
   // === YOLO MODE (handled in Program.cs but shown in help) ===
@@ -88,7 +88,8 @@ public sealed class RunCommand : ICommand
 
     _help2Option = new Option<bool>("--help2") { Description = "Show GitHub Copilot CLI native help" };
 
-    _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update from GitHub repository" };
+    // Update option - handled by shell scripts but shown in help
+    _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update binary and scripts (handled by shell wrapper)" };
 
     // Yolo mode - adds --allow-all-tools and --allow-all-paths to Copilot
     // Note: This is handled in Program.cs for app name, but we add it here so it shows in --help
@@ -160,10 +161,16 @@ public sealed class RunCommand : ICommand
       var resumeSession = parseResult.GetValue(_resumeOption);
       var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
 
-      // Handle --update
+      // Handle --update - show message that it's handled by shell wrapper
       if (updateScripts)
       {
-        return SelfUpdater.CheckAndUpdate();
+        Console.WriteLine("ℹ️  Update is handled by the shell wrapper (copilot_here function).");
+        Console.WriteLine("   If running the binary directly, please use the shell function:");
+        Console.WriteLine("");
+        Console.WriteLine("   copilot_here --update");
+        Console.WriteLine("");
+        Console.WriteLine("   Or manually re-source the script to get updates.");
+        return 0;
       }
 
       // Security check

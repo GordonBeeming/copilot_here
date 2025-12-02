@@ -1,9 +1,10 @@
 # copilot_here shell functions
-# Version: 2025.12.02.3
+# Version: 2025.12.02.4
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
+COPILOT_HERE_SCRIPT_URL="https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh"
 
 # Helper function to download and install binary
 __copilot_download_binary() {
@@ -33,7 +34,7 @@ __copilot_download_binary() {
   local tmp_archive
   tmp_archive="$(mktemp)"
   
-  echo "📦 Downloading from: $download_url"
+  echo "📦 Downloading binary from: $download_url"
   if ! curl -fsSL "$download_url" -o "$tmp_archive"; then
     rm -f "$tmp_archive"
     echo "❌ Failed to download binary"
@@ -49,27 +50,12 @@ __copilot_download_binary() {
   
   rm -f "$tmp_archive"
   chmod +x "$COPILOT_HERE_BIN"
-  echo "✅ Installed to: $COPILOT_HERE_BIN"
+  echo "✅ Binary installed to: $COPILOT_HERE_BIN"
   return 0
-}
-
-# Helper function to apply pending update
-__copilot_apply_update() {
-  local update_file="${COPILOT_HERE_BIN}.update"
-  if [ -f "$update_file" ]; then
-    echo "🔄 Applying pending update..."
-    rm -f "$COPILOT_HERE_BIN"
-    mv "$update_file" "$COPILOT_HERE_BIN"
-    chmod +x "$COPILOT_HERE_BIN"
-    echo "✅ Update applied!"
-  fi
 }
 
 # Helper function to ensure binary is installed
 __copilot_ensure_binary() {
-  # Apply any pending update first
-  __copilot_apply_update
-  
   if [ ! -f "$COPILOT_HERE_BIN" ]; then
     echo "📥 copilot_here binary not found. Installing..."
     __copilot_download_binary
@@ -78,37 +64,70 @@ __copilot_ensure_binary() {
   return 0
 }
 
-# Reset function - re-downloads shell script and binary
-__copilot_reset() {
-  echo "🔄 Resetting copilot_here..."
-  
-  # Remove existing binary
-  if [ -f "$COPILOT_HERE_BIN" ]; then
-    rm -f "$COPILOT_HERE_BIN"
-    echo "🗑️  Removed existing binary"
-  fi
+# Update function - downloads fresh shell script and binary
+__copilot_update() {
+  echo "🔄 Updating copilot_here..."
   
   # Download fresh binary
-  echo "📥 Downloading fresh binary..."
+  echo ""
+  echo "📥 Downloading latest binary..."
+  if [ -f "$COPILOT_HERE_BIN" ]; then
+    rm -f "$COPILOT_HERE_BIN"
+  fi
   if ! __copilot_download_binary; then
     echo "❌ Failed to download binary"
     return 1
   fi
   
   echo ""
-  echo "✅ Reset complete!"
+  echo "✅ Update complete!"
   echo ""
-  echo "⚠️  To complete the reset, please re-source the shell script:"
-  echo "   source <(curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh)"
+  echo "⚠️  To update the shell functions, please re-source the script:"
+  echo "   source <(curl -fsSL $COPILOT_HERE_SCRIPT_URL)"
   echo ""
   echo "   Or restart your terminal."
   return 0
 }
 
+# Reset function - same as update (kept for backwards compatibility)
+__copilot_reset() {
+  __copilot_update
+}
+
+# Check if argument is an update command
+__copilot_is_update_arg() {
+  case "$1" in
+    --update|-u|--upgrade|-Update|-UpdateScripts|-UpgradeScripts|--update-scripts|--upgrade-scripts)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Check if argument is a reset command
+__copilot_is_reset_arg() {
+  case "$1" in
+    --reset|-Reset)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Safe Mode: Asks for confirmation before executing
 copilot_here() {
+  # Handle --update and variants before binary check
+  if __copilot_is_update_arg "$1"; then
+    __copilot_update
+    return $?
+  fi
+  
   # Handle --reset before binary check
-  if [ "$1" = "--reset" ] || [ "$1" = "-Reset" ]; then
+  if __copilot_is_reset_arg "$1"; then
     __copilot_reset
     return $?
   fi
@@ -119,8 +138,14 @@ copilot_here() {
 
 # YOLO Mode: Auto-approves all tool usage
 copilot_yolo() {
+  # Handle --update and variants before binary check
+  if __copilot_is_update_arg "$1"; then
+    __copilot_update
+    return $?
+  fi
+  
   # Handle --reset before binary check
-  if [ "$1" = "--reset" ] || [ "$1" = "-Reset" ]; then
+  if __copilot_is_reset_arg "$1"; then
     __copilot_reset
     return $?
   fi
