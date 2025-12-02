@@ -38,6 +38,9 @@ public sealed class RunCommand : ICommand
   // === SELF-UPDATE OPTIONS ===
   private readonly Option<bool> _updateScriptsOption;
 
+  // === YOLO MODE (handled in Program.cs but shown in help) ===
+  private readonly Option<bool> _yoloOption;
+
   // === COPILOT PASSTHROUGH OPTIONS ===
   // These are passed directly to the Copilot CLI inside the container
   private readonly Option<string?> _promptOption;
@@ -87,6 +90,10 @@ public sealed class RunCommand : ICommand
 
     _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update from GitHub repository" };
 
+    // Yolo mode - adds --allow-all-tools and --allow-all-paths to Copilot
+    // Note: This is handled in Program.cs for app name, but we add it here so it shows in --help
+    _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools and paths)" };
+
     // Copilot passthrough options
     _promptOption = new Option<string?>("--prompt") { Description = "Execute a prompt directly" };
     _promptOption.Aliases.Add("-p");
@@ -118,6 +125,7 @@ public sealed class RunCommand : ICommand
     root.Add(_noPullOption);
     root.Add(_help2Option);
     root.Add(_updateScriptsOption);
+    root.Add(_yoloOption);
 
     // Copilot passthrough options
     root.Add(_promptOption);

@@ -123,20 +123,12 @@ class Program
   /// - Single-dash multi-char aliases like -d, -d8, -d9, -d10 for dotnet version selection
   /// - PowerShell-style aliases like -Dotnet, -Mount for backwards compatibility
   /// These are mapped to standard double-dash forms so they work but don't clutter help.
-  /// Also strips --yolo flag since it's handled separately for app name.
   /// </summary>
   private static string[] NormalizeArgs(string[] args)
   {
     var normalized = new List<string>(args.Length);
     foreach (var arg in args)
     {
-      // Skip --yolo flag (already processed for app name)
-      if (arg.Equals("--yolo", StringComparison.OrdinalIgnoreCase) ||
-          arg.Equals("-Yolo", StringComparison.OrdinalIgnoreCase))
-      {
-        continue;
-      }
-
       normalized.Add(AliasMap.TryGetValue(arg, out var mapped) ? mapped : arg);
     }
     return [.. normalized];
