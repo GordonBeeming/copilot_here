@@ -79,15 +79,11 @@ echo ""
 echo "Registry: $REGISTRY"
 echo ""
 
-# First, copy scripts to simulate update (like dev-scripts.sh does)
-echo "📋 Copying scripts to ~/.config/copilot_here..."
+# Copy airlock config files to ~/.config/copilot_here
+echo "📋 Copying config files to ~/.config/copilot_here..."
 CONFIG_DIR="$HOME/.config/copilot_here"
 mkdir -p "$CONFIG_DIR"
 
-if [ -f "${SCRIPT_DIR}/copilot_here.sh" ]; then
-  cp "${SCRIPT_DIR}/copilot_here.sh" "$HOME/.copilot_here.sh"
-  echo "   ✓ Copied copilot_here.sh"
-fi
 if [ -f "${SCRIPT_DIR}/default-airlock-rules.json" ]; then
   cp "${SCRIPT_DIR}/default-airlock-rules.json" "$CONFIG_DIR/"
   echo "   ✓ Copied default-airlock-rules.json"
@@ -169,11 +165,8 @@ echo "Built images:"
 docker images --format "  {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$REGISTRY" | sort
 echo ""
 echo "Run integration tests with:"
-echo "  ./tests/integration/test_airlock.sh"
-echo ""
-echo "💡 To load shell functions, run:"
-echo "   source ~/.copilot_here.sh"
+echo "  ./tests/integration/test_airlock.sh --use-local"
 echo ""
 echo "💡 To use locally built images (skip pulling from registry):"
-echo "   copilot_here --skip-pull"
-echo "   copilot_yolo --skip-pull"
+echo "   copilot_here --no-pull"
+echo "   copilot_yolo --no-pull"
