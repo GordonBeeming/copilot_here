@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.02.2
+# Version: 2025.12.02.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -43,8 +43,24 @@ function Download-CopilotHereBinary {
     return $true
 }
 
+# Helper function to apply pending update
+function Apply-CopilotHereUpdate {
+    $updateFile = "$script:CopilotHereBin.update"
+    if (Test-Path $updateFile) {
+        Write-Host "🔄 Applying pending update..."
+        if (Test-Path $script:CopilotHereBin) {
+            Remove-Item -Path $script:CopilotHereBin -Force
+        }
+        Move-Item -Path $updateFile -Destination $script:CopilotHereBin -Force
+        Write-Host "✅ Update applied!"
+    }
+}
+
 # Helper function to ensure binary is installed
 function Ensure-CopilotHereBinary {
+    # Apply any pending update first
+    Apply-CopilotHereUpdate
+    
     if (-not (Test-Path $script:CopilotHereBin)) {
         Write-Host "📥 copilot_here binary not found. Installing..."
         return Download-CopilotHereBinary

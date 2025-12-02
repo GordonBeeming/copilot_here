@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2025.12.02.2
+# Version: 2025.12.02.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -53,8 +53,23 @@ __copilot_download_binary() {
   return 0
 }
 
+# Helper function to apply pending update
+__copilot_apply_update() {
+  local update_file="${COPILOT_HERE_BIN}.update"
+  if [ -f "$update_file" ]; then
+    echo "🔄 Applying pending update..."
+    rm -f "$COPILOT_HERE_BIN"
+    mv "$update_file" "$COPILOT_HERE_BIN"
+    chmod +x "$COPILOT_HERE_BIN"
+    echo "✅ Update applied!"
+  fi
+}
+
 # Helper function to ensure binary is installed
 __copilot_ensure_binary() {
+  # Apply any pending update first
+  __copilot_apply_update
+  
   if [ ! -f "$COPILOT_HERE_BIN" ]; then
     echo "📥 copilot_here binary not found. Installing..."
     __copilot_download_binary

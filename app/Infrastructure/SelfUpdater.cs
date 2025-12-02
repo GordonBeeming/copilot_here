@@ -71,31 +71,183 @@ public static class SelfUpdater
 
     Console.WriteLine();
     Console.WriteLine($"📦 A new version ({latestVersion}) is available!");
-    Console.WriteLine();
+    Console.WriteLine("📥 Downloading update...");
 
-    // Show download instructions based on platform
+    // Download to .update file
     var rid = GetRuntimeIdentifier();
-    var binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "copilot_here.exe" : "copilot_here";
-    var downloadUrl = $"{RepoUrl}/releases/download/v{latestVersion}/{binaryName}-{rid}";
+    var extension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
+    var archiveName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+      ? $"copilot_here-{rid}.zip" 
+      : $"copilot_here-{rid}.tar.gz";
+    var downloadUrl = $"{RepoUrl}/releases/download/cli-latest/{archiveName}";
 
-    Console.WriteLine("To update, download the new binary:");
-    Console.WriteLine();
-
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    // Get the path to the current binary
+    var currentBinaryPath = Environment.ProcessPath;
+    if (string.IsNullOrEmpty(currentBinaryPath))
     {
-      Console.WriteLine($"  # PowerShell:");
-      Console.WriteLine($"  Invoke-WebRequest -Uri \"{downloadUrl}\" -OutFile \"$env:USERPROFILE\\.local\\bin\\{binaryName}\"");
-    }
-    else
-    {
-      Console.WriteLine($"  # Using curl:");
-      Console.WriteLine($"  curl -fsSL \"{downloadUrl}\" -o ~/.local/bin/{binaryName} && chmod +x ~/.local/bin/{binaryName}");
+      Console.WriteLine("❌ Could not determine current binary path");
+      return 1;
     }
 
-    Console.WriteLine();
-    Console.WriteLine($"Or visit: {RepoUrl}/releases/latest");
+    var updatePath = currentBinaryPath + ".update";
+    var tempArchive = Path.GetTempFileName();
 
-    return 0;
+    try
+    {
+      // Download archive
+      if (!DownloadFile(downloadUrl, tempArchive))
+      {
+        Console.WriteLine("❌ Failed to download update");
+        return 1;
+      }
+
+      // Extract binary from archive
+      if (!ExtractBinary(tempArchive, updatePath, rid))
+      {
+        Console.WriteLine("❌ Failed to extract update");
+        return 1;
+      }
+
+      // Make executable on Unix
+      if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+      {
+        MakeExecutable(updatePath);
+      }
+
+      Console.WriteLine("✅ Update downloaded successfully!");
+      Console.WriteLine("   The update will be applied on next run.");
+      return 0;
+    }
+    finally
+    {
+      // Clean up temp file
+      try { File.Delete(tempArchive); } catch { }
+    }
+  }
+
+  /// <summary>
+  /// Downloads a file from URL to path.
+  /// </summary>
+  private static bool DownloadFile(string url, string path)
+  {
+    try
+    {
+      var startInfo = new ProcessStartInfo
+      {
+        FileName = "curl",
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true
+      };
+      startInfo.ArgumentList.Add("-fsSL");
+      startInfo.ArgumentList.Add(url);
+      startInfo.ArgumentList.Add("-o");
+      startInfo.ArgumentList.Add(path);
+
+      using var process = Process.Start(startInfo);
+      if (process is null) return false;
+
+      process.WaitForExit();
+      return process.ExitCode == 0;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  /// <summary>
+  /// Extracts the binary from a tar.gz or zip archive.
+  /// </summary>
+  private static bool ExtractBinary(string archivePath, string outputPath, string rid)
+  {
+    try
+    {
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+      {
+        // Use PowerShell to extract zip on Windows
+        var startInfo = new ProcessStartInfo
+        {
+          FileName = "powershell",
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true
+        };
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add($"Expand-Archive -Path '{archivePath}' -DestinationPath '{tempDir}' -Force; Move-Item -Path '{Path.Combine(tempDir, "copilot_here.exe")}' -Destination '{outputPath}' -Force; Remove-Item -Path '{tempDir}' -Recurse -Force");
+
+        using var process = Process.Start(startInfo);
+        if (process is null) return false;
+
+        process.WaitForExit();
+        return process.ExitCode == 0 && File.Exists(outputPath);
+      }
+      else
+      {
+        // Use tar to extract on Unix
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var startInfo = new ProcessStartInfo
+        {
+          FileName = "tar",
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-xzf");
+        startInfo.ArgumentList.Add(archivePath);
+        startInfo.ArgumentList.Add("-C");
+        startInfo.ArgumentList.Add(tempDir);
+
+        using var process = Process.Start(startInfo);
+        if (process is null) return false;
+
+        process.WaitForExit();
+        if (process.ExitCode != 0) return false;
+
+        var extractedBinary = Path.Combine(tempDir, "copilot_here");
+        if (!File.Exists(extractedBinary)) return false;
+
+        File.Move(extractedBinary, outputPath, overwrite: true);
+        
+        try { Directory.Delete(tempDir, recursive: true); } catch { }
+        
+        return true;
+      }
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  /// <summary>
+  /// Makes a file executable on Unix.
+  /// </summary>
+  private static void MakeExecutable(string path)
+  {
+    try
+    {
+      var startInfo = new ProcessStartInfo
+      {
+        FileName = "chmod",
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      startInfo.ArgumentList.Add("+x");
+      startInfo.ArgumentList.Add(path);
+
+      using var process = Process.Start(startInfo);
+      process?.WaitForExit();
+    }
+    catch { }
   }
 
   /// <summary>
