@@ -213,13 +213,8 @@ EOF
   # Create airlock enabled marker
   echo "local" > "$TEST_DIR/.copilot_here/airlock"
   
-  # Copy docker-compose template to global config (CLI expects it there)
-  local global_config="$HOME/.config/copilot_here"
-  mkdir -p "$global_config"
-  
-  if [ -f "$REPO_ROOT/docker-compose.airlock.yml.template" ]; then
-    cp "$REPO_ROOT/docker-compose.airlock.yml.template" "$global_config/"
-  fi
+  # Note: The docker-compose template is now embedded in the CLI binary
+  # and also stored in app/Resources/ in the repo
   
   echo "   Test directory: $TEST_DIR"
   echo "   Network config: $network_config"
@@ -268,14 +263,10 @@ start_containers() {
   # For now, fall back to the compose-based approach but use CLI to verify it works
   # The key is we're testing the actual Airlock images and compose template
   
-  local template_file="$REPO_ROOT/docker-compose.airlock.yml.template"
+  local template_file="$REPO_ROOT/app/Resources/docker-compose.airlock.yml.template"
   
   if [ ! -f "$template_file" ]; then
-    template_file="$HOME/.config/copilot_here/docker-compose.airlock.yml.template"
-  fi
-  
-  if [ ! -f "$template_file" ]; then
-    echo -e "${RED}❌ docker-compose.airlock.yml.template not found${NC}"
+    echo -e "${RED}❌ docker-compose.airlock.yml.template not found at $template_file${NC}"
     return 1
   fi
   

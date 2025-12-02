@@ -112,9 +112,9 @@ function Initialize-TestEnvironment {
     Write-Host ""
     Write-Host "🔧 Setting up test environment..."
     
-    # Find the repo root (where docker-compose.airlock.yml.template lives)
+    # Find the repo root and template path
     $script:RepoRoot = (Get-Item $PSScriptRoot).Parent.Parent.FullName
-    $templatePath = Join-Path $script:RepoRoot "docker-compose.airlock.yml.template"
+    $templatePath = Join-Path $script:RepoRoot "app" "Resources" "docker-compose.airlock.yml.template"
     
     if (-not (Test-Path $templatePath)) {
         Write-Host "❌ Template not found: $templatePath" -ForegroundColor Red
