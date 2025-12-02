@@ -216,8 +216,14 @@ async fn read_request(client: &mut TcpStream) -> Result<ProxyRequest> {
     
     // HTTP proxy request (GET http://host/path, POST http://host/path, etc.)
     if target.starts_with("http://") {
-        // Collect headers (skip first line)
-        let headers: String = request.lines().skip(1).collect::<Vec<&str>>().join("\r\n");
+        // Collect headers (skip first line), filtering out existing Host header
+        // since we'll add our own Host header when forwarding
+        let headers: String = request.lines()
+            .skip(1)
+            .filter(|line| !line.to_lowercase().starts_with("host:"))
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<&str>>()
+            .join("\r\n");
         return Ok(ProxyRequest::Http { 
             method: method.to_string(), 
             url: target.to_string(),
@@ -359,20 +365,24 @@ async fn handle_http_request(
     };
 
     // Reconstruct and forward the HTTP request (convert absolute URL to relative path)
-    let request = format!("{} {} HTTP/1.1\r\nHost: {}\r\n{}\r\n\r\n", 
-        method, path, hostname, headers);
-    upstream.write_all(request.as_bytes()).await?;
+    let request_line = if headers.is_empty() {
+        format!("{} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", 
+            method, path, hostname)
+    } else {
+        format!("{} {} HTTP/1.1\r\nHost: {}\r\n{}\r\nConnection: close\r\n\r\n", 
+            method, path, hostname, headers)
+    };
+    upstream.write_all(request_line.as_bytes()).await?;
 
-    // Bidirectional copy
-    let (mut client_read, mut client_write) = client.into_split();
-    let (mut upstream_read, mut upstream_write) = upstream.into_split();
-
-    let client_to_upstream = tokio::io::copy(&mut client_read, &mut upstream_write);
-    let upstream_to_client = tokio::io::copy(&mut upstream_read, &mut client_write);
-
-    tokio::select! {
-        _ = client_to_upstream => {},
-        _ = upstream_to_client => {},
+    // For HTTP (non-CONNECT), we just need to read the response and send it back
+    // The client already sent the full request, so we only need upstream -> client
+    let mut response_buf = vec![0u8; 65536];
+    loop {
+        let n = upstream.read(&mut response_buf).await?;
+        if n == 0 {
+            break;
+        }
+        client.write_all(&response_buf[..n]).await?;
     }
 
     Ok(())

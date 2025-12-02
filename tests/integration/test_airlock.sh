@@ -204,7 +204,7 @@ setup_test_env() {
     },
     {
       "host": "api.github.com",
-      "allowed_paths": ["/", "/zen"]
+      "allowed_paths": ["/", "/zen", "/rate_limit"]
     }
   ]
 }
@@ -386,22 +386,24 @@ test_allowed_host_http() {
   
   # HTTP requests should work through the proxy (forwarded, not tunneled like HTTPS)
   # httpbin.org has allow_insecure: true, so HTTP should work
+  # Note: httpbin.org can be flaky - we test HTTP proxying works, accepting
+  # any successful response (200, 301, 302) as proof the proxy forwarded it
   local result exit_code max_retries=5 retry=0
   while [ $retry -lt $max_retries ]; do
     exit_code=0
-    # Use a simple HTTP endpoint - note: most sites redirect HTTP to HTTPS
-    # We test that HTTP through proxy works, even if it gets a redirect response
+    # Get just the HTTP status code
     result=$(run_in_client curl -s --max-time 30 -o /dev/null -w "%{http_code}" "http://httpbin.org/get" 2>&1) || exit_code=$?
     
     # Accept 200 (success) or 301/302 (redirect) as valid HTTP responses
+    # These prove the proxy forwarded the request successfully
     if [ "$result" = "200" ] || [ "$result" = "301" ] || [ "$result" = "302" ]; then
       test_pass "HTTP request to httpbin.org/get succeeded (status: $result)"
       return
     fi
     
-    # Also try with full response to check for JSON
+    # Also try with full response to check for JSON (in case status code extraction failed)
     local full_result
-    full_result=$(run_in_client curl -sf --max-time 30 "http://httpbin.org/get" 2>&1) || true
+    full_result=$(run_in_client curl -s --max-time 30 "http://httpbin.org/get" 2>&1) || true
     if echo "$full_result" | grep -q '"url"'; then
       test_pass "HTTP request to httpbin.org/get succeeded"
       return
@@ -409,12 +411,20 @@ test_allowed_host_http() {
     
     retry=$((retry + 1))
     if [ $retry -lt $max_retries ]; then
-      echo "   Retry $retry/$max_retries after transient failure..."
+      echo "   Retry $retry/$max_retries after transient failure (status: $result)..."
+      # Show proxy logs on third retry to help debug
+      if [ $retry -eq 3 ]; then
+        echo "   --- Proxy logs ---"
+        docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" logs proxy --tail 20 2>&1 | head -15 || true
+        echo "   --- End proxy logs ---"
+      fi
       sleep 3
     fi
   done
   
-  test_fail "HTTP request failed after $max_retries attempts (exit $exit_code): $result"
+  # httpbin.org can be flaky in CI - if HTTPS tests pass, HTTP proxying likely works
+  echo "   ⚠️  httpbin.org may be unavailable (status: $result)"
+  test_fail "HTTP request failed after $max_retries attempts (status: $result)"
 }
 
 test_allowed_host_https() {
@@ -464,17 +474,33 @@ test_allowed_path_succeeds() {
   
   local result exit_code max_retries=5 retry=0
   while [ $retry -lt $max_retries ]; do
+    # Try api.github.com/rate_limit first (more reliable than httpbin.org)
+    result=$(run_in_client curl -sf --max-time 30 --cacert /ca/certs/ca.pem "https://api.github.com/rate_limit" 2>&1) || exit_code=$?
+    exit_code=${exit_code:-0}
+    
+    if [ $exit_code -eq 0 ]; then
+      test_pass "Request to api.github.com/rate_limit succeeded"
+      return
+    fi
+    
+    # Fallback to httpbin.org
     result=$(run_in_client curl -sf --max-time 30 --cacert /ca/certs/ca.pem "https://httpbin.org/status/200" 2>&1) || exit_code=$?
     exit_code=${exit_code:-0}
     
     if [ $exit_code -eq 0 ]; then
-      test_pass "Request to /status/200 succeeded"
+      test_pass "Request to httpbin.org/status/200 succeeded"
       return
     fi
     
     retry=$((retry + 1))
     if [ $retry -lt $max_retries ]; then
-      echo "   Retry $retry/$max_retries after transient failure..."
+      echo "   Retry $retry/$max_retries after transient failure (exit: $exit_code)..."
+      # Show proxy logs on failure to help debug
+      if [ $retry -eq 3 ]; then
+        echo "   --- Proxy logs ---"
+        docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" logs proxy --tail 20 2>&1 | head -15 || true
+        echo "   --- End proxy logs ---"
+      fi
       sleep 3
     fi
   done
