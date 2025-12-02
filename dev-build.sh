@@ -12,6 +12,27 @@ NO_CACHE=""
 INCLUDE_ALL=false
 declare -a INCLUDE_VARIANTS=()
 
+# Detect OS and architecture for native binary
+detect_rid() {
+  local os=""
+  local arch=""
+  
+  case "$(uname -s)" in
+    Linux*)  os="linux" ;;
+    Darwin*) os="osx" ;;
+    MINGW*|MSYS*|CYGWIN*) os="win" ;;
+    *)       echo "Unknown OS"; return 1 ;;
+  esac
+  
+  case "$(uname -m)" in
+    x86_64)  arch="x64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *)       arch="x64" ;;
+  esac
+  
+  echo "${os}-${arch}"
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -77,6 +98,31 @@ echo "   Building Docker Images Locally"
 echo "========================================"
 echo ""
 echo "Registry: $REGISTRY"
+echo ""
+
+# Build native binary
+echo "🔧 Building native CLI binary..."
+RID=$(detect_rid)
+PUBLISH_DIR="${SCRIPT_DIR}/publish/${RID}"
+BIN_DIR="$HOME/.local/bin"
+
+dotnet publish "${SCRIPT_DIR}/app/CopilotHere.csproj" \
+  -c Release \
+  -r "$RID" \
+  -o "$PUBLISH_DIR" \
+  --nologo \
+  -v q
+
+# Copy to local bin
+mkdir -p "$BIN_DIR"
+if [[ "$RID" == win-* ]]; then
+  cp "${PUBLISH_DIR}/copilot_here.exe" "$BIN_DIR/"
+  echo "   ✓ Copied to ${BIN_DIR}/copilot_here.exe"
+else
+  cp "${PUBLISH_DIR}/copilot_here" "$BIN_DIR/"
+  chmod +x "$BIN_DIR/copilot_here"
+  echo "   ✓ Copied to ${BIN_DIR}/copilot_here"
+fi
 echo ""
 
 # Copy airlock config files to ~/.config/copilot_here

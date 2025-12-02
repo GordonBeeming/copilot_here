@@ -345,11 +345,19 @@ public static class AirlockRunner
       using var process = Process.Start(startInfo);
       if (process is null) return false;
 
+      var stderr = process.StandardError.ReadToEnd();
       process.WaitForExit();
+
+      if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(stderr))
+      {
+        Console.WriteLine($"   Error: {stderr.Trim()}");
+      }
+
       return process.ExitCode == 0;
     }
-    catch
+    catch (Exception ex)
     {
+      Console.WriteLine($"   Error: {ex.Message}");
       return false;
     }
   }
