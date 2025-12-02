@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CopilotHere.Infrastructure;
 
 namespace CopilotHere.Commands.Airlock;
@@ -51,7 +52,8 @@ public sealed record AirlockConfig
     var enabled = false;
     if (rulesPath != null)
     {
-      enabled = ReadEnabledFromJson(rulesPath);
+      var config = ReadNetworkConfig(rulesPath);
+      enabled = config?.Enabled ?? false;
     }
 
     return new AirlockConfig
@@ -64,36 +66,30 @@ public sealed record AirlockConfig
   }
 
   /// <summary>
-  /// Reads the "enabled" field from a network.json file.
+  /// Reads a NetworkConfig from a JSON file.
+  /// Returns null if the file doesn't exist.
+  /// Throws JsonException if the file contains invalid JSON.
   /// </summary>
-  private static bool ReadEnabledFromJson(string path)
+  internal static NetworkConfig? ReadNetworkConfig(string path)
   {
-    try
-    {
-      var json = File.ReadAllText(path);
-      // Simple parsing - look for "enabled": true or "enabled":true
-      // This avoids adding a JSON library dependency
-      var enabledPattern = "\"enabled\"";
-      var idx = json.IndexOf(enabledPattern, StringComparison.OrdinalIgnoreCase);
-      if (idx < 0) return false;
+    if (!File.Exists(path))
+      return null;
 
-      // Find the value after the colon
-      var colonIdx = json.IndexOf(':', idx + enabledPattern.Length);
-      if (colonIdx < 0) return false;
+    using var stream = File.OpenRead(path);
+    return JsonSerializer.Deserialize(stream, NetworkConfigJsonContext.Default.NetworkConfig);
+  }
 
-      // Extract the value (skip whitespace)
-      var valueStart = colonIdx + 1;
-      while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
-        valueStart++;
+  /// <summary>
+  /// Writes a NetworkConfig to a JSON file.
+  /// </summary>
+  internal static void WriteNetworkConfig(string path, NetworkConfig config)
+  {
+    var dir = Path.GetDirectoryName(path);
+    if (!string.IsNullOrEmpty(dir))
+      Directory.CreateDirectory(dir);
 
-      // Check if it starts with 'true'
-      return json.Length > valueStart + 3 &&
-             json.Substring(valueStart, 4).Equals("true", StringComparison.OrdinalIgnoreCase);
-    }
-    catch
-    {
-      return false;
-    }
+    using var stream = File.Create(path);
+    JsonSerializer.Serialize(stream, config, NetworkConfigJsonContext.Default.NetworkConfig);
   }
 
   /// <summary>Enables Airlock in local config by setting enabled:true in network.json.</summary>
@@ -123,54 +119,19 @@ public sealed record AirlockConfig
   /// <summary>Sets the enabled flag in a network.json file.</summary>
   private static void SetEnabledInJson(string path, bool enabled)
   {
-    if (!File.Exists(path))
-    {
-      // Create a minimal config
-      var dir = Path.GetDirectoryName(path);
-      if (!string.IsNullOrEmpty(dir))
-        Directory.CreateDirectory(dir);
-      
-      var json = enabled 
-        ? "{\n  \"enabled\": true,\n  \"inherit_default_rules\": true,\n  \"mode\": \"enforce\",\n  \"allowed_rules\": []\n}\n"
-        : "{\n  \"enabled\": false,\n  \"inherit_default_rules\": true,\n  \"mode\": \"enforce\",\n  \"allowed_rules\": []\n}\n";
-      File.WriteAllText(path, json);
-      return;
-    }
+    NetworkConfig config;
 
-    // Update existing file
-    var content = File.ReadAllText(path);
-    var enabledPattern = "\"enabled\"";
-    var idx = content.IndexOf(enabledPattern, StringComparison.OrdinalIgnoreCase);
-    
-    if (idx >= 0)
+    if (File.Exists(path))
     {
-      // Find the value and replace it
-      var colonIdx = content.IndexOf(':', idx + enabledPattern.Length);
-      if (colonIdx >= 0)
-      {
-        var valueStart = colonIdx + 1;
-        while (valueStart < content.Length && char.IsWhiteSpace(content[valueStart]))
-          valueStart++;
-        
-        // Find end of value (true or false)
-        var valueEnd = valueStart;
-        while (valueEnd < content.Length && char.IsLetter(content[valueEnd]))
-          valueEnd++;
-        
-        content = content[..valueStart] + (enabled ? "true" : "false") + content[valueEnd..];
-        File.WriteAllText(path, content);
-      }
+      config = ReadNetworkConfig(path) ?? NetworkConfig.CreateDefault(enabled);
+      config.Enabled = enabled;
     }
     else
     {
-      // Insert enabled field at the start of the object
-      var braceIdx = content.IndexOf('{');
-      if (braceIdx >= 0)
-      {
-        content = content[..(braceIdx + 1)] + $"\n  \"enabled\": {(enabled ? "true" : "false")}," + content[(braceIdx + 1)..];
-        File.WriteAllText(path, content);
-      }
+      config = NetworkConfig.CreateDefault(enabled);
     }
+
+    WriteNetworkConfig(path, config);
   }
 
   /// <summary>Gets the path to the local rules file (creates dir if needed).</summary>
