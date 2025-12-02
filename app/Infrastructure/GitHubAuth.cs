@@ -89,6 +89,7 @@ public static partial class GitHubAuth
   /// Validates that the token has required scopes and warns about privileged scopes.
   /// Returns false if validation fails or user cancels due to privileged scopes.
   /// Skips validation if COPILOT_HERE_TEST_MODE environment variable is set.
+  /// Set COPILOT_HERE_DEBUG=1 to see debug output for scope detection.
   /// </summary>
   public static (bool IsValid, string? Error) ValidateScopes()
   {
@@ -98,14 +99,36 @@ public static partial class GitHubAuth
       return (true, null);
     }
 
+    var debug = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("COPILOT_HERE_DEBUG"));
+
     var output = GetAuthStatus();
     if (output is null)
       return (false, "Failed to run gh auth status");
 
-    // Check for required scopes
-    if (!output.Contains("'copilot'") || !output.Contains("'read:packages'"))
+    if (debug)
     {
-      return (false, $"❌ Your gh token is missing the required 'copilot' or 'read:packages' scope.\n" +
+      Console.WriteLine("[DEBUG] gh auth status output:");
+      Console.WriteLine(output);
+      Console.WriteLine("[DEBUG] End of output");
+    }
+
+    // Check for required scopes - gh auth status outputs scopes in format: 'scope1', 'scope2'
+    var hasCopilotScope = output.Contains("'copilot'", StringComparison.Ordinal);
+    var hasPackagesScope = output.Contains("'read:packages'", StringComparison.Ordinal);
+
+    if (debug)
+    {
+      Console.WriteLine($"[DEBUG] hasCopilotScope: {hasCopilotScope}");
+      Console.WriteLine($"[DEBUG] hasPackagesScope: {hasPackagesScope}");
+    }
+
+    if (!hasCopilotScope || !hasPackagesScope)
+    {
+      var missingScopes = new List<string>();
+      if (!hasCopilotScope) missingScopes.Add("copilot");
+      if (!hasPackagesScope) missingScopes.Add("read:packages");
+
+      return (false, $"❌ Your gh token is missing the required scope(s): {string.Join(", ", missingScopes)}\n" +
                      $"Please run: {ElevateTokenCommand}");
     }
 

@@ -99,11 +99,13 @@ public static class SelfUpdater
 
   /// <summary>
   /// Gets the latest version from GitHub releases.
+  /// Looks for the cli-latest release which contains the version in its name.
   /// </summary>
   private static string? GetLatestVersion()
   {
     try
     {
+      // First try the cli-latest release which has the version in the release name
       var startInfo = new ProcessStartInfo
       {
         FileName = "curl",
@@ -115,7 +117,7 @@ public static class SelfUpdater
       startInfo.ArgumentList.Add("-fsSL");
       startInfo.ArgumentList.Add("-H");
       startInfo.ArgumentList.Add("Accept: application/vnd.github+json");
-      startInfo.ArgumentList.Add(ReleasesApiUrl);
+      startInfo.ArgumentList.Add($"{ReleasesApiUrl.Replace("/latest", "")}/tags/cli-latest");
 
       using var process = Process.Start(startInfo);
       if (process is null) return null;
@@ -125,21 +127,56 @@ public static class SelfUpdater
 
       if (process.ExitCode != 0) return null;
 
-      // Simple JSON parsing without System.Text.Json to avoid AOT issues
-      // Look for "tag_name": "vX.Y.Z"
+      // The cli-latest release has the version in the "name" field: "CLI v0.1.0"
+      // Look for "name": "CLI vX.Y.Z"
+      var nameIndex = output.IndexOf("\"name\":", StringComparison.Ordinal);
+      if (nameIndex >= 0)
+      {
+        var valueStart = output.IndexOf('"', nameIndex + 7);
+        if (valueStart >= 0)
+        {
+          var valueEnd = output.IndexOf('"', valueStart + 1);
+          if (valueEnd > valueStart)
+          {
+            var name = output.Substring(valueStart + 1, valueEnd - valueStart - 1);
+            // Extract version from "CLI v0.1.0" or similar
+            var vIndex = name.LastIndexOf('v');
+            if (vIndex >= 0)
+            {
+              return name[(vIndex + 1)..].Trim();
+            }
+          }
+        }
+      }
+
+      // Fallback: try to get version from tag_name (cli-vX.Y.Z-sha pattern)
       var tagIndex = output.IndexOf("\"tag_name\":", StringComparison.Ordinal);
-      if (tagIndex < 0) return null;
+      if (tagIndex >= 0)
+      {
+        var valueStart = output.IndexOf('"', tagIndex + 11);
+        if (valueStart >= 0)
+        {
+          var valueEnd = output.IndexOf('"', valueStart + 1);
+          if (valueEnd > valueStart)
+          {
+            var tagName = output.Substring(valueStart + 1, valueEnd - valueStart - 1);
+            // Try to extract version from cli-v0.1.0-abc123 pattern
+            if (tagName.StartsWith("cli-v", StringComparison.Ordinal))
+            {
+              var versionPart = tagName[5..]; // Remove "cli-v"
+              var dashIndex = versionPart.IndexOf('-');
+              if (dashIndex > 0)
+              {
+                return versionPart[..dashIndex];
+              }
+            }
+            // Strip 'v' prefix if present
+            return tagName.StartsWith('v') ? tagName[1..] : tagName;
+          }
+        }
+      }
 
-      var valueStart = output.IndexOf('"', tagIndex + 11);
-      if (valueStart < 0) return null;
-
-      var valueEnd = output.IndexOf('"', valueStart + 1);
-      if (valueEnd < 0) return null;
-
-      var tagName = output.Substring(valueStart + 1, valueEnd - valueStart - 1);
-
-      // Strip 'v' prefix if present
-      return tagName.StartsWith('v') ? tagName[1..] : tagName;
+      return null;
     }
     catch
     {
@@ -155,6 +192,12 @@ public static class SelfUpdater
     // Parse versions as numeric components
     var currentParts = ParseVersion(current);
     var latestParts = ParseVersion(latest);
+
+    // If we couldn't parse either version, assume update is needed
+    if (currentParts.Length == 0 || latestParts.Length == 0)
+    {
+      return false;
+    }
 
     for (var i = 0; i < Math.Max(currentParts.Length, latestParts.Length); i++)
     {
