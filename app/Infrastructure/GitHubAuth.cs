@@ -70,10 +70,14 @@ public static partial class GitHubAuth
       using var process = Process.Start(startInfo);
       if (process is null) return null;
 
-      var output = process.StandardError.ReadToEnd();
+      // gh auth status outputs to stderr normally, but may vary by version
+      // Read both to ensure we capture the scope information
+      var stderr = process.StandardError.ReadToEnd();
+      var stdout = process.StandardOutput.ReadToEnd();
       process.WaitForExit();
 
-      return output;
+      // Combine both outputs - scopes could be in either
+      return stderr + stdout;
     }
     catch
     {

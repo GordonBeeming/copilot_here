@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Central version for all projects -->
+    <CopilotHereVersion>2.0.0</CopilotHereVersion>
+  </PropertyGroup>
+</Project>
