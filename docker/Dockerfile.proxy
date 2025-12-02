@@ -6,13 +6,27 @@ WORKDIR /build
 # Install build dependencies for musl
 RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
 
-# Copy source from proxy/ subdirectory
+# Copy dependency files first for better caching
 COPY proxy/Cargo.toml Cargo.toml
 COPY proxy/Cargo.lock Cargo.lock
+
+# Create dummy src to build dependencies (for caching)
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    OPENSSL_STATIC=1 cargo build --release
+
+# Copy actual source
 COPY proxy/src src
 
+# Touch main.rs to ensure rebuild of our code (not deps)
+RUN touch src/main.rs
+
 # Build release binary (statically linked with musl)
-RUN OPENSSL_STATIC=1 cargo build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    OPENSSL_STATIC=1 cargo build --release && \
+    cp /build/target/release/secure-proxy /build/secure-proxy
 
 # Runtime stage - minimal Alpine
 FROM alpine:3.21
@@ -25,7 +39,7 @@ RUN apk add --no-cache ca-certificates su-exec curl
 RUN addgroup -S proxy-user && adduser -S -G proxy-user -h /app proxy-user
 
 # Copy binary from builder
-COPY --from=builder /build/target/release/secure-proxy /app/secure-proxy
+COPY --from=builder /build/secure-proxy /app/secure-proxy
 
 # Create directories
 RUN mkdir -p /config /logs /ca && \

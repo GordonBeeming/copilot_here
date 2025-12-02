@@ -143,8 +143,8 @@ jobs:
             ghcr.io/${{ steps.repo.outputs.name }}:proxy
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-sha-${{ github.sha }}
           labels: project=copilot_here
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy,mode=max
-          cache-to: type=inline
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy-cache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy-cache,mode=max
 
   build-base:
     name: Build Base Image
