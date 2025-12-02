@@ -148,7 +148,7 @@ public static class SelfUpdater
 
   /// <summary>
   /// Compares version strings to check if current is latest or newer.
-  /// Handles date-based versions (YYYY.MM.DD or YYYY.MM.DD.sha).
+  /// Handles date-based versions (YYYY.MM.DD or YYYY.MM.DD.N).
   /// </summary>
   private static bool IsCurrentVersionLatest(string current, string latest)
   {
@@ -181,14 +181,14 @@ public static class SelfUpdater
   }
 
   /// <summary>
-  /// Tries to compare versions as dates (YYYY.MM.DD or YYYY.MM.DD.sha format).
+  /// Tries to compare versions as dates (YYYY.MM.DD or YYYY.MM.DD.N format).
+  /// Binary versions may have .sha suffix which is ignored for comparison.
   /// </summary>
   private static bool TryCompareDateVersions(string current, string latest, out bool isCurrentLatest)
   {
     isCurrentLatest = false;
 
-    // Parse current: "2025.12.02" or "2025.12.02.abc123"
-    // Version format: YYYY.MM.DD[.sha]
+    // Parse versions: "2025.12.02", "2025.12.02.1", or "2025.12.02.abc123" (binary with sha)
     var currentParts = current.Split('.');
     var latestParts = latest.Split('.');
 
@@ -216,9 +216,23 @@ public static class SelfUpdater
       return true;
     }
 
-    // Same date - if both have sha, they're equal; otherwise latest wins
-    isCurrentLatest = currentParts.Length >= latestParts.Length;
+    // Same date - compare patch numbers (4th part if numeric)
+    // Binary sha (non-numeric 4th part) is ignored, treated as patch 0
+    var currentPatch = GetPatchNumber(currentParts);
+    var latestPatch = GetPatchNumber(latestParts);
+
+    isCurrentLatest = currentPatch >= latestPatch;
     return true;
+  }
+
+  /// <summary>
+  /// Gets the patch number from version parts. Returns 0 if no numeric 4th part.
+  /// </summary>
+  private static int GetPatchNumber(string[] parts)
+  {
+    if (parts.Length > 3 && int.TryParse(parts[3], out var patch))
+      return patch;
+    return 0;
   }
 
   /// <summary>
