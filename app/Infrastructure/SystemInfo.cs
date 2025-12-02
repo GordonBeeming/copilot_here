@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace CopilotHere.Infrastructure;
@@ -15,11 +16,28 @@ public static class SystemInfo
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
       return "1000";
 
-    // On Unix, try to get actual UID
+    // Try environment variable first
+    var uid = Environment.GetEnvironmentVariable("UID");
+    if (!string.IsNullOrEmpty(uid))
+      return uid;
+
+    // Run 'id -u' to get actual UID
     try
     {
-      var uid = Environment.GetEnvironmentVariable("UID");
-      if (!string.IsNullOrEmpty(uid)) return uid;
+      var startInfo = new ProcessStartInfo("id", "-u")
+      {
+        RedirectStandardOutput = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      using var process = Process.Start(startInfo);
+      if (process != null)
+      {
+        var result = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        if (process.ExitCode == 0 && !string.IsNullOrEmpty(result))
+          return result;
+      }
     }
     catch { }
 
@@ -34,6 +52,26 @@ public static class SystemInfo
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
       return "1000";
 
+    // Run 'id -g' to get actual GID
+    try
+    {
+      var startInfo = new ProcessStartInfo("id", "-g")
+      {
+        RedirectStandardOutput = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      using var process = Process.Start(startInfo);
+      if (process != null)
+      {
+        var result = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        if (process.ExitCode == 0 && !string.IsNullOrEmpty(result))
+          return result;
+      }
+    }
+    catch { }
+
     return "1000";
   }
 
@@ -47,5 +85,13 @@ public static class SystemInfo
 
     return lang.Contains("UTF-8", StringComparison.OrdinalIgnoreCase) &&
            !term.Equals("dumb", StringComparison.OrdinalIgnoreCase);
+  }
+
+  /// <summary>
+  /// Gets the current directory name for use in terminal titles.
+  /// </summary>
+  public static string GetCurrentDirectoryName()
+  {
+    return Path.GetFileName(Directory.GetCurrentDirectory()) ?? "copilot_here";
   }
 }

@@ -138,11 +138,32 @@ public sealed record MountsConfig
 /// </summary>
 public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSource Source)
 {
-  /// <summary>Resolves ~ and relative paths to absolute paths.</summary>
+  /// <summary>
+  /// Resolves ~ and relative paths to absolute paths, following symlinks.
+  /// </summary>
   public string ResolvePath(string userHome)
   {
-    var resolved = Path.Replace("~", userHome);
-    return System.IO.Path.GetFullPath(resolved);
+    return PathValidator.ResolvePath(Path, userHome);
+  }
+
+  /// <summary>
+  /// Validates the mount path (checks existence, sensitive paths).
+  /// Returns true if mount should proceed, false if cancelled.
+  /// </summary>
+  public bool Validate(string userHome)
+  {
+    var resolved = ResolvePath(userHome);
+
+    // Warn if path doesn't exist
+    PathValidator.WarnIfNotExists(resolved);
+
+    // Check for sensitive paths and prompt for confirmation
+    if (!PathValidator.ValidateSensitivePath(resolved, userHome))
+    {
+      return false;
+    }
+
+    return true;
   }
 
   /// <summary>Calculates the container path for this mount.</summary>

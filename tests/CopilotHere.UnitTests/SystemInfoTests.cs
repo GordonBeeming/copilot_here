@@ -1,4 +1,5 @@
 using CopilotHere.Infrastructure;
+using TUnit.Core;
 
 namespace CopilotHere.Tests;
 

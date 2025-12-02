@@ -1,6 +1,6 @@
-# This workflow builds and publishes the Docker image.
+# This workflow builds and publishes Docker images and native CLI binaries.
 # Tests run first on all triggers. Publishing only happens on main branch.
-name: Build and Publish Docker Images
+name: Build and Publish
 
 on:
   push:
@@ -18,63 +18,41 @@ concurrency:
 
 # Sets the minimum required permissions for the entire workflow for security.
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
-  # Run tests first - required for all triggers
-  test-bash-zsh:
-    name: Test Bash/Zsh on ${{ matrix.os }}
+  # Run CLI tests on all platforms
+  test-cli:
+    name: Test CLI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PowerShell (for cross-platform testing)
-        shell: bash
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            # Install PowerShell on Ubuntu
-            sudo apt-get update
-            sudo apt-get install -y wget apt-transport-https software-properties-common
-            wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-            sudo dpkg -i packages-microsoft-prod.deb
-            sudo apt-get update
-            sudo apt-get install -y powershell
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            # Install PowerShell on macOS
-            brew install --cask powershell
-          fi
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
 
-      - name: Make test scripts executable
-        run: chmod +x tests/run_all_tests.sh tests/integration/*.sh
+      - name: Restore dependencies
+        run: dotnet restore
 
-      - name: Run all integration tests
-        run: ./tests/run_all_tests.sh
+      - name: Build
+        run: dotnet build --no-restore
 
-  test-windows:
-    name: Test PowerShell on Windows
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run PowerShell integration tests
-        shell: pwsh
-        run: |
-          pwsh tests/run_all_tests.ps1
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
 
   # Note: Only runs on ubuntu-latest as Docker images are Linux-based
   # (macOS runners don't have Docker, Windows Docker can't run Linux containers)
   test-airlock:
     name: Test Airlock
-    needs: [test-bash-zsh, test-windows]
+    needs: [test-cli]
     runs-on: ubuntu-latest
 
     steps:
@@ -331,8 +309,8 @@ jobs:
   # Summary job
   publish-summary:
     name: Publish Summary
-    needs: [build-base, build-variants, build-compound-variants]
-    if: always() && needs.build-base.result != 'skipped'
+    needs: [build-base, build-variants, build-compound-variants, release-cli]
+    if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Print summary for scheduled run
@@ -362,3 +340,133 @@ jobs:
           else
             echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi
+          
+          if [[ "${{ needs.release-cli.result }}" == "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**CLI Binaries Published:**" >> $GITHUB_STEP_SUMMARY
+            echo "- linux-x64, linux-arm64" >> $GITHUB_STEP_SUMMARY
+            echo "- osx-x64, osx-arm64" >> $GITHUB_STEP_SUMMARY
+            echo "- win-x64, win-arm64" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Build native CLI binaries for all platforms
+  build-cli:
+    name: Build CLI ${{ matrix.rid }}
+    needs: [test-cli]
+    runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            binary: copilot-here
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            binary: copilot-here
+          - os: macos-13
+            rid: osx-x64
+            binary: copilot-here
+          - os: macos-latest
+            rid: osx-arm64
+            binary: copilot-here
+          - os: windows-latest
+            rid: win-x64
+            binary: copilot-here.exe
+          - os: windows-11-arm
+            rid: win-arm64
+            binary: copilot-here.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish AOT binary
+        run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-here-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}/${{ matrix.binary }}
+          if-no-files-found: error
+
+  # Create release with CLI binaries
+  release-cli:
+    name: Release CLI
+    needs: [build-cli]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
+            if [[ "$rid" == win-* ]]; then
+              binary="copilot-here.exe"
+            else
+              binary="copilot-here"
+            fi
+            
+            # Create archive
+            cd artifacts/copilot-here-$rid
+            if [[ "$rid" == win-* ]]; then
+              zip ../../release/copilot-here-$rid.zip $binary
+            else
+              chmod +x $binary
+              tar -czvf ../../release/copilot-here-$rid.tar.gz $binary
+            fi
+            cd ../..
+          done
+          
+          ls -la release/
+
+      - name: Get version from project
+        id: version
+        run: |
+          VERSION=$(grep -oP '<Version>\K[^<]+' app/CopilotHere.csproj 2>/dev/null || echo "0.1.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}
+          name: CLI v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})
+          body: |
+            ## Native AOT CLI Binary
+            
+            Commit: ${{ github.sha }}
+            
+            ### Download
+            
+            | Platform | Architecture | Download |
+            |----------|--------------|----------|
+            | Linux | x64 | [copilot-here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-linux-x64.tar.gz) |
+            | Linux | ARM64 | [copilot-here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-linux-arm64.tar.gz) |
+            | macOS | x64 | [copilot-here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-osx-x64.tar.gz) |
+            | macOS | ARM64 | [copilot-here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-osx-arm64.tar.gz) |
+            | Windows | x64 | [copilot-here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-win-x64.zip) |
+            | Windows | ARM64 | [copilot-here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot-here-win-arm64.zip) |
+            
+            ### Installation
+            
+            See [README](https://github.com/${{ github.repository }}#installation) for installation instructions.
+          files: release/*
+          draft: false
+          prerelease: false

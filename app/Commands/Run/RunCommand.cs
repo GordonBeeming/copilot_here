@@ -1,4 +1,5 @@
 using System.CommandLine;
+using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Infrastructure;
@@ -151,87 +152,232 @@ public sealed class RunCommand : ICommand
       var resumeSession = parseResult.GetValue(_resumeOption);
       var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
 
-      // Handle --help2 (native copilot help)
-      if (help2)
-      {
-        Console.WriteLine("coming soon - help2 (native copilot help)");
-        return 0;
-      }
-
-      // Handle --update-scripts
+      // Handle --update
       if (updateScripts)
       {
-        Console.WriteLine("coming soon - update scripts");
-        return 0;
+        return SelfUpdater.CheckAndUpdate();
+      }
+
+      // Security check
+      var (isValid, error) = GitHubAuth.ValidateScopes();
+      if (!isValid)
+      {
+        Console.WriteLine($"❌ {error}");
+        return 1;
       }
 
       // Determine image tag (CLI overrides config)
       var imageTag = ctx.ImageConfig.Tag;
-      var imageSource = ctx.ImageConfig.Source;
 
-      if (dotnet) { imageTag = "dotnet"; imageSource = ImageConfigSource.CommandLine; }
-      else if (dotnet8) { imageTag = "dotnet-8"; imageSource = ImageConfigSource.CommandLine; }
-      else if (dotnet9) { imageTag = "dotnet-9"; imageSource = ImageConfigSource.CommandLine; }
-      else if (dotnet10) { imageTag = "dotnet-10"; imageSource = ImageConfigSource.CommandLine; }
-      else if (playwright) { imageTag = "playwright"; imageSource = ImageConfigSource.CommandLine; }
-      else if (dotnetPlaywright) { imageTag = "dotnet-playwright"; imageSource = ImageConfigSource.CommandLine; }
-      else if (rust) { imageTag = "rust"; imageSource = ImageConfigSource.CommandLine; }
-      else if (dotnetRust) { imageTag = "dotnet-rust"; imageSource = ImageConfigSource.CommandLine; }
+      if (dotnet) imageTag = "dotnet";
+      else if (dotnet8) imageTag = "dotnet-8";
+      else if (dotnet9) imageTag = "dotnet-9";
+      else if (dotnet10) imageTag = "dotnet-10";
+      else if (playwright) imageTag = "playwright";
+      else if (dotnetPlaywright) imageTag = "dotnet-playwright";
+      else if (rust) imageTag = "rust";
+      else if (dotnetRust) imageTag = "dotnet-rust";
 
-      // Collect all mounts: config mounts + CLI mounts
+      var imageName = DockerRunner.GetImageName(imageTag);
+
+      // Build copilot args list
+      var copilotArgs = new List<string> { "copilot" };
+
+      // Add YOLO mode flags
+      if (_isYolo)
+      {
+        copilotArgs.Add("--allow-all-tools");
+        copilotArgs.Add("--allow-all-paths");
+      }
+
+      // Handle --help2 (native copilot help)
+      if (help2)
+      {
+        copilotArgs.Add("--help");
+      }
+      else
+      {
+        // Add passthrough options
+        if (!string.IsNullOrEmpty(prompt))
+        {
+          copilotArgs.Add("--prompt");
+          copilotArgs.Add(prompt);
+        }
+        if (!string.IsNullOrEmpty(model))
+        {
+          copilotArgs.Add("--model");
+          copilotArgs.Add(model);
+        }
+        if (continueSession)
+        {
+          copilotArgs.Add("--continue");
+        }
+        if (resumeSession != null)
+        {
+          copilotArgs.Add("--resume");
+          if (!string.IsNullOrEmpty(resumeSession))
+            copilotArgs.Add(resumeSession);
+        }
+        copilotArgs.AddRange(passthroughArgs);
+
+        // If no args (interactive mode), add --banner
+        if (copilotArgs.Count == 1 || (copilotArgs.Count <= 3 && _isYolo))
+        {
+          copilotArgs.Add("--banner");
+        }
+      }
+
+      Console.WriteLine($"🚀 Using image: {imageName}");
+
+      // Pull image unless skipped
+      if (!noPull)
+      {
+        if (!DockerRunner.PullImage(imageName))
+        {
+          Console.WriteLine("Error: Failed to pull Docker image. Check Docker setup and network.");
+          return 1;
+        }
+      }
+      else
+      {
+        Console.WriteLine("⏭️  Skipping image pull");
+      }
+
+      // Cleanup old images unless skipped
+      if (!noCleanup)
+      {
+        DockerRunner.CleanupOldImages(imageName);
+      }
+      else
+      {
+        Console.WriteLine("⏭️  Skipping image cleanup");
+      }
+
+      // Collect all mounts
       var allMounts = new List<MountEntry>();
-
-      // Add config mounts (global + local)
       allMounts.AddRange(ctx.MountsConfig.AllConfigMounts);
-
-      // Add CLI mounts
       foreach (var path in cliMountsRo)
         allMounts.Add(new MountEntry(path, IsReadWrite: false, MountSource.CommandLine));
       foreach (var path in cliMountsRw)
         allMounts.Add(new MountEntry(path, IsReadWrite: true, MountSource.CommandLine));
 
-      Console.WriteLine("coming soon - run copilot");
-      Console.WriteLine($"  Image: {imageTag} (from {imageSource})");
-      Console.WriteLine($"  Mounts: {allMounts.Count} total");
+      // Validate all mounts (check for sensitive paths, symlinks, existence)
+      var validatedMounts = new List<MountEntry>();
       foreach (var mount in allMounts)
       {
-        var mode = mount.IsReadWrite ? "rw" : "ro";
-        Console.WriteLine($"    [{mount.Source}] {mount.Path} ({mode})");
+        if (mount.Validate(ctx.Paths.UserHome))
+        {
+          validatedMounts.Add(mount);
+        }
+        else
+        {
+          // User cancelled due to sensitive path - skip this mount
+          Console.WriteLine($"⏭️  Skipping mount: {mount.Path}");
+        }
       }
-      Console.WriteLine($"  Airlock: {(ctx.AirlockConfig.Enabled ? "enabled" : "disabled")} (from {ctx.AirlockConfig.EnabledSource})");
-      Console.WriteLine($"  Skip cleanup: {noCleanup}");
-      Console.WriteLine($"  Skip pull: {noPull}");
+      allMounts = validatedMounts;
 
-      // Build copilot args list
-      var copilotArgs = new List<string>();
-      if (!string.IsNullOrEmpty(prompt))
-      {
-        copilotArgs.Add("--prompt");
-        copilotArgs.Add(prompt);
-      }
-      if (!string.IsNullOrEmpty(model))
-      {
-        copilotArgs.Add("--model");
-        copilotArgs.Add(model);
-      }
-      if (continueSession)
-      {
-        copilotArgs.Add("--continue");
-      }
-      if (resumeSession != null)
-      {
-        copilotArgs.Add("--resume");
-        if (!string.IsNullOrEmpty(resumeSession))
-          copilotArgs.Add(resumeSession);
-      }
-      copilotArgs.AddRange(passthroughArgs);
+      // Display mount info
+      DisplayMounts(ctx, allMounts);
 
-      if (copilotArgs.Count > 0)
+      // Display Airlock status and run in appropriate mode
+      if (ctx.AirlockConfig.Enabled)
       {
-        Console.WriteLine($"  Copilot args: {string.Join(" ", copilotArgs)}");
+        var sourceDisplay = ctx.AirlockConfig.EnabledSource switch
+        {
+          AirlockConfigSource.Local => "local (.copilot_here/network.json)",
+          AirlockConfigSource.Global => "global (~/.config/copilot_here/network.json)",
+          _ => "config"
+        };
+        Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
+
+        // Run in Airlock mode with Docker Compose
+        return AirlockRunner.Run(ctx, imageTag, _isYolo, allMounts, copilotArgs);
       }
 
-      return 0;
+      // Add directories for YOLO mode
+      if (_isYolo)
+      {
+        // Add current dir and all mount paths to --add-dir
+        copilotArgs.Add("--add-dir");
+        copilotArgs.Add(ctx.Paths.ContainerWorkDir);
+
+        foreach (var mount in allMounts)
+        {
+          copilotArgs.Add("--add-dir");
+          copilotArgs.Add(mount.GetContainerPath(ctx.Paths.UserHome));
+        }
+      }
+
+      // Build Docker args for standard mode
+      var dockerArgs = BuildDockerArgs(ctx, imageName, allMounts, copilotArgs);
+
+      // Set terminal title
+      var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
+      var dirName = SystemInfo.GetCurrentDirectoryName();
+      var title = $"{titleEmoji} {dirName}";
+
+      return DockerRunner.RunInteractive(dockerArgs, title);
     });
+  }
+
+  private static void DisplayMounts(Infrastructure.AppContext ctx, List<MountEntry> allMounts)
+  {
+    if (allMounts.Count == 0) return;
+
+    Console.WriteLine("📂 Mounts:");
+    Console.WriteLine($"   📁 {ctx.Paths.ContainerWorkDir}");
+
+    foreach (var mount in allMounts)
+    {
+      var mode = mount.IsReadWrite ? "rw" : "ro";
+      var containerPath = mount.GetContainerPath(ctx.Paths.UserHome);
+      var icon = mount.Source switch
+      {
+        MountSource.Global => ctx.Environment.SupportsEmoji ? "🌍" : "G:",
+        MountSource.Local => ctx.Environment.SupportsEmoji ? "📍" : "L:",
+        MountSource.CommandLine => ctx.Environment.SupportsEmoji ? "🔧" : "CLI:",
+        _ => "  "
+      };
+      Console.WriteLine($"   {icon} {containerPath} ({mode})");
+    }
+  }
+
+  private static List<string> BuildDockerArgs(
+    Infrastructure.AppContext ctx,
+    string imageName,
+    List<MountEntry> mounts,
+    List<string> copilotArgs)
+  {
+    var args = new List<string>
+    {
+      "run",
+      "--rm",
+      "-it",
+      // Mount current directory
+      "-v", $"{ctx.Paths.CurrentDirectory}:{ctx.Paths.ContainerWorkDir}",
+      "-w", ctx.Paths.ContainerWorkDir,
+      // Mount copilot config
+      "-v", $"{ctx.Paths.CopilotConfigPath}:/home/appuser/.copilot",
+      // Environment variables
+      "-e", $"PUID={ctx.Environment.UserId}",
+      "-e", $"PGID={ctx.Environment.GroupId}",
+      "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}"
+    };
+
+    // Add additional mounts
+    foreach (var mount in mounts)
+    {
+      args.Add("-v");
+      args.Add(mount.ToDockerVolume(ctx.Paths.UserHome));
+    }
+
+    // Add image name
+    args.Add(imageName);
+
+    // Add copilot args
+    args.AddRange(copilotArgs);
+
+    return args;
   }
 }

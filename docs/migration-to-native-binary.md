@@ -8,16 +8,16 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Docker container execution | ⬜ Partial | Basic `docker run` implemented |
-| Image selection (latest, dotnet, playwright, etc.) | ⬜ Partial | Only `-d/--dotnet` implemented |
-| YOLO mode (`--allow-all-tools --allow-all-paths`) | ⬜ TODO | |
-| Safe mode (default) | ⬜ TODO | |
+| Docker container execution | ✅ Done | Full `docker run` with all args |
+| Image selection (latest, dotnet, playwright, etc.) | ✅ Done | All variants supported |
+| YOLO mode (`--allow-all-tools --allow-all-paths`) | ✅ Done | Passed via `--yolo` flag |
+| Safe mode (default) | ✅ Done | Default behavior |
 | Mount current directory | ✅ Done | |
-| Container work directory mapping | ✅ Done | |
+| Container work directory mapping | ✅ Done | Maps ~/... to /home/appuser/... |
 | GitHub token injection | ✅ Done | Via `gh auth token` |
-| User/Group ID mapping (PUID/PGID) | ⬜ Partial | Hardcoded to 1000 |
-| Terminal title setting | ⬜ TODO | |
-| Interactive mode with banner | ⬜ TODO | |
+| User/Group ID mapping (PUID/PGID) | ✅ Done | Uses `id -u` and `id -g` |
+| Terminal title setting | ✅ Done | With emoji for mode indicator |
+| Interactive mode with banner | ✅ Done | Auto-adds `--banner` when no args |
 
 ### Image Management
 
@@ -29,6 +29,8 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | `--dotnet10` / `-d10` | ✅ Done | |
 | `--playwright` / `-pw` | ✅ Done | |
 | `--dotnet-playwright` / `-dp` | ✅ Done | |
+| `--rust` / `-rs` | ✅ Done | |
+| `--dotnet-rust` / `-dr` | ✅ Done | |
 | `--list-images` | ✅ Done | Lists all available tags |
 | `--show-image` | ✅ Done | Shows active/local/global config |
 | `--set-image <tag>` | ✅ Done | Local config |
@@ -36,8 +38,8 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | `--clear-image` | ✅ Done | |
 | `--clear-image-global` | ✅ Done | |
 | Default image from config | ✅ Done | Priority: local > global > latest |
-| Image cleanup (7+ days old) | ⬜ TODO | |
-| Image pull with spinner | ⬜ TODO | |
+| Image cleanup (7+ days old) | ✅ Done | Skips currently used image |
+| Image pull with spinner | ✅ Done | |
 
 ### Mount Management
 
@@ -51,11 +53,11 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | `--remove-mount <path>` | ✅ Done | Removes from both configs |
 | Load mounts from local config | ✅ Done | `.copilot_here/mounts.conf` |
 | Load mounts from global config | ✅ Done | `~/.config/copilot_here/mounts.conf` |
-| Symlink following for configs | ⬜ TODO | |
+| Symlink following for configs | ✅ Done | Uses `FileInfo.LinkTarget` |
 | Path normalization (tilde, relative) | ✅ Done | Tilde expansion, relative paths |
-| Sensitive path warnings | ⬜ TODO | `/etc`, `~/.ssh`, etc. |
-| Mount priority (CLI > local > global) | ⬜ TODO | Runtime merge logic |
-| Mount display with icons | ⬜ TODO | 📁, 🌍, 📍, 🔧 |
+| Sensitive path warnings | ✅ Done | `/`, `/etc`, `/root`, `~/.ssh` - prompts for confirmation |
+| Mount priority (CLI > local > global) | ✅ Done | Runtime merge logic |
+| Mount display with icons | ✅ Done | 📁, 🌍, 📍, 🔧 |
 
 ### Airlock (Network Proxy)
 
@@ -68,49 +70,51 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | `--show-airlock-rules` | ✅ Done | Shows enabled status and rules content |
 | `--edit-airlock-rules` | ✅ Done | Opens in $EDITOR |
 | `--edit-global-airlock-rules` | ✅ Done | Opens in $EDITOR |
-| Docker Compose generation | ⬜ Partial | `AirlockComposer.cs` exists |
-| Proxy container management | ⬜ TODO | |
-| Network config placeholder replacement | ⬜ TODO | `{{GITHUB_OWNER}}`, `{{GITHUB_REPO}}` |
-| Orphaned network cleanup | ⬜ TODO | |
-| Logs directory setup | ⬜ TODO | |
-| Monitor vs enforce mode | ⬜ TODO | |
+| Docker Compose generation | ✅ Done | Generate from template |
+| Proxy container management | ✅ Done | Start proxy, run app, cleanup |
+| Network config placeholder replacement | ✅ Done | `{{GITHUB_OWNER}}`, `{{GITHUB_REPO}}` |
+| Orphaned network cleanup | ✅ Done | Find and remove stale networks/containers |
+| Logs directory setup | ✅ Done | Create `.copilot_here/logs` with gitignore |
+| Monitor vs enforce mode | ✅ Done | Reads from config |
+| Session ID generation | ✅ Done | SHA256 hash of PID+timestamp |
+| Template download | ✅ Done | Download compose template if missing |
 
 ### Security
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Token scope validation | ⬜ TODO | Require `copilot`, `read:packages` |
-| Privileged scope warning | ⬜ TODO | Warn on `admin:*`, `write:*`, etc. |
-| Test mode bypass | ⬜ TODO | `COPILOT_HERE_TEST_MODE` |
+| Token scope validation | ✅ Done | Require `copilot`, `read:packages` |
+| Privileged scope warning | ✅ Done | Warn+confirm on `admin:*`, `write:*`, `manage_*`, `delete_*` |
+| Test mode bypass | ✅ Done | `COPILOT_HERE_TEST_MODE` env var |
 
 ### CLI Infrastructure
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `-h` / `--help` | ✅ Done | System.CommandLine auto-generated |
-| `--help2` | ✅ Done | Alias registered |
+| `--help2` | ✅ Done | Shows native copilot --help |
 | `--no-cleanup` | ✅ Done | |
 | `--no-pull` / `--skip-pull` | ✅ Done | |
-| `--update-scripts` / `--upgrade-scripts` | ⬜ TODO | Self-update mechanism |
-| Version check and update prompt | ⬜ TODO | |
-| Passthrough args to copilot | ✅ Done | |
-| Emoji support detection | ⬜ TODO | |
+| `--update` / `-u` | ✅ Done | Checks GitHub releases for updates |
+| Version check and update prompt | ✅ Done | Shows download instructions |
+| Passthrough args to copilot | ✅ Done | `-p`, `--model`, `--continue`, `--resume`, `--` |
+| Emoji support detection | ✅ Done | |
 
 ### Self-Update
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Check for updates on GitHub | ⬜ TODO | |
-| Download and replace binary | ⬜ TODO | |
-| Version comparison | ⬜ TODO | |
-| Backup before update | ⬜ TODO | |
+| Check for updates on GitHub | ✅ Done | Uses releases API |
+| Download instructions | ✅ Done | Platform-specific curl/PowerShell commands |
+| Version comparison | ✅ Done | Semver comparison |
+| Runtime identifier detection | ✅ Done | Auto-detects OS and architecture |
 
 ### GitHub Integration
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Get owner/repo from git remote | ⬜ TODO | For placeholder replacement |
-| Parse SSH and HTTPS remote URLs | ⬜ TODO | |
+| Get owner/repo from git remote | ✅ Done | For placeholder replacement |
+| Parse SSH and HTTPS remote URLs | ✅ Done | Handles all GitHub URL formats |
 
 ## Config File Locations
 
@@ -120,8 +124,10 @@ This document tracks the migration from shell scripts (`.sh`/`.ps1`) to a .NET N
 | Global mounts | `~/.config/copilot_here/mounts.conf` | User-wide mounts |
 | Local image | `.copilot_here/image.conf` | Project-specific default image |
 | Global image | `~/.config/copilot_here/image.conf` | User-wide default image |
-| Local network | `.copilot_here/network.json` | Project-specific airlock config |
-| Global network | `~/.config/copilot_here/network.json` | User-wide airlock config |
+| Local airlock | `.copilot_here/airlock.enabled` | Project-specific airlock flag |
+| Global airlock | `~/.config/copilot_here/airlock.enabled` | User-wide airlock flag |
+| Local network rules | `.copilot_here/network.json` | Project-specific airlock rules |
+| Global network rules | `~/.config/copilot_here/network.json` | User-wide airlock rules |
 | Default airlock rules | `~/.config/copilot_here/default-airlock-rules.json` | Base rules |
 | Compose template | `~/.config/copilot_here/docker-compose.airlock.yml.template` | Docker compose template |
 | Copilot config | `~/.config/copilot-cli-docker` | Copilot CLI persistence |
@@ -159,18 +165,78 @@ All features must have corresponding tests:
 
 ## Migration Priority
 
-1. **High Priority** (Core functionality)
+1. **High Priority** (Core functionality) - ✅ Complete
    - Security checks (token validation)
    - All image variants
    - Mount config loading
    - Help text
 
-2. **Medium Priority** (User experience)
+2. **Medium Priority** (User experience) - ✅ Complete
    - Terminal title
    - Progress spinners
    - Emoji detection
    - Update checking
 
-3. **Low Priority** (Advanced features)
-   - Airlock proxy mode
+3. **Low Priority** (Advanced features) - ✅ Complete
+   - Airlock proxy mode (Docker Compose)
    - Self-update mechanism
+
+## Distribution Strategy
+
+### Binary Distribution
+
+Native AOT binaries are built for multiple platforms:
+
+| Platform | Runtime Identifier | Binary Name |
+|----------|-------------------|-------------|
+| Linux x64 | `linux-x64` | `copilot-here` |
+| Linux ARM64 | `linux-arm64` | `copilot-here` |
+| macOS x64 | `osx-x64` | `copilot-here` |
+| macOS ARM64 | `osx-arm64` | `copilot-here` |
+| Windows x64 | `win-x64` | `copilot-here.exe` |
+| Windows ARM64 | `win-arm64` | `copilot-here.exe` |
+
+### Installation Flow
+
+1. **Initial Installation** (via shell script download):
+   ```bash
+   # Linux/macOS
+   curl -fsSL https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.sh -o ~/.copilot_here.sh
+   source ~/.copilot_here.sh
+   
+   # PowerShell
+   irm https://raw.githubusercontent.com/GordonBeeming/copilot_here/main/copilot_here.ps1 | iex
+   ```
+
+2. **First Run** - Shell wrapper:
+   - Checks for binary at `~/.config/copilot_here/bin/copilot-here[.exe]`
+   - If missing, downloads from GitHub releases
+   - Passes all arguments to binary
+   - Adds `--yolo` flag when called as `copilot_yolo`
+
+3. **Updates** - Via the binary itself:
+   - `copilot_here --update` checks GitHub releases
+   - Downloads new binary if available
+   - Replaces existing binary
+
+### Shell Wrapper Responsibilities
+
+The thin shell wrappers (`copilot_here.sh` / `copilot_here.ps1`) handle:
+- Binary location and download
+- Mode detection (`copilot_here` vs `copilot_yolo`)
+- Platform/architecture detection for correct binary
+- First-time setup messaging
+
+### GitHub Actions Workflow
+
+The `publish.yml` workflow builds:
+1. Docker images (existing functionality)
+2. Native AOT binaries for all platforms (new)
+   - Published as release artifacts
+   - Tagged with commit SHA
+
+### Version Management
+
+- Binary version comes from `CopilotHere.csproj` `<Version>` property
+- Shell wrapper version in header comment for backward compatibility
+- Binary self-update checks GitHub releases API
