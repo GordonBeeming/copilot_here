@@ -11,7 +11,6 @@ public sealed partial class AirlockCommands
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();
-      var config = AirlockConfig.Load(paths);
 
       Console.WriteLine("📋 Airlock Proxy Rules");
       Console.WriteLine("======================");

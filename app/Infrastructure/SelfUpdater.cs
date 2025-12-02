@@ -170,15 +170,10 @@ public static class SelfUpdater
 
   private static int[] ParseVersion(string version)
   {
-    var parts = version.Split('.', '-');
-    var result = new List<int>();
-
-    foreach (var part in parts)
-    {
-      if (int.TryParse(part, out var num))
-        result.Add(num);
-    }
-
-    return [.. result];
+    return version.Split('.', '-')
+      .Select(part => int.TryParse(part, out var num) ? num : (int?)null)
+      .Where(n => n.HasValue)
+      .Select(n => n!.Value)
+      .ToArray();
   }
 }

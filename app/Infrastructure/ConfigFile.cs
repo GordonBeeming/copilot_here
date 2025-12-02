@@ -42,14 +42,11 @@ public static class ConfigFile
   /// </summary>
   public static IEnumerable<string> ReadLines(string path)
   {
-    if (!File.Exists(path)) yield break;
+    if (!File.Exists(path)) return [];
 
-    foreach (var line in File.ReadAllLines(path))
-    {
-      var trimmed = line.Trim();
-      if (!string.IsNullOrEmpty(trimmed) && !trimmed.StartsWith('#'))
-        yield return trimmed;
-    }
+    return File.ReadAllLines(path)
+      .Select(line => line.Trim())
+      .Where(trimmed => !string.IsNullOrEmpty(trimmed) && !trimmed.StartsWith('#'));
   }
 
   /// <summary>

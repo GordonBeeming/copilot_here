@@ -39,7 +39,10 @@ public static class SystemInfo
           return result;
       }
     }
-    catch { }
+    catch
+    {
+      // Process execution failed - fall back to default UID
+    }
 
     return "1000";
   }
@@ -70,7 +73,10 @@ public static class SystemInfo
           return result;
       }
     }
-    catch { }
+    catch
+    {
+      // Process execution failed - fall back to default GID
+    }
 
     return "1000";
   }

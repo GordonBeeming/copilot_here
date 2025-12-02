@@ -430,10 +430,9 @@ public static class AirlockRunner
       var allContainers = allOutput?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
       // Find and remove orphaned proxy containers
-      foreach (var container in allContainers)
+      var proxyContainers = allContainers.Where(c => c.EndsWith("-proxy"));
+      foreach (var container in proxyContainers)
       {
-        if (!container.EndsWith("-proxy")) continue;
-
         var prefix = container[..^6]; // Remove "-proxy"
         var hasRunningApp = runningContainers.Any(c =>
           c.StartsWith($"{prefix}-app", StringComparison.OrdinalIgnoreCase));
@@ -449,10 +448,9 @@ public static class AirlockRunner
       var networksOutput = RunCommand("docker", "network", "ls", "--format", "{{.Name}}");
       var networks = networksOutput?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
-      foreach (var network in networks)
+      var copilotNetworks = networks.Where(n => n.EndsWith("_airlock") || n.EndsWith("_bridge"));
+      foreach (var network in copilotNetworks)
       {
-        if (!network.EndsWith("_airlock") && !network.EndsWith("_bridge")) continue;
-
         // Check if network has any containers
         var inspectOutput = RunCommand("docker", "network", "inspect", network, "--format", "{{len .Containers}}");
         if (inspectOutput?.Trim() == "0")

@@ -161,24 +161,20 @@ public static class DockerRunner
       var cutoffDate = DateTime.Now.AddDays(-7);
       var removedCount = 0;
 
-      foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+      var imageLines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.Split('|'))
+        .Where(parts => parts.Length >= 3)
+        .Select(parts => new { ImageId = parts[0], ImageName = parts[1], CreatedAt = parts[2] })
+        .Where(img => img.ImageId != keepImageId);
+
+      foreach (var img in imageLines)
       {
-        var parts = line.Split('|');
-        if (parts.Length < 3) continue;
-
-        var imageId = parts[0];
-        var imageName = parts[1];
-        var createdAt = parts[2];
-
-        // Skip the image we want to keep
-        if (imageId == keepImageId) continue;
-
         // Try to parse the date and check if older than 7 days
-        if (TryParseDockerDate(createdAt, out var imageDate) && imageDate < cutoffDate)
+        if (TryParseDockerDate(img.CreatedAt, out var imageDate) && imageDate < cutoffDate)
         {
-          if (RemoveImage(imageId))
+          if (RemoveImage(img.ImageId))
           {
-            Console.WriteLine($"  🗑️  Removed: {imageName}");
+            Console.WriteLine($"  🗑️  Removed: {img.ImageName}");
             removedCount++;
           }
         }
@@ -265,7 +261,10 @@ public static class DockerRunner
         return true;
       }
     }
-    catch { }
+    catch
+    {
+      // Date parsing failed - not critical, just skip this image
+    }
     return false;
   }
 }

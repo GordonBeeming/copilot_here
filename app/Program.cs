@@ -104,15 +104,9 @@ class Program
   /// </summary>
   private static bool IsYoloMode(string[] args)
   {
-    foreach (var arg in args)
-    {
-      if (arg.Equals("--yolo", StringComparison.OrdinalIgnoreCase) ||
-          arg.Equals("-Yolo", StringComparison.OrdinalIgnoreCase))
-      {
-        return true;
-      }
-    }
-    return false;
+    return args.Any(arg =>
+      arg.Equals("--yolo", StringComparison.OrdinalIgnoreCase) ||
+      arg.Equals("-Yolo", StringComparison.OrdinalIgnoreCase));
   }
 
   /// <summary>

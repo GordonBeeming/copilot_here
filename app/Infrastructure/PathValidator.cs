@@ -45,26 +45,23 @@ public static class PathValidator
   public static bool ValidateSensitivePath(string resolvedPath, string userHome)
   {
     // Expand ~ in sensitive paths for comparison
-    foreach (var sensitivePath in SensitivePaths)
+    var matchingSensitivePath = SensitivePaths
+      .Select(p => p.Replace("~", userHome))
+      .FirstOrDefault(expandedSensitive =>
+        resolvedPath.Equals(expandedSensitive, StringComparison.OrdinalIgnoreCase) ||
+        resolvedPath.StartsWith(expandedSensitive + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+
+    if (matchingSensitivePath is null)
+      return true;
+
+    Console.WriteLine($"⚠️  Warning: Mounting sensitive system path: {resolvedPath}");
+    Console.Write("Are you sure you want to mount this sensitive path? [y/N]: ");
+
+    var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+    if (response != "y" && response != "yes")
     {
-      var expandedSensitive = sensitivePath.Replace("~", userHome);
-
-      // Check if path matches or is under the sensitive path
-      if (resolvedPath.Equals(expandedSensitive, StringComparison.OrdinalIgnoreCase) ||
-          resolvedPath.StartsWith(expandedSensitive + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-      {
-        Console.WriteLine($"⚠️  Warning: Mounting sensitive system path: {resolvedPath}");
-        Console.Write("Are you sure you want to mount this sensitive path? [y/N]: ");
-
-        var response = Console.ReadLine()?.Trim().ToLowerInvariant();
-        if (response != "y" && response != "yes")
-        {
-          Console.WriteLine("Operation cancelled by user.");
-          return false;
-        }
-
-        return true;
-      }
+      Console.WriteLine("Operation cancelled by user.");
+      return false;
     }
 
     return true;
