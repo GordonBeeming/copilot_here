@@ -82,7 +82,6 @@ jobs:
   # Airlock tests - Linux only (Docker with Linux containers required)
   test-airlock:
     name: Test Airlock
-    needs: [test-cli-integration]
     runs-on: ubuntu-latest
 
     steps:
@@ -108,7 +107,7 @@ jobs:
   # Build proxy Rust binary natively on each architecture (much faster than QEMU/Docker)
   build-proxy-binary:
     name: Build Proxy Binary (${{ matrix.arch }})
-    needs: [test-airlock]
+    needs: [test-cli-integration, test-airlock]
     runs-on: ${{ matrix.runner }}
     if: github.ref == 'refs/heads/main'
     strategy:
@@ -220,7 +219,7 @@ jobs:
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-amd64 \
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-arm64
           docker manifest push ghcr.io/${{ steps.repo.outputs.name }}:proxy
-          
+
           docker manifest create ghcr.io/${{ steps.repo.outputs.name }}:proxy-sha-${{ github.sha }} \
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-amd64 \
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-arm64
@@ -228,7 +227,7 @@ jobs:
 
   build-base:
     name: Build Base Image
-    needs: [test-airlock]
+    needs: [test-cli-integration, test-airlock]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -462,7 +461,14 @@ jobs:
   # Summary job
   publish-summary:
     name: Publish Summary
-    needs: [build-base, build-proxy, build-variants, build-compound-variants, release-cli]
+    needs:
+      [
+        build-base,
+        build-proxy,
+        build-variants,
+        build-compound-variants,
+        release-cli,
+      ]
     if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-latest
     steps:
@@ -493,7 +499,7 @@ jobs:
           else
             echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [[ "${{ needs.release-cli.result }}" == "success" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**CLI Binaries Published:**" >> $GITHUB_STEP_SUMMARY
@@ -505,7 +511,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-airlock, test-cli-integration]
+    needs: [test-cli-integration, test-airlock]
     runs-on: ${{ matrix.os }}
     if: github.ref == 'refs/heads/main'
     strategy:
@@ -600,11 +606,11 @@ jobs:
             fi
             cd ../..
           done
-          
+
           # Include shell scripts in release
           cp copilot_here.sh release/
           cp copilot_here.ps1 release/
-          
+
           ls -la release/
 
       - name: Get version from shell script
@@ -625,11 +631,11 @@ jobs:
           name: CLI v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})
           body: |
             ## Native AOT CLI Binary
-            
+
             Commit: ${{ github.sha }}
-            
+
             ### Download
-            
+
             | Platform | Architecture | Download |
             |----------|--------------|----------|
             | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
@@ -638,9 +644,9 @@ jobs:
             | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
             | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-x64.zip) |
             | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
-            
+
             ### Installation
-            
+
             See [README](https://github.com/${{ github.repository }}#installation) for installation instructions.
           files: release/*
           draft: false
@@ -661,15 +667,15 @@ jobs:
           name: CLI v${{ steps.version.outputs.version }}
           body: |
             ## Latest Native AOT CLI Binary
-            
+
             **Version:** ${{ steps.version.outputs.version }}
             **Commit:** ${{ github.sha }}
-            
+
             This release is automatically updated with the latest CLI build.
             For versioned releases, see the [releases page](https://github.com/${{ github.repository }}/releases).
-            
+
             ### Installation
-            
+
             See [README](https://github.com/${{ github.repository }}#installation) for installation instructions.
           files: release/*
           draft: false
