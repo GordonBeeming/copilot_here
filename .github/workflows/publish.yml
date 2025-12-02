@@ -105,9 +105,9 @@ jobs:
       - name: Run airlock integration tests
         run: ./tests/integration/test_airlock.sh --use-local
 
-  # Build proxy image on native runners for each architecture (much faster than QEMU)
-  build-proxy:
-    name: Build Proxy (${{ matrix.platform }})
+  # Build proxy Rust binary natively on each architecture (much faster than QEMU/Docker)
+  build-proxy-binary:
+    name: Build Proxy Binary (${{ matrix.arch }})
     needs: [test-airlock]
     runs-on: ${{ matrix.runner }}
     if: github.ref == 'refs/heads/main'
@@ -115,12 +115,46 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: linux/amd64
+          - arch: amd64
             runner: ubuntu-latest
-            suffix: amd64
-          - platform: linux/arm64
+            target: x86_64-unknown-linux-musl
+          - arch: arm64
             runner: ubuntu-24.04-arm
-            suffix: arm64
+            target: aarch64-unknown-linux-musl
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools musl-dev
+
+      - name: Add musl target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build proxy binary
+        working-directory: proxy
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/secure-proxy ../secure-proxy-${{ matrix.arch }}
+
+      - name: Upload proxy binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxy-binary-${{ matrix.arch }}
+          path: secure-proxy-${{ matrix.arch }}
+          if-no-files-found: error
+
+  # Build proxy Docker image using pre-built binaries
+  build-proxy:
+    name: Build Proxy Image
+    needs: [build-proxy-binary]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -128,6 +162,23 @@ jobs:
       - name: Set lowercase repository name
         id: repo
         run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Download proxy binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: proxy-binary-*
+          path: proxy-binaries
+          merge-multiple: true
+
+      - name: Prepare binaries for Docker
+        run: |
+          mv proxy-binaries/secure-proxy-amd64 proxy-amd64
+          mv proxy-binaries/secure-proxy-arm64 proxy-arm64
+          chmod +x proxy-amd64 proxy-arm64
+          ls -la proxy-*
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -139,38 +190,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push proxy image
+      - name: Build and push proxy image (amd64)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.proxy
-          platforms: ${{ matrix.platform }}
+          file: ./docker/Dockerfile.proxy-runtime
+          platforms: linux/amd64
           push: true
           provenance: false
           sbom: false
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:proxy-${{ matrix.suffix }}
+          tags: ghcr.io/${{ steps.repo.outputs.name }}:proxy-amd64
           labels: project=copilot_here
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy-cache-${{ matrix.suffix }}
-          cache-to: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:proxy-cache-${{ matrix.suffix }},mode=max
 
-  # Create multi-arch manifest for proxy
-  publish-proxy-manifest:
-    name: Publish Proxy Manifest
-    needs: [build-proxy]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Set lowercase repository name
-        id: repo
-        run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      - name: Build and push proxy image (arm64)
+        uses: docker/build-push-action@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          context: .
+          file: ./docker/Dockerfile.proxy-runtime
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ steps.repo.outputs.name }}:proxy-arm64
+          labels: project=copilot_here
 
       - name: Create and push multi-arch manifest
         run: |
@@ -420,7 +462,7 @@ jobs:
   # Summary job
   publish-summary:
     name: Publish Summary
-    needs: [build-base, publish-proxy-manifest, build-variants, build-compound-variants, release-cli]
+    needs: [build-base, build-proxy, build-variants, build-compound-variants, release-cli]
     if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-latest
     steps:

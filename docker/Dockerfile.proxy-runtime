@@ -1,0 +1,26 @@
+# Minimal runtime image for pre-built proxy binary
+FROM alpine:3.21
+
+# Install only essential runtime dependencies
+# curl is needed for healthcheck
+RUN apk add --no-cache ca-certificates su-exec curl
+
+# Create proxy user
+RUN addgroup -S proxy-user && adduser -S -G proxy-user -h /app proxy-user
+
+# Copy pre-built binary (passed as build arg)
+ARG TARGETARCH
+COPY proxy-${TARGETARCH} /app/secure-proxy
+RUN chmod +x /app/secure-proxy
+
+# Create directories
+RUN mkdir -p /config /logs /ca && \
+    chown -R proxy-user:proxy-user /app /config /logs /ca
+
+# Copy entrypoint
+COPY proxy-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 58080
+
+ENTRYPOINT ["/entrypoint.sh"]
