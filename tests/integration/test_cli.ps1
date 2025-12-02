@@ -316,11 +316,14 @@ function Main {
         Test-YoloFlag
         Test-PassthroughHelp
         
-        $success = Write-Summary
+        # Call Write-Summary and capture result explicitly
+        $null = Write-Summary
         
-        if (-not $success) {
+        # Exit based on fail count
+        if ($script:FailCount -gt 0) {
             exit 1
         }
+        exit 0
     } finally {
         Cleanup
     }
