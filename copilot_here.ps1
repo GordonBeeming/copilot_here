@@ -1,10 +1,11 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.03.1
+# Version: 2025.12.03.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
+$script:CopilotHereVersion = "2025.12.03.2"
 
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
@@ -95,6 +96,61 @@ function Reset-CopilotHere {
     Update-CopilotHere
 }
 
+# Check for updates (called at startup)
+function Test-CopilotHereUpdates {
+    try {
+        # Fetch remote script with 2 second timeout
+        $ProgressPreference = 'SilentlyContinue'
+        $remoteScript = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing -TimeoutSec 2).Content
+        
+        # Extract version from remote script
+        $remoteVersion = $null
+        if ($remoteScript -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
+            $remoteVersion = $matches[1]
+        }
+        
+        if (-not $remoteVersion) {
+            return $false  # Couldn't parse version
+        }
+        
+        if ($script:CopilotHereVersion -ne $remoteVersion) {
+            # Compare versions - convert to comparable format
+            $currentParts = $script:CopilotHereVersion -split '\.'
+            $remoteParts = $remoteVersion -split '\.'
+            
+            # Pad arrays to same length
+            $maxLen = [Math]::Max($currentParts.Length, $remoteParts.Length)
+            while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
+            while ($remoteParts.Length -lt $maxLen) { $remoteParts += "0" }
+            
+            # Compare each part
+            $isNewer = $false
+            for ($i = 0; $i -lt $maxLen; $i++) {
+                $currentNum = [int]$currentParts[$i]
+                $remoteNum = [int]$remoteParts[$i]
+                if ($remoteNum -gt $currentNum) {
+                    $isNewer = $true
+                    break
+                } elseif ($remoteNum -lt $currentNum) {
+                    break
+                }
+            }
+            
+            if ($isNewer) {
+                Write-Host "📢 Update available: $script:CopilotHereVersion → $remoteVersion"
+                $confirmation = Read-Host "Would you like to update now? [y/N]"
+                if ($confirmation -match '^[yY]') {
+                    Update-CopilotHere
+                    return $true  # Signal that update was performed
+                }
+            }
+        }
+    } catch {
+        # Failed to check or offline - continue normally
+    }
+    return $false
+}
+
 # Check if argument is an update command
 function Test-UpdateArg {
     param([string]$Arg)
@@ -129,6 +185,9 @@ function Copilot-Here {
         return
     }
     
+    # Check for updates at startup
+    if (Test-CopilotHereUpdates) { return }
+    
     if (-not (Ensure-CopilotHereBinary)) { return }
     & $script:CopilotHereBin @Arguments
 }
@@ -152,6 +211,9 @@ function Copilot-Yolo {
         Reset-CopilotHere
         return
     }
+    
+    # Check for updates at startup
+    if (Test-CopilotHereUpdates) { return }
     
     if (-not (Ensure-CopilotHereBinary)) { return }
     & $script:CopilotHereBin --yolo @Arguments

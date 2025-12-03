@@ -1,10 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.03.1
+# Version: 2025.12.03.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
+COPILOT_HERE_VERSION="2025.12.03.2"
 
 # Helper function to download and install binary
 __copilot_download_binary() {
@@ -106,6 +107,35 @@ __copilot_reset() {
   __copilot_update
 }
 
+# Check for updates (called at startup)
+__copilot_check_for_updates() {
+  # Fetch remote version with 2 second timeout
+  local remote_version
+  remote_version=$(curl -m 2 -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" 2>/dev/null | sed -n 's/^COPILOT_HERE_VERSION="\(.*\)"$/\1/p')
+  
+  if [ -z "$remote_version" ]; then
+    return 0  # Failed to check or offline - continue normally
+  fi
+  
+  if [ "$COPILOT_HERE_VERSION" != "$remote_version" ]; then
+    # Check if remote is actually newer using sort -V
+    local newest
+    newest=$(printf "%s\n%s" "$COPILOT_HERE_VERSION" "$remote_version" | sort -V | tail -n1)
+    if [ "$newest" = "$remote_version" ]; then
+      echo "📢 Update available: $COPILOT_HERE_VERSION → $remote_version"
+      printf "Would you like to update now? [y/N]: "
+      read -r confirmation
+      local lower_confirmation
+      lower_confirmation=$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')
+      if [ "$lower_confirmation" = "y" ] || [ "$lower_confirmation" = "yes" ]; then
+        __copilot_update
+        return 1  # Signal that update was performed
+      fi
+    fi
+  fi
+  return 0
+}
+
 # Check if argument is an update command
 __copilot_is_update_arg() {
   case "$1" in
@@ -144,6 +174,9 @@ copilot_here() {
     return $?
   fi
   
+  # Check for updates at startup
+  __copilot_check_for_updates || return 0
+  
   __copilot_ensure_binary || return 1
   "$COPILOT_HERE_BIN" "$@"
 }
@@ -161,6 +194,9 @@ copilot_yolo() {
     __copilot_reset
     return $?
   fi
+  
+  # Check for updates at startup
+  __copilot_check_for_updates || return 0
   
   __copilot_ensure_binary || return 1
   "$COPILOT_HERE_BIN" --yolo "$@"
