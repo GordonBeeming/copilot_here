@@ -227,7 +227,9 @@ public sealed class RunCommand : ICommand
         {
           copilotArgs.Add("--continue");
         }
-        if (resumeSession != null)
+        // Check if --resume was actually passed (even without a value)
+        var resumeOptionResult = parseResult.GetResult(_resumeOption);
+        if (resumeOptionResult != null)
         {
           copilotArgs.Add("--resume");
           if (!string.IsNullOrEmpty(resumeSession))
