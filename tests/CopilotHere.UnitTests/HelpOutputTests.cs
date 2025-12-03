@@ -128,6 +128,16 @@ public class HelpOutputTests
   [Arguments("--model")]
   [Arguments("--continue")]
   [Arguments("--resume")]
+  [Arguments("--silent")]
+  [Arguments("--agent")]
+  [Arguments("--no-color")]
+  [Arguments("--allow-tool")]
+  [Arguments("--deny-tool")]
+  [Arguments("--stream")]
+  [Arguments("--log-level")]
+  [Arguments("--screen-reader")]
+  [Arguments("--no-custom-instructions")]
+  [Arguments("--additional-mcp-config")]
   public async Task RootCommand_HasCopilotPassthroughOption(string option)
   {
     // Arrange

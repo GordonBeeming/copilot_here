@@ -68,6 +68,16 @@ class Program
     { "-Model", "--model" },
     { "-Continue", "--continue" },
     { "-Resume", "--resume" },
+    { "-Silent", "--silent" },
+    { "-Agent", "--agent" },
+    { "-NoColor", "--no-color" },
+    { "-AllowTool", "--allow-tool" },
+    { "-DenyTool", "--deny-tool" },
+    { "-Stream", "--stream" },
+    { "-LogLevel", "--log-level" },
+    { "-ScreenReader", "--screen-reader" },
+    { "-NoCustomInstructions", "--no-custom-instructions" },
+    { "-AdditionalMcpConfig", "--additional-mcp-config" },
   };
 
   static async Task<int> Main(string[] args)

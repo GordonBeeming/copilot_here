@@ -171,6 +171,16 @@ public class AliasTests
   [Arguments("-Model", "--model")]
   [Arguments("-Continue", "--continue")]
   [Arguments("-Resume", "--resume")]
+  [Arguments("-Silent", "--silent")]
+  [Arguments("-Agent", "--agent")]
+  [Arguments("-NoColor", "--no-color")]
+  [Arguments("-AllowTool", "--allow-tool")]
+  [Arguments("-DenyTool", "--deny-tool")]
+  [Arguments("-Stream", "--stream")]
+  [Arguments("-LogLevel", "--log-level")]
+  [Arguments("-ScreenReader", "--screen-reader")]
+  [Arguments("-NoCustomInstructions", "--no-custom-instructions")]
+  [Arguments("-AdditionalMcpConfig", "--additional-mcp-config")]
   public async Task CopilotPassthroughAlias_NormalizesToCanonicalForm(string alias, string expected)
   {
     // Arrange & Act
@@ -221,6 +231,16 @@ public class AliasTests
   [Arguments("--model")]
   [Arguments("--continue")]
   [Arguments("--resume")]
+  [Arguments("--silent")]
+  [Arguments("--agent")]
+  [Arguments("--no-color")]
+  [Arguments("--allow-tool")]
+  [Arguments("--deny-tool")]
+  [Arguments("--stream")]
+  [Arguments("--log-level")]
+  [Arguments("--screen-reader")]
+  [Arguments("--no-custom-instructions")]
+  [Arguments("--additional-mcp-config")]
   public async Task CanonicalForm_PassesThroughUnchanged(string arg)
   {
     // Arrange & Act
@@ -378,6 +398,16 @@ public class AliasTests
     { "-Model", "--model" },
     { "-Continue", "--continue" },
     { "-Resume", "--resume" },
+    { "-Silent", "--silent" },
+    { "-Agent", "--agent" },
+    { "-NoColor", "--no-color" },
+    { "-AllowTool", "--allow-tool" },
+    { "-DenyTool", "--deny-tool" },
+    { "-Stream", "--stream" },
+    { "-LogLevel", "--log-level" },
+    { "-ScreenReader", "--screen-reader" },
+    { "-NoCustomInstructions", "--no-custom-instructions" },
+    { "-AdditionalMcpConfig", "--additional-mcp-config" },
   };
 
   private static string NormalizeArg(string arg)

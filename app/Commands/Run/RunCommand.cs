@@ -47,6 +47,16 @@ public sealed class RunCommand : ICommand
   private readonly Option<string?> _modelOption;
   private readonly Option<bool> _continueOption;
   private readonly Option<string?> _resumeOption;
+  private readonly Option<bool> _silentOption;
+  private readonly Option<string?> _agentOption;
+  private readonly Option<bool> _noColorOption;
+  private readonly Option<string[]> _allowToolOption;
+  private readonly Option<string[]> _denyToolOption;
+  private readonly Option<string?> _streamOption;
+  private readonly Option<string?> _logLevelOption;
+  private readonly Option<bool> _screenReaderOption;
+  private readonly Option<bool> _noCustomInstructionsOption;
+  private readonly Option<string[]> _additionalMcpConfigOption;
 
   // For any additional args after -- separator
   private readonly Argument<string[]> _passthroughArgs;
@@ -96,11 +106,22 @@ public sealed class RunCommand : ICommand
     _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools and paths)" };
 
     // Copilot passthrough options
-    _promptOption = new Option<string?>("--prompt") { Description = "Execute a prompt directly" };
+    _promptOption = new Option<string?>("--prompt") { Description = "[Copilot] Execute a prompt directly" };
     _promptOption.Aliases.Add("-p");
-    _modelOption = new Option<string?>("--model") { Description = "Set AI model (claude-sonnet-4.5, gpt-5, etc.)" };
-    _continueOption = new Option<bool>("--continue") { Description = "Resume most recent session" };
-    _resumeOption = new Option<string?>("--resume") { Description = "Resume from a previous session [sessionId]", Arity = ArgumentArity.ZeroOrOne };
+    _modelOption = new Option<string?>("--model") { Description = "[Copilot] Set AI model (claude-sonnet-4.5, gpt-5, etc.)" };
+    _continueOption = new Option<bool>("--continue") { Description = "[Copilot] Resume most recent session" };
+    _resumeOption = new Option<string?>("--resume") { Description = "[Copilot] Resume from a previous session [sessionId]", Arity = ArgumentArity.ZeroOrOne };
+    _silentOption = new Option<bool>("--silent") { Description = "[Copilot] Output only agent response, useful for scripting with -p" };
+    _silentOption.Aliases.Add("-s");
+    _agentOption = new Option<string?>("--agent") { Description = "[Copilot] Specify a custom agent to use (only in prompt mode)" };
+    _noColorOption = new Option<bool>("--no-color") { Description = "[Copilot] Disable all color output" };
+    _allowToolOption = new Option<string[]>("--allow-tool") { Description = "[Copilot] Allow specific tools (can be used multiple times)" };
+    _denyToolOption = new Option<string[]>("--deny-tool") { Description = "[Copilot] Deny specific tools (can be used multiple times)" };
+    _streamOption = new Option<string?>("--stream") { Description = "[Copilot] Enable or disable streaming (on|off)" };
+    _logLevelOption = new Option<string?>("--log-level") { Description = "[Copilot] Set log level (none|error|warning|info|debug|all)" };
+    _screenReaderOption = new Option<bool>("--screen-reader") { Description = "[Copilot] Enable screen reader optimizations" };
+    _noCustomInstructionsOption = new Option<bool>("--no-custom-instructions") { Description = "[Copilot] Disable loading custom instructions from AGENTS.md" };
+    _additionalMcpConfigOption = new Option<string[]>("--additional-mcp-config") { Description = "[Copilot] Additional MCP servers config (JSON string or @filepath)" };
 
     // Passthrough args after -- separator
     _passthroughArgs = new Argument<string[]>("copilot-args")
@@ -133,6 +154,16 @@ public sealed class RunCommand : ICommand
     root.Add(_modelOption);
     root.Add(_continueOption);
     root.Add(_resumeOption);
+    root.Add(_silentOption);
+    root.Add(_agentOption);
+    root.Add(_noColorOption);
+    root.Add(_allowToolOption);
+    root.Add(_denyToolOption);
+    root.Add(_streamOption);
+    root.Add(_logLevelOption);
+    root.Add(_screenReaderOption);
+    root.Add(_noCustomInstructionsOption);
+    root.Add(_additionalMcpConfigOption);
     root.Add(_passthroughArgs);
 
     root.SetAction(parseResult =>
@@ -159,6 +190,16 @@ public sealed class RunCommand : ICommand
       var model = parseResult.GetValue(_modelOption);
       var continueSession = parseResult.GetValue(_continueOption);
       var resumeSession = parseResult.GetValue(_resumeOption);
+      var silent = parseResult.GetValue(_silentOption);
+      var agent = parseResult.GetValue(_agentOption);
+      var noColor = parseResult.GetValue(_noColorOption);
+      var allowTools = parseResult.GetValue(_allowToolOption) ?? [];
+      var denyTools = parseResult.GetValue(_denyToolOption) ?? [];
+      var stream = parseResult.GetValue(_streamOption);
+      var logLevel = parseResult.GetValue(_logLevelOption);
+      var screenReader = parseResult.GetValue(_screenReaderOption);
+      var noCustomInstructions = parseResult.GetValue(_noCustomInstructionsOption);
+      var additionalMcpConfigs = parseResult.GetValue(_additionalMcpConfigOption) ?? [];
       var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
 
       // Handle --update - show message that it's handled by shell wrapper
@@ -234,6 +275,52 @@ public sealed class RunCommand : ICommand
           copilotArgs.Add("--resume");
           if (!string.IsNullOrEmpty(resumeSession))
             copilotArgs.Add(resumeSession);
+        }
+        if (silent)
+        {
+          copilotArgs.Add("--silent");
+        }
+        if (!string.IsNullOrEmpty(agent))
+        {
+          copilotArgs.Add("--agent");
+          copilotArgs.Add(agent);
+        }
+        if (noColor)
+        {
+          copilotArgs.Add("--no-color");
+        }
+        foreach (var tool in allowTools)
+        {
+          copilotArgs.Add("--allow-tool");
+          copilotArgs.Add(tool);
+        }
+        foreach (var tool in denyTools)
+        {
+          copilotArgs.Add("--deny-tool");
+          copilotArgs.Add(tool);
+        }
+        if (!string.IsNullOrEmpty(stream))
+        {
+          copilotArgs.Add("--stream");
+          copilotArgs.Add(stream);
+        }
+        if (!string.IsNullOrEmpty(logLevel))
+        {
+          copilotArgs.Add("--log-level");
+          copilotArgs.Add(logLevel);
+        }
+        if (screenReader)
+        {
+          copilotArgs.Add("--screen-reader");
+        }
+        if (noCustomInstructions)
+        {
+          copilotArgs.Add("--no-custom-instructions");
+        }
+        foreach (var mcpConfig in additionalMcpConfigs)
+        {
+          copilotArgs.Add("--additional-mcp-config");
+          copilotArgs.Add(mcpConfig);
         }
         copilotArgs.AddRange(passthroughArgs);
 
