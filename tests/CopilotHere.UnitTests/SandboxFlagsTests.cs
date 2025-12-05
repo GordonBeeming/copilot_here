@@ -7,17 +7,10 @@ namespace CopilotHere.UnitTests;
 
 public class SandboxFlagsTests
 {
-  [Before(Test)]
-  public void Setup()
-  {
-    // Clear SANDBOX_FLAGS before each test to avoid pollution
-    Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
-  }
-
   [After(Test)]
   public void Cleanup()
   {
-    // Clear SANDBOX_FLAGS after each test
+    // Clear SANDBOX_FLAGS after each test to prevent pollution
     Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
   }
 
