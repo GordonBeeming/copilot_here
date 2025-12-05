@@ -32,15 +32,55 @@ When modifying shell functions in the standalone script files, update ALL versio
 - The README.md now uses `curl` commands to download these files directly from the repository.
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 
-**Current version**: 2025.12.02.1
+**Current version**: 2025.12.05
 
 ## Technology Stack
+- **CLI Binary**: .NET 10 Native AOT (self-contained, cross-platform)
+- **Shell Wrappers**: Bash/Zsh and PowerShell functions
 - **Base OS**: Debian (node:20-slim)
 - **Runtime**: Node.js 20
 - **CLI Tool**: GitHub Copilot CLI (@github/copilot)
 - **Container**: Docker (Multi-arch: AMD64 & ARM64)
 - **CI/CD**: GitHub Actions
 - **Registry**: GitHub Container Registry (ghcr.io)
+
+## Project Architecture
+
+### Native Binary (`app/`)
+The core CLI is a .NET 10 Native AOT application that:
+- Validates GitHub authentication and token scopes
+- Manages Docker image selection and pulling
+- Configures mounts, airlock, and container settings
+- Builds and executes Docker Compose configurations
+- Handles both safe mode (confirmation required) and YOLO mode (auto-approve)
+
+**Key Components:**
+- `Program.cs` - Entry point, argument parsing, command routing
+- `Commands/Run/RunCommand.cs` - Main execution logic
+- `Infrastructure/GitHubAuth.cs` - Token validation and scope checking
+- `Infrastructure/DockerRunner.cs` - Docker process management
+- `Infrastructure/AirlockRunner.cs` - Network proxy mode
+- `Infrastructure/DebugLogger.cs` - Debug logging infrastructure
+
+### Shell Wrappers
+Lightweight functions that:
+- Download and install the native binary
+- Check for updates
+- Handle version management
+- Stop running containers before updates
+- Provide convenience commands: `copilot_here`, `copilot_yolo`
+
+**Files:**
+- `copilot_here.sh` - Bash/Zsh functions
+- `copilot_here.ps1` - PowerShell functions
+
+### Development Workflow
+- `dev-build.sh` - Local development build script
+  - Builds native binary for current platform
+  - Stops running containers
+  - Copies binary to `~/.local/bin`
+  - Updates and sources shell script
+  - Optionally builds Docker images
 
 ## Docker Image Variants
 
@@ -66,6 +106,33 @@ Extends the Playwright image with:
 - .NET 10 SDK
 
 **Use Case**: .NET development, building and testing .NET applications with web testing capabilities
+
+## Airlock Network Proxy
+
+Airlock is a security feature that provides network request monitoring and control:
+
+**How it works:**
+- App container runs on an isolated network with NO internet access
+- All network requests are routed through a MITM proxy container
+- Proxy enforces allow/deny rules based on configuration
+- Provides visibility into all network traffic
+
+**Configuration:**
+- **Local rules**: `.copilot_here/network.json` (project-specific)
+- **Global rules**: `~/.config/copilot_here/network.json` (user-wide)
+- **Default rules**: `default-airlock-rules.json` (fallback)
+
+**Use cases:**
+- Monitor what external resources Copilot accesses
+- Block specific domains or endpoints
+- Allow only approved network destinations
+- Audit network activity during development
+
+**Technical implementation:**
+- Proxy: mitmproxy-based container (`docker/Dockerfile.proxy`)
+- Runner: `Infrastructure/AirlockRunner.cs` orchestrates Docker Compose setup
+- Certificates: CA cert shared between proxy and app containers
+- Logging: Network activity logged to `.copilot_here/logs/`
 
 ## Project File Structure Rules
 
@@ -215,6 +282,21 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 - All tests must pass in their respective environments
 - When creating test data (paths, files), ensure they exist before validation to avoid warnings
 
+### C# / .NET Code
+- Use modern C# features (record types, pattern matching, etc.)
+- Prefer immutability where possible
+- Use nullable reference types
+- Follow .NET naming conventions (PascalCase for public members)
+- Add XML documentation comments for public APIs
+- Use AOT-compatible patterns (avoid reflection, dynamic code generation)
+
+### Debug Logging
+- Use `DebugLogger.Log()` for debug output
+- Only enabled when `COPILOT_HERE_DEBUG=1` or `COPILOT_HERE_DEBUG=true`
+- Logs to stderr to not interfere with normal output
+- Add debug logs at key decision points and before/after major operations
+- Include context (arguments, state, exit codes)
+
 ### Dockerfiles
 - Use official base images
 - Combine RUN commands to reduce layers
@@ -242,17 +324,39 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 ```
 /work/
   ├── .github/
-  │   └── workflows/     # GitHub Actions workflows
-  ├── docs/              # All documentation
-  │   ├── tasks/         # Task documentation
-  │   │   └── images/    # Task screenshots
-  │   └── *.md           # Other docs
-  ├── Dockerfile         # Base image
-  ├── Dockerfile.*       # Image variants
-  ├── *.sh               # Shell scripts
-  ├── README.md          # Main documentation
-  ├── LICENSE            # License file
-  └── .gitignore         # Git ignore rules
+  │   ├── copilot-instructions.md  # Repository instructions
+  │   └── workflows/               # GitHub Actions workflows
+  ├── app/                         # Native CLI application
+  │   ├── Commands/                # Command implementations
+  │   │   ├── Run/                 # Main run command
+  │   │   ├── Images/              # Image management
+  │   │   ├── Mounts/              # Mount configuration
+  │   │   └── Airlock/             # Network proxy
+  │   ├── Infrastructure/          # Core services
+  │   │   ├── AppPaths.cs          # Path resolution
+  │   │   ├── GitHubAuth.cs        # Authentication
+  │   │   ├── DockerRunner.cs      # Docker management
+  │   │   ├── AirlockRunner.cs     # Proxy mode
+  │   │   └── DebugLogger.cs       # Debug logging
+  │   ├── Program.cs               # Entry point
+  │   └── CopilotHere.csproj       # Project file
+  ├── docker/                      # Docker image definitions
+  │   ├── Dockerfile.base          # Base image
+  │   ├── Dockerfile.proxy         # Airlock proxy
+  │   ├── variants/                # Single-layer variants
+  │   └── compound-variants/       # Multi-layer variants
+  ├── docs/                        # All documentation
+  │   ├── tasks/                   # Task documentation
+  │   │   └── images/              # Task screenshots
+  │   └── *.md                     # Other docs
+  ├── tests/                       # Integration tests
+  │   └── integration/             # Shell-based tests
+  ├── copilot_here.sh              # Bash/Zsh wrapper
+  ├── copilot_here.ps1             # PowerShell wrapper
+  ├── dev-build.sh                 # Development build script
+  ├── README.md                    # Main documentation
+  ├── TROUBLESHOOTING.md           # Debug guide
+  └── LICENSE                      # License file
 ```
 
 ## Development Workflow
@@ -339,30 +443,58 @@ Co-authored-by: Other Contributor <other@example.com>"
 1. Check existing patterns in the codebase
 2. Review documentation in `/docs` for requirements
 3. Ensure changes align with project goals
+4. Consider impact on both native binary and shell wrappers
+5. Check if version numbers need updating
 
 ### Making Changes
 1. Make minimal, surgical changes - change only what's necessary
 2. Follow existing code patterns and conventions
 3. Update relevant documentation if making structural changes
 4. Test changes locally before committing
+5. Update version numbers if changing functionality (see Script Versioning section)
 
 ### After Making Changes
-1. Test Docker builds locally: `docker build -t test .`
-2. Verify workflow syntax if modified
-3. Document significant changes in `/docs/tasks/` following naming conventions
-4. **Include screenshots in task docs** with relative image paths if applicable
-5. **Ask for approval to commit**:
+1. Test native binary compilation: `dotnet build app/CopilotHere.csproj`
+2. Test local build: `./dev-build.sh`
+3. Test Docker builds if image changes: `./dev-build.sh --include-all`
+4. Verify workflow syntax if modified
+5. Document significant changes in `/docs/tasks/` following naming conventions
+6. **Include screenshots in task docs** with relative image paths if applicable
+7. **Ask for approval to commit**:
    - Explain what changes are ready to be committed
    - Wait for user confirmation
-6. **Commit your changes with co-author attribution** (after approval):
+8. **Commit your changes with co-author attribution** (after approval):
    ```bash
    git add . && git commit -m "Type: Description
 
    Co-authored-by: Name <email@example.com>"
    ```
-7. **DO NOT push to remote** - Only commit locally, never use `git push`
+9. **DO NOT push to remote** - Only commit locally, never use `git push`
 
 ## Testing and Quality
+
+### Native Binary Testing
+Test the CLI application locally:
+
+```bash
+# Build and test
+cd app
+dotnet build
+dotnet run -- --help
+dotnet run -- --version
+
+# Test with debug logging
+COPILOT_HERE_DEBUG=1 dotnet run -- --yolo -p "echo test"
+```
+
+### Local Development Build
+```bash
+# Build binary, update scripts, optionally build images
+./dev-build.sh
+
+# Build with Docker images
+./dev-build.sh --include-all
+```
 
 ### Docker Image Testing
 Always test Docker images before committing changes.
@@ -389,11 +521,14 @@ docker run --rm -it copilot_here:test copilot --version
 - Check for proper image tagging
 
 ### Before Committing
-- Ensure Dockerfiles build successfully
-- Verify workflow YAML is valid
+- Ensure native binary builds successfully: `dotnet build app/CopilotHere.csproj`
+- Test local dev build: `./dev-build.sh`
+- Ensure Dockerfiles build successfully (if modified)
+- Verify workflow YAML is valid (if modified)
 - Test affected functionality
 - Review file changes with `git diff`
 - Ensure documentation is updated
+- Check version numbers are updated if functionality changed
 
 ### Edge Cases to Consider
 - Missing environment variables
@@ -404,6 +539,14 @@ docker run --rm -it copilot_here:test copilot --version
 - Build cache behavior
 
 ## Build and Deployment
+
+### Native Binary Build Process
+The CLI is built as a self-contained .NET Native AOT binary:
+- **Platforms**: linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64, win-arm64
+- **Output**: Single-file executable (no runtime required)
+- **Trimming**: Enabled for smaller binary size
+- **AOT**: Native ahead-of-time compilation for fast startup
+- **Release**: Published via GitHub Actions on tags matching `cli-*`
 
 ### Docker Build Process
 The images build in sequence:
@@ -437,7 +580,10 @@ Each image variant gets multiple tags:
 8. **Task screenshots in `/docs/tasks/images/`** - When applicable for workflow/UI changes
 9. **Minor tasks update existing files** - Don't create duplicate task files
 10. **Document major changes** - Create task files for significant work
-11. **Test before committing** - Build Docker images and verify functionality
+11. **Test before committing** - Build binary and verify functionality
+12. **Update versions** - Increment version numbers when changing functionality
+13. **Stop containers before updating** - dev-build.sh will prompt to stop running containers
+14. **Debug logging** - Use `COPILOT_HERE_DEBUG=1` to enable detailed logging
 
 ### When to Update These Instructions
 - Adding new Docker image variants
@@ -449,8 +595,9 @@ Each image variant gets multiple tags:
 
 ---
 
-**Last Updated**: 2025-12-02
-**Version**: 1.0.0
+**Last Updated**: 2025-12-05
+**Version**: 2.0.0
+**CLI Binary**: .NET 10 Native AOT
 **Docker Base**: node:20-slim
-**Image Variants**: 3 (base, playwright, dotnet)
+**Image Variants**: 8 (base, playwright, dotnet, dotnet-8, dotnet-9, dotnet-10, rust, dotnet-rust)
 **Registry**: ghcr.io/gordonbeeming/copilot_here

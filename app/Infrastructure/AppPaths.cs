@@ -33,8 +33,27 @@ public sealed record AppPaths
     var copilotConfigPath = Path.Combine(userHome, ".config", "copilot-cli-docker");
 
     // Ensure config directories exist
-    Directory.CreateDirectory(globalConfigPath);
-    Directory.CreateDirectory(copilotConfigPath);
+    try 
+    { 
+      Directory.CreateDirectory(globalConfigPath); 
+    } 
+    catch (Exception ex)
+    {
+      Console.Error.WriteLine($"⚠️  Warning: Cannot create config directory: {globalConfigPath}");
+      Console.Error.WriteLine($"   {ex.Message}");
+      Console.Error.WriteLine($"   Global configuration features may not work.");
+    }
+    
+    try 
+    { 
+      Directory.CreateDirectory(copilotConfigPath); 
+    } 
+    catch (Exception ex)
+    {
+      Console.Error.WriteLine($"⚠️  Warning: Cannot create Copilot config directory: {copilotConfigPath}");
+      Console.Error.WriteLine($"   {ex.Message}");
+      Console.Error.WriteLine($"   Copilot session data may not persist.");
+    }
 
     // Calculate container work directory
     var containerWorkDir = currentDir.StartsWith(userHome)

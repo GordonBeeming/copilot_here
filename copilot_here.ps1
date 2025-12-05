@@ -1,11 +1,39 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.03.2
+# Version: 2025.12.05
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.03.2"
+$script:CopilotHereVersion = "2025.12.05"
+
+# Debug logging function
+function Write-CopilotDebug {
+    param([string]$Message)
+    if ($env:COPILOT_HERE_DEBUG -eq "1" -or $env:COPILOT_HERE_DEBUG -eq "true") {
+        Write-Host "[DEBUG] $Message" -ForegroundColor DarkGray
+    }
+}
+
+# Helper function to stop running containers with confirmation
+function Stop-CopilotContainers {
+    $runningContainers = docker ps --filter "name=copilot_here-" -q 2>$null
+    
+    if ($runningContainers) {
+        Write-Host "⚠️  copilot_here is currently running in Docker" -ForegroundColor Yellow
+        $response = Read-Host "   Stop running containers to continue? [y/N]"
+        if ($response -match '^[yY]') {
+            Write-Host "🛑 Stopping copilot_here containers..."
+            docker stop $runningContainers 2>$null | Out-Null
+            Write-Host "   ✓ Stopped"
+            return $true
+        } else {
+            Write-Host "❌ Cannot update while containers are running (binary is in use)" -ForegroundColor Red
+            return $false
+        }
+    }
+    return $true
+}
 
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
@@ -58,6 +86,11 @@ function Ensure-CopilotHereBinary {
 # Update function - downloads fresh binary and script
 function Update-CopilotHere {
     Write-Host "🔄 Updating copilot_here..."
+    
+    # Check and stop running containers
+    if (-not (Stop-CopilotContainers)) {
+        return $false
+    }
     
     # Remove existing binary
     if (Test-Path $script:CopilotHereBin) {
@@ -173,23 +206,35 @@ function Copilot-Here {
         [string[]]$Arguments
     )
     
+    Write-CopilotDebug "=== Copilot-Here called with args: $Arguments"
+    
     # Handle --update and variants before binary check
     if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+        Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
     
     # Handle --reset before binary check
     if ($Arguments -and (Test-ResetArg $Arguments[0])) {
+        Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return
     }
     
     # Check for updates at startup
+    Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }
     
+    Write-CopilotDebug "Ensuring binary is installed..."
     if (-not (Ensure-CopilotHereBinary)) { return }
+    
+    Write-CopilotDebug "Executing binary: $script:CopilotHereBin $Arguments"
     & $script:CopilotHereBin @Arguments
+    $exitCode = $LASTEXITCODE
+    Write-CopilotDebug "Binary exited with code: $exitCode"
+    exit $exitCode
+}
 }
 
 # YOLO Mode: Auto-approves all tool usage
@@ -200,23 +245,34 @@ function Copilot-Yolo {
         [string[]]$Arguments
     )
     
+    Write-CopilotDebug "=== Copilot-Yolo called with args: $Arguments"
+    
     # Handle --update and variants before binary check
     if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+        Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
     
     # Handle --reset before binary check
     if ($Arguments -and (Test-ResetArg $Arguments[0])) {
+        Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return
     }
     
     # Check for updates at startup
+    Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }
     
+    Write-CopilotDebug "Ensuring binary is installed..."
     if (-not (Ensure-CopilotHereBinary)) { return }
+    
+    Write-CopilotDebug "Executing binary in YOLO mode: $script:CopilotHereBin --yolo $Arguments"
     & $script:CopilotHereBin --yolo @Arguments
+    $exitCode = $LASTEXITCODE
+    Write-CopilotDebug "Binary exited with code: $exitCode"
+    exit $exitCode
 }
 
 # Aliases for compatibility

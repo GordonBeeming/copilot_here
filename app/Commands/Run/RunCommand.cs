@@ -205,6 +205,7 @@ public sealed class RunCommand : ICommand
       // Handle --update - show message that it's handled by shell wrapper
       if (updateScripts)
       {
+        DebugLogger.Log("--update flag detected (handled by shell wrapper)");
         Console.WriteLine("ℹ️  Update is handled by the shell wrapper (copilot_here function).");
         Console.WriteLine("   If running the binary directly, please use the shell function:");
         Console.WriteLine("");
@@ -214,13 +215,16 @@ public sealed class RunCommand : ICommand
         return 0;
       }
 
+      DebugLogger.Log("Validating GitHub auth scopes...");
       // Security check
       var (isValid, error) = GitHubAuth.ValidateScopes();
       if (!isValid)
       {
+        DebugLogger.Log($"Auth validation failed: {error}");
         Console.WriteLine($"❌ {error}");
         return 1;
       }
+      DebugLogger.Log("Auth validation passed");
 
       // Determine image tag (CLI overrides config)
       var imageTag = ctx.ImageConfig.Tag;
@@ -235,6 +239,7 @@ public sealed class RunCommand : ICommand
       else if (dotnetRust) imageTag = "dotnet-rust";
 
       var imageName = DockerRunner.GetImageName(imageTag);
+      DebugLogger.Log($"Selected image: {imageName}");
 
       // Build copilot args list
       var copilotArgs = new List<string> { "copilot" };
@@ -242,6 +247,7 @@ public sealed class RunCommand : ICommand
       // Add YOLO mode flags
       if (_isYolo)
       {
+        DebugLogger.Log("Adding YOLO mode flags");
         copilotArgs.Add("--allow-all-tools");
         copilotArgs.Add("--allow-all-paths");
       }
@@ -336,14 +342,18 @@ public sealed class RunCommand : ICommand
       // Pull image unless skipped
       if (!noPull)
       {
+        DebugLogger.Log("Pulling Docker image...");
         if (!DockerRunner.PullImage(imageName))
         {
+          DebugLogger.Log("Docker image pull failed");
           Console.WriteLine("Error: Failed to pull Docker image. Check Docker setup and network.");
           return 1;
         }
+        DebugLogger.Log("Docker image pull succeeded");
       }
       else
       {
+        DebugLogger.Log("Skipping image pull (--no-pull flag)");
         Console.WriteLine("⏭️  Skipping image pull");
       }
 

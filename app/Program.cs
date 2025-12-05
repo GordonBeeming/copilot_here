@@ -4,6 +4,7 @@ using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Commands.Run;
+using CopilotHere.Infrastructure;
 
 class Program
 {
@@ -82,12 +83,19 @@ class Program
 
   static async Task<int> Main(string[] args)
   {
+    DebugLogger.Log("=== Application started ===");
+    DebugLogger.Log($"Args: {string.Join(" ", args)}");
+    
     // Check for --yolo flag before normalizing (to determine app name)
     var isYolo = IsYoloMode(args);
+    DebugLogger.Log($"YOLO mode: {isYolo}");
+    
     var appName = isYolo ? "copilot_yolo" : GetAppName();
+    DebugLogger.Log($"App name: {appName}");
 
     // Preprocess args to normalize aliases (short multi-char and PowerShell-style)
     args = NormalizeArgs(args);
+    DebugLogger.Log($"Normalized args: {string.Join(" ", args)}");
 
     var rootCommand = new RootCommand($"{appName} - GitHub Copilot CLI in a secure Docker container");
 
@@ -105,7 +113,10 @@ class Program
       command.Configure(rootCommand);
     }
 
-    return await rootCommand.Parse(args).InvokeAsync();
+    DebugLogger.Log("Invoking command parser...");
+    var exitCode = await rootCommand.Parse(args).InvokeAsync();
+    DebugLogger.Log($"Application exiting with code: {exitCode}");
+    return exitCode;
   }
 
   /// <summary>

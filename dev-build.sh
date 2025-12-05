@@ -106,6 +106,23 @@ RID=$(detect_rid)
 PUBLISH_DIR="${SCRIPT_DIR}/publish/${RID}"
 BIN_DIR="$HOME/.local/bin"
 
+# Check for running copilot_here containers
+RUNNING_CONTAINERS=$(docker ps --filter "name=copilot_here-" -q)
+if [ -n "$RUNNING_CONTAINERS" ]; then
+  echo "⚠️  copilot_here is currently running in Docker"
+  printf "   Stop running containers to continue? [y/N]: "
+  read -r response
+  if [ "$response" = "y" ] || [ "$response" = "Y" ] || [ "$response" = "yes" ] || [ "$response" = "YES" ]; then
+    echo "🛑 Stopping copilot_here containers..."
+    docker stop $RUNNING_CONTAINERS 2>/dev/null
+    echo "   ✓ Stopped"
+  else
+    echo "❌ Cannot build while containers are running (binary is in use)"
+    exit 1
+  fi
+  echo ""
+fi
+
 dotnet publish "${SCRIPT_DIR}/app/CopilotHere.csproj" \
   -c Release \
   -r "$RID" \
@@ -134,6 +151,17 @@ if [ -f "${SCRIPT_DIR}/default-airlock-rules.json" ]; then
   cp "${SCRIPT_DIR}/default-airlock-rules.json" "$CONFIG_DIR/"
   echo "   ✓ Copied default-airlock-rules.json"
 fi
+echo ""
+
+# Copy and source shell script
+echo "📋 Updating shell functions..."
+SHELL_SCRIPT_PATH="$HOME/.copilot_here.sh"
+cp "${SCRIPT_DIR}/copilot_here.sh" "$SHELL_SCRIPT_PATH"
+echo "   ✓ Copied copilot_here.sh to $SHELL_SCRIPT_PATH"
+
+# Source the updated script
+source "$SHELL_SCRIPT_PATH"
+echo "   ✓ Sourced updated shell functions"
 echo ""
 
 # Build proxy image

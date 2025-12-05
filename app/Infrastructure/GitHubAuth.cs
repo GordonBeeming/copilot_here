@@ -93,9 +93,12 @@ public static partial class GitHubAuth
   /// </summary>
   public static (bool IsValid, string? Error) ValidateScopes()
   {
+    DebugLogger.Log("ValidateScopes called");
+    
     // Skip validation in test mode
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("COPILOT_HERE_TEST_MODE")))
     {
+      DebugLogger.Log("Test mode detected, skipping validation");
       return (true, null);
     }
 
@@ -103,7 +106,10 @@ public static partial class GitHubAuth
 
     var output = GetAuthStatus();
     if (output is null)
+    {
+      DebugLogger.Log("GetAuthStatus returned null");
       return (false, "Failed to run gh auth status");
+    }
 
     if (debug)
     {
@@ -128,6 +134,7 @@ public static partial class GitHubAuth
       if (!hasCopilotScope) missingScopes.Add("copilot");
       if (!hasPackagesScope) missingScopes.Add("read:packages");
 
+      DebugLogger.Log($"Missing scopes: {string.Join(", ", missingScopes)}");
       return (false, $"❌ Your gh token is missing the required scope(s): {string.Join(", ", missingScopes)}\n" +
                      $"Please run: {ElevateTokenCommand}");
     }
@@ -135,16 +142,20 @@ public static partial class GitHubAuth
     // Warn about privileged scopes and require confirmation
     if (HasPrivilegedScopes(output))
     {
+      DebugLogger.Log("Privileged scopes detected, asking for confirmation");
       Console.WriteLine("⚠️  Warning: Your GitHub token has highly privileged scopes (e.g., admin:org, admin:enterprise).");
       Console.Write("Are you sure you want to proceed with this token? [y/N]: ");
 
       var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+      DebugLogger.Log($"User response: {response}");
       if (response != "y" && response != "yes")
       {
+        DebugLogger.Log("User declined to proceed");
         return (false, "Operation cancelled by user.");
       }
     }
 
+    DebugLogger.Log("Scope validation passed");
     return (true, null);
   }
 

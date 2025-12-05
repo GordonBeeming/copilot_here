@@ -72,51 +72,42 @@ public static class DockerRunner
   }
 
   /// <summary>
-  /// Pulls a Docker image with a spinner indicator.
+  /// Pulls a Docker image with progress output.
   /// </summary>
   public static bool PullImage(string imageName)
   {
-    Console.Write($"📥 Pulling image: {imageName}... ");
+    DebugLogger.Log($"PullImage called for: {imageName}");
+    Console.WriteLine($"📥 Pulling image: {imageName}");
 
     var startInfo = new ProcessStartInfo
     {
       FileName = "docker",
-      UseShellExecute = false,
-      RedirectStandardOutput = true,
-      RedirectStandardError = true,
-      CreateNoWindow = true
+      UseShellExecute = false
     };
     startInfo.ArgumentList.Add("pull");
     startInfo.ArgumentList.Add(imageName);
 
+    DebugLogger.Log($"Starting docker process: docker pull {imageName}");
     using var process = Process.Start(startInfo);
     if (process is null)
     {
-      Console.WriteLine("❌");
+      DebugLogger.Log("Failed to start docker process");
+      Console.WriteLine("❌ Failed to start Docker");
       return false;
     }
 
-    // Simple spinner while waiting
-    var spinChars = new[] { '|', '/', '-', '\\' };
-    var spinIndex = 0;
-
-    while (!process.HasExited)
-    {
-      Console.Write(spinChars[spinIndex]);
-      Console.Write('\b');
-      spinIndex = (spinIndex + 1) % spinChars.Length;
-      Thread.Sleep(100);
-    }
-
+    DebugLogger.Log($"Docker process started with PID: {process.Id}");
+    DebugLogger.Log("Waiting for docker process to exit...");
     process.WaitForExit();
+    DebugLogger.Log($"Docker process exited with code: {process.ExitCode}");
 
     if (process.ExitCode == 0)
     {
-      Console.WriteLine("✅");
+      Console.WriteLine("✅ Image pulled successfully");
       return true;
     }
 
-    Console.WriteLine("❌");
+    Console.WriteLine("❌ Failed to pull image");
     return false;
   }
 
