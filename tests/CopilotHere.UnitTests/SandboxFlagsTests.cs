@@ -7,6 +7,20 @@ namespace CopilotHere.UnitTests;
 
 public class SandboxFlagsTests
 {
+  [Before(Test)]
+  public void Setup()
+  {
+    // Clear SANDBOX_FLAGS before each test to avoid pollution
+    Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
+  }
+
+  [After(Test)]
+  public void Cleanup()
+  {
+    // Clear SANDBOX_FLAGS after each test
+    Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
+  }
+
   [Test]
   public async Task Parse_WithEmptyEnvironmentVariable_ReturnsEmptyList()
   {
@@ -26,20 +40,13 @@ public class SandboxFlagsTests
     // Arrange
     Environment.SetEnvironmentVariable("SANDBOX_FLAGS", "--network host");
 
-    try
-    {
-      // Act
-      var result = SandboxFlags.Parse();
+    // Act
+    var result = SandboxFlags.Parse();
 
-      // Assert
-      await Assert.That(result).HasCount().EqualTo(2);
-      await Assert.That(result[0]).IsEqualTo("--network");
-      await Assert.That(result[1]).IsEqualTo("host");
-    }
-    finally
-    {
-      Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
-    }
+    // Assert
+    await Assert.That(result).HasCount().EqualTo(2);
+    await Assert.That(result[0]).IsEqualTo("--network");
+    await Assert.That(result[1]).IsEqualTo("host");
   }
 
   [Test]
@@ -48,24 +55,17 @@ public class SandboxFlagsTests
     // Arrange
     Environment.SetEnvironmentVariable("SANDBOX_FLAGS", "--network host --env DEBUG=1 --env LOG=trace");
 
-    try
-    {
-      // Act
-      var result = SandboxFlags.Parse();
+    // Act
+    var result = SandboxFlags.Parse();
 
-      // Assert
-      await Assert.That(result).HasCount().EqualTo(6);
-      await Assert.That(result[0]).IsEqualTo("--network");
-      await Assert.That(result[1]).IsEqualTo("host");
-      await Assert.That(result[2]).IsEqualTo("--env");
-      await Assert.That(result[3]).IsEqualTo("DEBUG=1");
-      await Assert.That(result[4]).IsEqualTo("--env");
-      await Assert.That(result[5]).IsEqualTo("LOG=trace");
-    }
-    finally
-    {
-      Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
-    }
+    // Assert
+    await Assert.That(result).HasCount().EqualTo(6);
+    await Assert.That(result[0]).IsEqualTo("--network");
+    await Assert.That(result[1]).IsEqualTo("host");
+    await Assert.That(result[2]).IsEqualTo("--env");
+    await Assert.That(result[3]).IsEqualTo("DEBUG=1");
+    await Assert.That(result[4]).IsEqualTo("--env");
+    await Assert.That(result[5]).IsEqualTo("LOG=trace");
   }
 
   [Test]
@@ -74,20 +74,13 @@ public class SandboxFlagsTests
     // Arrange
     Environment.SetEnvironmentVariable("SANDBOX_FLAGS", "--env MESSAGE=\"hello world\"");
 
-    try
-    {
-      // Act
-      var result = SandboxFlags.Parse();
+    // Act
+    var result = SandboxFlags.Parse();
 
-      // Assert
-      await Assert.That(result).HasCount().EqualTo(2);
-      await Assert.That(result[0]).IsEqualTo("--env");
-      await Assert.That(result[1]).IsEqualTo("MESSAGE=hello world");
-    }
-    finally
-    {
-      Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
-    }
+    // Assert
+    await Assert.That(result).HasCount().EqualTo(2);
+    await Assert.That(result[0]).IsEqualTo("--env");
+    await Assert.That(result[1]).IsEqualTo("MESSAGE=hello world");
   }
 
   [Test]
@@ -96,22 +89,15 @@ public class SandboxFlagsTests
     // Arrange
     Environment.SetEnvironmentVariable("SANDBOX_FLAGS", "  --network   host  --env  TEST=1  ");
 
-    try
-    {
-      // Act
-      var result = SandboxFlags.Parse();
+    // Act
+    var result = SandboxFlags.Parse();
 
-      // Assert
-      await Assert.That(result).HasCount().EqualTo(4);
-      await Assert.That(result[0]).IsEqualTo("--network");
-      await Assert.That(result[1]).IsEqualTo("host");
-      await Assert.That(result[2]).IsEqualTo("--env");
-      await Assert.That(result[3]).IsEqualTo("TEST=1");
-    }
-    finally
-    {
-      Environment.SetEnvironmentVariable("SANDBOX_FLAGS", null);
-    }
+    // Assert
+    await Assert.That(result).HasCount().EqualTo(4);
+    await Assert.That(result[0]).IsEqualTo("--network");
+    await Assert.That(result[1]).IsEqualTo("host");
+    await Assert.That(result[2]).IsEqualTo("--env");
+    await Assert.That(result[3]).IsEqualTo("TEST=1");
   }
 
   [Test]

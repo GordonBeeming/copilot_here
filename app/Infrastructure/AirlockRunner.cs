@@ -261,16 +261,22 @@ public static class AirlockRunner
       var extraFlags = SandboxFlags.ToComposeYaml(appSandboxFlags);
 
       // Build networks section
-      var networksYaml = externalNetwork == "bridge"
-        ? @"networks:
+      string networksYaml;
+      if (externalNetwork == "bridge")
+      {
+        networksYaml = @"networks:
   airlock:
     internal: true
-  bridge:"
-        : $@"networks:
+  bridge:";
+      }
+      else
+      {
+        networksYaml = $@"networks:
   airlock:
     internal: true
   {externalNetwork}:
     external: true";
+      }
 
       // Build copilot command
       var copilotCmd = new StringBuilder("[\"copilot\"");
