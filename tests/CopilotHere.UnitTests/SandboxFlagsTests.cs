@@ -5,6 +5,7 @@ using TUnit.Core;
 
 namespace CopilotHere.UnitTests;
 
+[NotInParallel]
 public class SandboxFlagsTests
 {
   [Test]
