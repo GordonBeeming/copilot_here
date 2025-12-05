@@ -24,7 +24,7 @@
         "/models",
         "/mcp/readonly",
         "/chat/completions",
-        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}"
+        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
       ]
     }
   ]
