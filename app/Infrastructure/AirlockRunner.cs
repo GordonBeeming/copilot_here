@@ -55,6 +55,18 @@ public static class AirlockRunner
     // Cleanup orphaned networks/containers first
     CleanupOrphanedResources();
 
+    // Parse sandbox flags
+    var sandboxFlags = SandboxFlags.Parse();
+    var externalNetwork = SandboxFlags.ExtractNetwork(sandboxFlags) ?? "bridge";
+    var appFlags = SandboxFlags.FilterNetworkFlags(sandboxFlags);
+
+    if (sandboxFlags.Count > 0)
+    {
+      DebugLogger.Log($"SANDBOX_FLAGS detected: {sandboxFlags.Count} flags");
+      if (externalNetwork != "bridge")
+        DebugLogger.Log($"Using external network: {externalNetwork}");
+    }
+
     var appImage = $"{ImagePrefix}:{imageTag}";
     var proxyImage = $"{ImagePrefix}:proxy";
 
@@ -62,6 +74,8 @@ public static class AirlockRunner
     Console.WriteLine($"   App image: {appImage}");
     Console.WriteLine($"   Proxy image: {proxyImage}");
     Console.WriteLine($"   Network config: {rulesPath}");
+    if (externalNetwork != "bridge")
+      Console.WriteLine($"   External network: {externalNetwork}");
 
     // Generate session ID for unique naming
     var sessionId = GenerateSessionId();
@@ -89,7 +103,7 @@ public static class AirlockRunner
     // Generate compose file
     var composeFile = GenerateComposeFile(
       ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, mounts, copilotArgs, isYolo);
+      processedConfigPath, externalNetwork, appFlags, mounts, copilotArgs, isYolo);
 
     if (composeFile is null)
     {
@@ -214,6 +228,8 @@ public static class AirlockRunner
     string appImage,
     string proxyImage,
     string processedConfigPath,
+    string externalNetwork,
+    List<string> appSandboxFlags,
     List<MountEntry> mounts,
     List<string> copilotArgs,
     bool isYolo)
@@ -241,6 +257,21 @@ public static class AirlockRunner
         logsMount = $"      - {logsDir}:/logs";
       }
 
+      // Convert app sandbox flags to YAML
+      var extraFlags = SandboxFlags.ToComposeYaml(appSandboxFlags);
+
+      // Build networks section
+      var networksYaml = externalNetwork == "bridge"
+        ? @"networks:
+  airlock:
+    internal: true
+  bridge:"
+        : $@"networks:
+  airlock:
+    internal: true
+  {externalNetwork}:
+    external: true";
+
       // Build copilot command
       var copilotCmd = new StringBuilder("[\"copilot\"");
       if (isYolo)
@@ -266,6 +297,8 @@ public static class AirlockRunner
 
       // Do substitutions
       var result = template
+        .Replace("{{NETWORKS}}", networksYaml)
+        .Replace("{{EXTERNAL_NETWORK}}", externalNetwork)
         .Replace("{{PROJECT_NAME}}", projectName)
         .Replace("{{APP_IMAGE}}", appImage)
         .Replace("{{PROXY_IMAGE}}", proxyImage)
@@ -292,6 +325,13 @@ public static class AirlockRunner
         {
           if (!string.IsNullOrEmpty(logsMount))
             lines[i] = logsMount;
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{EXTRA_SANDBOX_FLAGS}}"))
+        {
+          if (!string.IsNullOrEmpty(extraFlags))
+            lines[i] = extraFlags.TrimEnd();
           else
             lines.RemoveAt(i);
         }

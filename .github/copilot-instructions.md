@@ -250,37 +250,40 @@ All task outcomes from Copilot jobs and development tasks must be documented in 
 - ❌ Avoid bash-specific array features not in zsh
 
 ### Test Writing Standards
-**CRITICAL**: Every test must have versions for ALL supported shells unless platform-specific.
+**CRITICAL**: All tests for the native binary must be written in C# using the TUnit framework.
 
-**Required Test Versions:**
-- ✅ **Bash** - `tests/integration/test_*.sh` (using `#!/bin/bash`)
-- ✅ **Zsh** - `tests/integration/test_*_zsh.sh` (using `#!/bin/zsh`) OR separate test suite
-- ✅ **PowerShell** - `tests/integration/test_*.ps1`
+**Testing Philosophy:**
+- ✅ **C# Tests Only** - Use `tests/CopilotHere.UnitTests/` for all native binary tests
+- ✅ **TUnit Framework** - Uses modern async/await patterns
+- ✅ **AOT Compatible** - Tests compile with Native AOT
+- ❌ **No Shell Scripts for Testing** - Shell scripts should only be used when absolutely necessary (e.g., shell wrapper function testing)
 
-**Test Consistency Across Platforms:**
-- ⚠️ **CRITICAL**: When modifying test logic in one shell version, you MUST update ALL shell versions with equivalent changes
-- ✅ If you add a test case to Bash tests, add it to Zsh and PowerShell tests
-- ✅ If you fix a bug in PowerShell tests, check if the same fix is needed in Bash/Zsh tests
-- ✅ If you update path handling in one test, update all test files with the same logic
-- ❌ **NEVER** change logic in only one test file and leave others outdated
-- ❌ **NEVER** add features to one platform's tests without considering the others
+**Test File Organization:**
+- Unit tests: `tests/CopilotHere.UnitTests/[FeatureName]Tests.cs`
+- Example: `SandboxFlagsTests.cs`, `ConfigFileTests.cs`, `MountEntryTests.cs`
 
-**When a test is platform-specific:**
-- Add a clear comment at the top explaining why
-- Example: `# Linux/macOS only - tests symbolic link following with readlink`
-- Example: `# Windows only - tests Windows path handling with backslashes`
+**Test Pattern:**
+```csharp
+[Test]
+public async Task MethodName_Scenario_ExpectedResult()
+{
+  // Arrange
+  // Act  
+  // Assert
+  await Assert.That(result).IsEqualTo(expected);
+}
+```
 
-**Test File Naming:**
-- Bash: `test_bash.sh`, `test_docker_commands.sh`, `test_mount_config.sh`
-- Zsh: `test_zsh.sh`, `test_docker_commands_zsh.sh`
-- PowerShell: `test_powershell.ps1`
+**When Shell Tests Are Acceptable:**
+- Testing shell wrapper functions themselves (`copilot_here.sh`, `copilot_here.ps1`)
+- Platform-specific shell integration
+- Must be clearly documented why C# tests can't be used
 
-**Test Coverage Requirements:**
-- Each test file should validate the same functionality across platforms
-- Test counts may vary (e.g., Zsh arrays are 1-indexed vs 0-indexed in Bash)
-- Document any shell-specific behavior differences in comments
-- All tests must pass in their respective environments
-- When creating test data (paths, files), ensure they exist before validation to avoid warnings
+**Running Tests:**
+```bash
+cd tests/CopilotHere.UnitTests
+dotnet test
+```
 
 ### C# / .NET Code
 - Use modern C# features (record types, pattern matching, etc.)

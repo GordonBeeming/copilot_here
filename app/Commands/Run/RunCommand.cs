@@ -424,7 +424,9 @@ public sealed class RunCommand : ICommand
       }
 
       // Build Docker args for standard mode
-      var dockerArgs = BuildDockerArgs(ctx, imageName, allMounts, copilotArgs);
+      var sessionId = GenerateSessionId();
+      var containerName = $"copilot_here-{sessionId}";
+      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs);
 
       // Set terminal title
       var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
@@ -433,6 +435,13 @@ public sealed class RunCommand : ICommand
 
       return DockerRunner.RunInteractive(dockerArgs, title);
     });
+  }
+
+  private static string GenerateSessionId()
+  {
+    var input = $"{Environment.ProcessId}-{DateTime.UtcNow.Ticks}";
+    var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input));
+    return Convert.ToHexString(hash)[..8].ToLowerInvariant();
   }
 
   private static void DisplayMounts(Infrastructure.AppContext ctx, List<MountEntry> allMounts)
@@ -460,6 +469,7 @@ public sealed class RunCommand : ICommand
   private static List<string> BuildDockerArgs(
     Infrastructure.AppContext ctx,
     string imageName,
+    string containerName,
     List<MountEntry> mounts,
     List<string> copilotArgs)
   {
@@ -468,6 +478,7 @@ public sealed class RunCommand : ICommand
       "run",
       "--rm",
       "-it",
+      "--name", containerName,
       // Mount current directory
       "-v", $"{ctx.Paths.CurrentDirectory}:{ctx.Paths.ContainerWorkDir}",
       "-w", ctx.Paths.ContainerWorkDir,
@@ -484,6 +495,14 @@ public sealed class RunCommand : ICommand
     {
       args.Add("-v");
       args.Add(mount.ToDockerVolume(ctx.Paths.UserHome));
+    }
+
+    // Add sandbox flags from SANDBOX_FLAGS environment variable
+    var sandboxFlags = SandboxFlags.Parse();
+    if (sandboxFlags.Count > 0)
+    {
+      DebugLogger.Log($"Adding {sandboxFlags.Count} sandbox flags from SANDBOX_FLAGS");
+      args.AddRange(sandboxFlags);
     }
 
     // Add image name

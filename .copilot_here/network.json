@@ -1,8 +1,8 @@
 {
-  "enabled": true,
+  "enabled": false,
+  "enable_logging": true,
   "inherit_default_rules": true,
   "mode": "enforce",
-  "enable_logging": true,
   "allowed_rules": [
     {
       "host": "api.github.com",

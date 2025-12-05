@@ -105,6 +105,48 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 - Global: `~/.config/copilot_here/image.conf`
 - Local: `.copilot_here/image.conf`
 
+### Custom Docker Flags (SANDBOX_FLAGS)
+
+Pass additional Docker flags using the `SANDBOX_FLAGS` environment variable (compatible with Gemini CLI):
+
+**Examples:**
+
+```bash
+# Use host networking
+export SANDBOX_FLAGS="--network host"
+copilot_here
+
+# Pass environment variables to the container
+export SANDBOX_FLAGS="--env DEBUG=1 --env LOG_LEVEL=trace"
+
+# Multiple flags (space-separated)
+export SANDBOX_FLAGS="--network my-net --cap-add SYS_PTRACE"
+
+# Resource limits
+export SANDBOX_FLAGS="--memory 2g --cpus 1.5"
+
+# Per-command override (doesn't set globally)
+SANDBOX_FLAGS="--network dev" copilot_here
+```
+
+**Supported Flags:**
+- `--network <name>` - Connect to a custom Docker network
+- `--env <KEY=value>` - Set environment variables
+- `--cap-add <capability>` - Add Linux capabilities
+- `--cap-drop <capability>` - Drop Linux capabilities
+- `--memory <limit>` - Set memory limit (e.g., `2g`, `512m`)
+- `--cpus <number>` - Set CPU limit (e.g., `1.5`)
+- `--ulimit <type>=<limit>` - Set ulimits (e.g., `nofile=1024`)
+
+**Airlock Mode:**
+When using `--enable-airlock`, the `--network` flag changes the proxy's external network while maintaining app container isolation. The app container remains on the internal airlock network and can only access the proxy, which then routes to your specified network.
+
+```bash
+# Example: Proxy connects to custom network while app stays isolated
+docker network create my-services
+SANDBOX_FLAGS="--network my-services" copilot_here --enable-airlock
+```
+
 ### 🛡️ Airlock (Network Isolation)
 
 Airlock provides an additional layer of security by routing all network traffic from the Copilot CLI through a proxy that enforces an allowlist of permitted hosts and paths. This ensures that the AI can only communicate with approved endpoints.
