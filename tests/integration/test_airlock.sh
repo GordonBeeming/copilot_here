@@ -279,6 +279,14 @@ start_containers() {
   local copilot_config="$TEST_DIR/.copilot_here/copilot-config"
   mkdir -p "$copilot_config"
   
+  # Create a temporary file with networks YAML (awk can't handle multiline vars easily)
+  cat > "$TEST_DIR/.networks.tmp" << 'EOF'
+networks:
+  airlock:
+    internal: true
+  bridge:
+EOF
+  
   awk -v project_name="$PROJECT_NAME" \
       -v app_image="$app_image" \
       -v proxy_image="$proxy_image" \
@@ -286,12 +294,19 @@ start_containers() {
       -v container_work_dir="/home/appuser/work" \
       -v copilot_config="$copilot_config" \
       -v network_config="$network_config" \
+      -v external_network="bridge" \
+      -v extra_sandbox_flags="" \
       -v logs_mount="" \
       -v puid="$(id -u)" \
       -v pgid="$(id -g)" \
       -v extra_mounts="" \
       -v copilot_args="[\"sleep\", \"infinity\"]" \
       '{
+        if ($0 ~ /\{\{NETWORKS\}\}/) {
+          while ((getline line < "'"$TEST_DIR"'/.networks.tmp") > 0) print line;
+          next;
+        }
+        gsub(/\{\{EXTERNAL_NETWORK\}\}/, external_network);
         gsub(/\{\{PROJECT_NAME\}\}/, project_name);
         gsub(/\{\{APP_IMAGE\}\}/, app_image);
         gsub(/\{\{PROXY_IMAGE\}\}/, proxy_image);
@@ -303,9 +318,13 @@ start_containers() {
         gsub(/\{\{PUID\}\}/, puid);
         gsub(/\{\{PGID\}\}/, pgid);
         gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
+        gsub(/\{\{EXTRA_SANDBOX_FLAGS\}\}/, extra_sandbox_flags);
         gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
         print
       }' "$template_file" > "$COMPOSE_FILE"
+  
+  # Clean up temp file
+  rm -f "$TEST_DIR/.networks.tmp"
   
   if [ ! -s "$COMPOSE_FILE" ]; then
     echo -e "${RED}❌ Failed to generate compose file${NC}"
