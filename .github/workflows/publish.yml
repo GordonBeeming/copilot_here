@@ -79,6 +79,102 @@ jobs:
         shell: pwsh
         run: ./tests/integration/test_cli.ps1
 
+  # Test shell function scripts can be sourced and call the native binary
+  test-shell-functions:
+    name: Shell Functions (${{ matrix.os }})
+    needs: [test-cli]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, macos-15-intel, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Build CLI binary
+        run: dotnet publish app/CopilotHere.csproj -c Release -o publish/shell-test --nologo
+
+      - name: Test Bash script syntax
+        if: runner.os != 'Windows'
+        run: bash -n copilot_here.sh
+
+      - name: Test Bash source and copilot_here --help
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          export COPILOT_HERE_BIN="$PWD/publish/shell-test/copilot_here"
+          chmod +x "$COPILOT_HERE_BIN"
+          source ./copilot_here.sh
+          # Run --help and verify output contains expected text
+          OUTPUT=$(copilot_here --help 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "GitHub Copilot CLI"
+
+      - name: Test Bash copilot_here --version
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          export COPILOT_HERE_BIN="$PWD/publish/shell-test/copilot_here"
+          source ./copilot_here.sh
+          OUTPUT=$(copilot_here --version 2>&1)
+          echo "$OUTPUT"
+          # Verify version format YYYY.MM.DD
+          echo "$OUTPUT" | grep -qE "^[0-9]{4}\.[0-9]{2}\.[0-9]{2}"
+
+      - name: Test Zsh source and copilot_here --help
+        if: runner.os == 'macOS'
+        shell: zsh {0}
+        run: |
+          export COPILOT_HERE_BIN="$PWD/publish/shell-test/copilot_here"
+          source ./copilot_here.sh
+          OUTPUT=$(copilot_here --help 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "GitHub Copilot CLI"
+
+      - name: Test PowerShell script syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile("$PWD/copilot_here.ps1", [ref]$null, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "✓ PowerShell syntax is valid"
+
+      - name: Test PowerShell source and Copilot-Here --help
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:COPILOT_HERE_BIN = "$PWD\publish\shell-test\copilot_here.exe"
+          . .\copilot_here.ps1
+          $output = & $env:COPILOT_HERE_BIN --help 2>&1 | Out-String
+          Write-Host $output
+          if ($output -notmatch "GitHub Copilot CLI") {
+            Write-Error "Expected 'GitHub Copilot CLI' in output"
+            exit 1
+          }
+
+      - name: Test PowerShell copilot_here --version
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:COPILOT_HERE_BIN = "$PWD\publish\shell-test\copilot_here.exe"
+          . .\copilot_here.ps1
+          $output = & $env:COPILOT_HERE_BIN --version 2>&1 | Out-String
+          Write-Host $output
+          if ($output -notmatch "^\d{4}\.\d{2}\.\d{2}") {
+            Write-Error "Expected version format YYYY.MM.DD"
+            exit 1
+          }
+
   # Airlock tests - Linux only (Docker with Linux containers required)
   test-airlock:
     name: Test Airlock
@@ -107,7 +203,7 @@ jobs:
   # Build proxy Rust binary natively on each architecture (much faster than QEMU/Docker)
   build-proxy-binary:
     name: Build Proxy Binary (${{ matrix.arch }})
-    needs: [test-cli-integration, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ${{ matrix.runner }}
     if: github.ref == 'refs/heads/main'
     strategy:
@@ -227,7 +323,7 @@ jobs:
 
   build-base:
     name: Build Base Image
-    needs: [test-cli-integration, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -511,7 +607,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-cli-integration, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ${{ matrix.os }}
     if: github.ref == 'refs/heads/main'
     strategy:
