@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, macos-15-intel, windows-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -56,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, macos-15-intel, windows-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -82,7 +82,7 @@ jobs:
   # Airlock tests - Linux only (Docker with Linux containers required)
   test-airlock:
     name: Test Airlock
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -115,7 +115,7 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             target: x86_64-unknown-linux-musl
           - arch: arm64
             runner: ubuntu-24.04-arm
@@ -152,7 +152,7 @@ jobs:
   build-proxy:
     name: Build Proxy Image
     needs: [build-proxy-binary]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
@@ -228,7 +228,7 @@ jobs:
   build-base:
     name: Build Base Image
     needs: [test-cli-integration, test-airlock]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     outputs:
       push_needed: ${{ steps.push_decision.outputs.push_needed }}
@@ -333,7 +333,7 @@ jobs:
     name: Build ${{ matrix.variant }}
     needs: [build-base]
     if: needs.build-base.outputs.push_needed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -406,7 +406,7 @@ jobs:
     name: Build ${{ matrix.variant }}
     needs: [build-base, build-variants]
     if: needs.build-base.outputs.push_needed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -470,7 +470,7 @@ jobs:
         release-cli,
       ]
     if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Print summary for scheduled run
         if: github.event_name == 'schedule' && needs.build-base.outputs.push_needed == 'false'
@@ -518,13 +518,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             rid: linux-x64
             binary: copilot_here
           - os: ubuntu-24.04-arm
             rid: linux-arm64
             binary: copilot_here
-          - os: macos-13
+          - os: macos-15-intel
             rid: osx-x64
             binary: copilot_here
           - os: macos-latest
@@ -575,7 +575,7 @@ jobs:
   release-cli:
     name: Release CLI
     needs: [build-cli]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
