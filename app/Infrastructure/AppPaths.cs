@@ -56,9 +56,24 @@ public sealed record AppPaths
     }
 
     // Calculate container work directory
-    var containerWorkDir = currentDir.StartsWith(userHome)
-      ? $"/home/appuser/{Path.GetRelativePath(userHome, currentDir).Replace("\\", "/")}"
-      : currentDir;
+    string containerWorkDir;
+    if (currentDir.StartsWith(userHome))
+    {
+      // Under home directory - use relative path from home
+      containerWorkDir = $"/home/appuser/{Path.GetRelativePath(userHome, currentDir).Replace("\\", "/")}";
+    }
+    else if (OperatingSystem.IsWindows() && currentDir.Length >= 2 && currentDir[1] == ':')
+    {
+      // Windows path outside home (e.g., C:\Data\...) - convert to /work/c/Data/...
+      var driveLetter = char.ToLowerInvariant(currentDir[0]);
+      var pathWithoutDrive = currentDir.Substring(2).Replace("\\", "/");
+      containerWorkDir = $"/work/{driveLetter}{pathWithoutDrive}";
+    }
+    else
+    {
+      // Unix path outside home - use /work prefix
+      containerWorkDir = $"/work{currentDir}";
+    }
 
     return new AppPaths
     {
