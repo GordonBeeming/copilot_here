@@ -304,9 +304,11 @@ Download and source the script in your PowerShell profile:
 ```powershell
 # Download the script (from latest release)
 $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+New-Item -ItemType Directory -Path (Split-Path $scriptPath) -Force | Out-Null
 Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
 
-# Add to your PowerShell profile - only if not already there
+# Create profile if it doesn't exist, then add script reference
+if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
 if (-not (Select-String -Path $PROFILE -Pattern "copilot_here.ps1" -Quiet -ErrorAction SilentlyContinue)) {
     Add-Content $PROFILE "`n. $scriptPath"
 }
@@ -326,16 +328,19 @@ If you prefer not to use the quick install method, you can manually copy the scr
 1. **Download the script:**
    ```powershell
    $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
+   New-Item -ItemType Directory -Path (Split-Path $scriptPath) -Force | Out-Null
    Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
    ```
 
 2. **Add to your PowerShell profile:**
    ```powershell
+   # Create profile if it doesn't exist
+   if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
    # Add this line to your PowerShell profile
-   . $scriptPath
+   Add-Content $PROFILE "`n. `"$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1`""
    ```
    
-   To edit your profile, run:
+   Or manually edit your profile:
    ```powershell
    notepad $PROFILE
    ```
