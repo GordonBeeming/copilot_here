@@ -18,6 +18,9 @@ public sealed record AppEnvironment
   /// <summary>Whether the terminal supports emoji.</summary>
   public required bool SupportsEmoji { get; init; }
 
+  /// <summary>Whether the terminal supports emoji variation selectors (U+FE0F).</summary>
+  public required bool SupportsEmojiVariationSelectors { get; init; }
+
   /// <summary>Creates AppEnvironment with all runtime info resolved.</summary>
   public static AppEnvironment Resolve()
   {
@@ -26,7 +29,8 @@ public sealed record AppEnvironment
       GitHubToken = GitHubAuth.GetToken(),
       UserId = SystemInfo.GetUserId(),
       GroupId = SystemInfo.GetGroupId(),
-      SupportsEmoji = SystemInfo.SupportsEmoji()
+      SupportsEmoji = SystemInfo.SupportsEmoji(),
+      SupportsEmojiVariationSelectors = SystemInfo.SupportsEmojiVariationSelectors()
     };
   }
 }

@@ -94,6 +94,29 @@ public static class SystemInfo
   }
 
   /// <summary>
+  /// Checks if the terminal supports emoji variation selectors (U+FE0F).
+  /// Windows Terminal has issues with variation selectors, while macOS/Linux terminals handle them fine.
+  /// </summary>
+  public static bool SupportsEmojiVariationSelectors()
+  {
+    // Check environment variable override first
+    var envVar = Environment.GetEnvironmentVariable("COPILOT_HERE_EMOJI_VARIANT");
+    if (!string.IsNullOrEmpty(envVar))
+    {
+      return envVar.Equals("full", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Windows Terminal struggles with variation selectors
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+      return false;
+    }
+
+    // macOS and Linux terminals typically handle them well
+    return SupportsEmoji();
+  }
+
+  /// <summary>
   /// Gets the current directory name for use in terminal titles.
   /// </summary>
   public static string GetCurrentDirectoryName()

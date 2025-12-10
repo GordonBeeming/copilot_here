@@ -349,7 +349,8 @@ public sealed class RunCommand : ICommand
         }
       }
 
-      Console.WriteLine($"🚀 Using image: {imageName}");
+      var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
+      Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
 
       // Pull image unless skipped
       if (!noPull)
@@ -366,7 +367,7 @@ public sealed class RunCommand : ICommand
       else
       {
         DebugLogger.Log("Skipping image pull (--no-pull flag)");
-        Console.WriteLine("⏭️  Skipping image pull");
+        Console.WriteLine($"{Emoji.Skip(supportsVariant)}  Skipping image pull");
       }
 
       // Cleanup old images unless skipped
@@ -376,7 +377,7 @@ public sealed class RunCommand : ICommand
       }
       else
       {
-        Console.WriteLine("⏭️  Skipping image cleanup");
+        Console.WriteLine($"{Emoji.Skip(supportsVariant)}  Skipping image cleanup");
       }
 
       // Collect all mounts
