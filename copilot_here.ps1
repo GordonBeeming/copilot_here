@@ -1,11 +1,11 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.09
+# Version: 2025.12.10
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.09"
+$script:CopilotHereVersion = "2025.12.10"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -233,7 +233,7 @@ function Copilot-Here {
     & $script:CopilotHereBin @Arguments
     $exitCode = $LASTEXITCODE
     Write-CopilotDebug "Binary exited with code: $exitCode"
-    exit $exitCode
+    $global:LASTEXITCODE = $exitCode
 }
 
 # YOLO Mode: Auto-approves all tool usage
@@ -271,7 +271,7 @@ function Copilot-Yolo {
     & $script:CopilotHereBin --yolo @Arguments
     $exitCode = $LASTEXITCODE
     Write-CopilotDebug "Binary exited with code: $exitCode"
-    exit $exitCode
+    $global:LASTEXITCODE = $exitCode
 }
 
 # Aliases for compatibility
