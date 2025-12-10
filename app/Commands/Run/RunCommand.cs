@@ -215,6 +215,18 @@ public sealed class RunCommand : ICommand
         return 0;
       }
 
+      DebugLogger.Log("Checking dependencies...");
+      // Check dependencies
+      var dependencyResults = DependencyCheck.CheckAll();
+      var allDependenciesSatisfied = DependencyCheck.DisplayResults(dependencyResults);
+      
+      if (!allDependenciesSatisfied)
+      {
+        DebugLogger.Log("Dependency check failed");
+        return 1;
+      }
+      DebugLogger.Log("All dependencies satisfied");
+
       DebugLogger.Log("Validating GitHub auth scopes...");
       // Security check
       var (isValid, error) = GitHubAuth.ValidateScopes();
