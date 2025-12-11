@@ -34,17 +34,13 @@ RUN apt-get update && apt-get install -y \
 # Install Playwright globally via npm
 RUN npm install -g playwright@${PLAYWRIGHT_VERSION}
 
-# Create the directory structure for playwright cache
-# We'll install as root but place files where appuser can access them
-RUN mkdir -p /home/appuser/.cache/ms-playwright
-
-# Install Chromium browser for Playwright as root
-# Place it in a location that will be accessible to appuser at runtime
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/appuser/.cache/ms-playwright
+# Install Chromium browser in a system-wide location accessible to all users
+# This avoids UID mismatch issues when container runs with different user IDs
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npx playwright install chromium --with-deps
 
-# Fix ownership for the appuser (UID/GID from entrypoint will match)
-RUN chown -R 1000:1000 /home/appuser 2>/dev/null || true
+# Make playwright browsers directory world-readable so any UID can access them
+RUN chmod -R 755 /ms-playwright
 
 # The entrypoint and CMD remain the same as the base image
 # They are inherited automatically
