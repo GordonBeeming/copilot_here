@@ -34,6 +34,9 @@ RUN apt-get update && apt-get install -y \
 # Install Playwright globally via npm
 RUN npm install -g playwright@${PLAYWRIGHT_VERSION}
 
+# Set NODE_PATH so Node.js can find globally installed packages
+ENV NODE_PATH=/usr/local/lib/node_modules
+
 # Install Chromium browser in a system-wide location accessible to all users
 # This avoids UID mismatch issues when container runs with different user IDs
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
