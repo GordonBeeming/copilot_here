@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.15.6
+# Version: 2025.12.15.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.15.6"
+$script:CopilotHereVersion = "2025.12.15.7"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -248,14 +248,14 @@ function Copilot-Here {
     }
     
     # Handle --update and variants before binary check
-    if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+    if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
     
     # Handle --reset before binary check
-    if ($Arguments -and (Test-ResetArg $Arguments[0])) {
+    if ($Arguments | Where-Object { Test-ResetArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return
@@ -303,14 +303,14 @@ function Copilot-Yolo {
     }
     
     # Handle --update and variants before binary check
-    if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
+    if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
     
     # Handle --reset before binary check
-    if ($Arguments -and (Test-ResetArg $Arguments[0])) {
+    if ($Arguments | Where-Object { Test-ResetArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return

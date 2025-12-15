@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.15.6
+# Version: 2025.12.15.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.15.6"
+COPILOT_HERE_VERSION="2025.12.15.7"
 
 # Debug logging function
 __copilot_debug() {
@@ -228,18 +228,23 @@ copilot_here() {
   fi
   
   # Handle --update and variants before binary check
-  if __copilot_is_update_arg "$1"; then
-    __copilot_debug "Update argument detected"
-    __copilot_update
-    return $?
-  fi
+  local arg
+  for arg in "$@"; do
+    if __copilot_is_update_arg "$arg"; then
+      __copilot_debug "Update argument detected"
+      __copilot_update
+      return $?
+    fi
+  done
   
   # Handle --reset before binary check
-  if __copilot_is_reset_arg "$1"; then
-    __copilot_debug "Reset argument detected"
-    __copilot_reset
-    return $?
-  fi
+  for arg in "$@"; do
+    if __copilot_is_reset_arg "$arg"; then
+      __copilot_debug "Reset argument detected"
+      __copilot_reset
+      return $?
+    fi
+  done
   
   # Check for updates at startup
   __copilot_debug "Checking for updates..."
@@ -274,18 +279,23 @@ copilot_yolo() {
   fi
   
   # Handle --update and variants before binary check
-  if __copilot_is_update_arg "$1"; then
-    __copilot_debug "Update argument detected"
-    __copilot_update
-    return $?
-  fi
+  local arg
+  for arg in "$@"; do
+    if __copilot_is_update_arg "$arg"; then
+      __copilot_debug "Update argument detected"
+      __copilot_update
+      return $?
+    fi
+  done
   
   # Handle --reset before binary check
-  if __copilot_is_reset_arg "$1"; then
-    __copilot_debug "Reset argument detected"
-    __copilot_reset
-    return $?
-  fi
+  for arg in "$@"; do
+    if __copilot_is_reset_arg "$arg"; then
+      __copilot_debug "Reset argument detected"
+      __copilot_reset
+      return $?
+    fi
+  done
   
   # Check for updates at startup
   __copilot_debug "Checking for updates..."
