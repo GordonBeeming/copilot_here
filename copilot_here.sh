@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.15
+# Version: 2025.12.15.1
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.15"
+COPILOT_HERE_VERSION="2025.12.15.1"
 
 # Debug logging function
 __copilot_debug() {
@@ -213,6 +213,20 @@ __copilot_is_reset_arg() {
 copilot_here() {
   __copilot_debug "=== copilot_here called with args: $*"
   
+  # Check if script file version differs from in-memory version
+  local script_path="$HOME/.copilot_here.sh"
+  if [ -f "$script_path" ]; then
+    local file_version
+    file_version=$(grep '^COPILOT_HERE_VERSION=' "$script_path" 2>/dev/null | sed -n 's/^COPILOT_HERE_VERSION="\(.*\)"$/\1/p')
+    if [ -n "$file_version" ] && [ "$file_version" != "$COPILOT_HERE_VERSION" ]; then
+      __copilot_debug "Version mismatch detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
+      echo "🔄 Detected updated shell script (v$file_version), reloading..."
+      source "$script_path"
+      copilot_here "$@"
+      return $?
+    fi
+  fi
+  
   # Handle --update and variants before binary check
   if __copilot_is_update_arg "$1"; then
     __copilot_debug "Update argument detected"
@@ -244,6 +258,20 @@ copilot_here() {
 # YOLO Mode: Auto-approves all tool usage
 copilot_yolo() {
   __copilot_debug "=== copilot_yolo called with args: $*"
+  
+  # Check if script file version differs from in-memory version
+  local script_path="$HOME/.copilot_here.sh"
+  if [ -f "$script_path" ]; then
+    local file_version
+    file_version=$(grep '^COPILOT_HERE_VERSION=' "$script_path" 2>/dev/null | sed -n 's/^COPILOT_HERE_VERSION="\(.*\)"$/\1/p')
+    if [ -n "$file_version" ] && [ "$file_version" != "$COPILOT_HERE_VERSION" ]; then
+      __copilot_debug "Version mismatch detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
+      echo "🔄 Detected updated shell script (v$file_version), reloading..."
+      source "$script_path"
+      copilot_yolo "$@"
+      return $?
+    fi
+  fi
   
   # Handle --update and variants before binary check
   if __copilot_is_update_arg "$1"; then

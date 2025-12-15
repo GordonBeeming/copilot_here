@@ -1,11 +1,11 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.15
+# Version: 2025.12.15.1
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.15"
+$script:CopilotHereVersion = "2025.12.15.1"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -208,6 +208,26 @@ function Copilot-Here {
     
     Write-CopilotDebug "=== Copilot-Here called with args: $Arguments"
     
+    # Check if script file version differs from in-memory version
+    $scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
+    if (Test-Path $scriptPath) {
+        try {
+            $fileContent = Get-Content $scriptPath -Raw -ErrorAction SilentlyContinue
+            if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
+                $fileVersion = $matches[1]
+                if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
+                    Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
+                    Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                    . $scriptPath
+                    Copilot-Here @Arguments
+                    return
+                }
+            }
+        } catch {
+            # Ignore errors reading file
+        }
+    }
+    
     # Handle --update and variants before binary check
     if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
         Write-CopilotDebug "Update argument detected"
@@ -246,6 +266,26 @@ function Copilot-Yolo {
     )
     
     Write-CopilotDebug "=== Copilot-Yolo called with args: $Arguments"
+    
+    # Check if script file version differs from in-memory version
+    $scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
+    if (Test-Path $scriptPath) {
+        try {
+            $fileContent = Get-Content $scriptPath -Raw -ErrorAction SilentlyContinue
+            if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
+                $fileVersion = $matches[1]
+                if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
+                    Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
+                    Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                    . $scriptPath
+                    Copilot-Yolo @Arguments
+                    return
+                }
+            }
+        } catch {
+            # Ignore errors reading file
+        }
+    }
     
     # Handle --update and variants before binary check
     if ($Arguments -and (Test-UpdateArg $Arguments[0])) {
