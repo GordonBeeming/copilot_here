@@ -252,7 +252,13 @@ graph LR
 
 **Quick Install (Recommended):**
 
-Download and source the script in your shell profile:
+If you already have the `copilot_here` binary on your PATH, you can install shell integrations for bash/zsh/fish (and on Windows: PowerShell + cmd) with:
+
+```bash
+copilot_here --install-shells
+```
+
+Otherwise, download and source the script in your shell profile:
 
 ```bash
 # Download the script (from latest release)
@@ -303,8 +309,7 @@ Download and source the script in your PowerShell profile:
 
 ```powershell
 # Download the script (from latest release)
-$scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-New-Item -ItemType Directory -Path (Split-Path $scriptPath) -Force | Out-Null
+$scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
 Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
 
 # Create profile if it doesn't exist, then add script reference

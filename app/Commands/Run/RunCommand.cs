@@ -38,6 +38,9 @@ public sealed class RunCommand : ICommand
   // === SELF-UPDATE OPTIONS (handled by shell scripts, shown in help) ===
   private readonly Option<bool> _updateScriptsOption;
 
+  // === SHELL INTEGRATION INSTALL (handled by native binary) ===
+  private readonly Option<bool> _installShellsOption;
+
   // === YOLO MODE (handled in Program.cs but shown in help) ===
   private readonly Option<bool> _yoloOption;
 
@@ -101,6 +104,8 @@ public sealed class RunCommand : ICommand
     // Update option - handled by shell scripts but shown in help
     _updateScriptsOption = new Option<bool>("--update") { Description = "[-u] Update binary and scripts (handled by shell wrapper)" };
 
+    _installShellsOption = new Option<bool>("--install-shells") { Description = "Install shell integrations (bash/zsh/fish + PowerShell/cmd)" };
+
     // Yolo mode - adds --allow-all-tools and --allow-all-paths to Copilot
     // Note: This is handled in Program.cs for app name, but we add it here so it shows in --help
     _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools and paths)" };
@@ -147,6 +152,7 @@ public sealed class RunCommand : ICommand
     root.Add(_noPullOption);
     root.Add(_help2Option);
     root.Add(_updateScriptsOption);
+    root.Add(_installShellsOption);
     root.Add(_yoloOption);
 
     // Copilot passthrough options
@@ -184,6 +190,7 @@ public sealed class RunCommand : ICommand
       var noPull = parseResult.GetValue(_noPullOption);
       var help2 = parseResult.GetValue(_help2Option);
       var updateScripts = parseResult.GetValue(_updateScriptsOption);
+      var installShells = parseResult.GetValue(_installShellsOption);
 
       // Copilot passthrough options
       var prompt = parseResult.GetValue(_promptOption);
@@ -201,6 +208,13 @@ public sealed class RunCommand : ICommand
       var noCustomInstructions = parseResult.GetValue(_noCustomInstructionsOption);
       var additionalMcpConfigs = parseResult.GetValue(_additionalMcpConfigOption) ?? [];
       var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
+
+      // Handle --install-shells
+      if (installShells)
+      {
+        DebugLogger.Log("--install-shells flag detected");
+        return ShellIntegration.InstallAll();
+      }
 
       // Handle --update - show message that it's handled by shell wrapper
       if (updateScripts)

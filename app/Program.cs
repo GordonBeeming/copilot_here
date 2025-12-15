@@ -97,6 +97,8 @@ class Program
     args = NormalizeArgs(args);
     DebugLogger.Log($"Normalized args: {string.Join(" ", args)}");
 
+    ShellIntegration.WarnIfMissing(appName, args);
+
     var rootCommand = new RootCommand($"{appName} - GitHub Copilot CLI in a secure Docker container");
 
     // Register all commands
