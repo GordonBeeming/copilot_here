@@ -1,11 +1,23 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.15.3
+# Version: 2025.12.15.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
-$script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { "$env:USERPROFILE\.local\bin\copilot_here.exe" }
+$script:CopilotHereHome = if ($IsWindows) {
+    if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
+} else {
+    if ($env:HOME) { $env:HOME } else { [Environment]::GetFolderPath('UserProfile') }
+}
+
+$script:CopilotHereScriptPath = Join-Path $script:CopilotHereHome ".copilot_here.ps1"
+
+$script:DefaultCopilotHereBinDir = Join-Path (Join-Path $script:CopilotHereHome ".local") "bin"
+$script:DefaultCopilotHereBinName = if ($IsWindows) { "copilot_here.exe" } else { "copilot_here" }
+$script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $script:DefaultCopilotHereBinName
+
+$script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.15.3"
+$script:CopilotHereVersion = "2025.12.15.6"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -46,9 +58,14 @@ function Download-CopilotHereBinary {
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
     
+    $os = if ($IsWindows) { "win" } elseif ($IsMacOS) { "macos" } else { "linux" }
+    $ext = if ($IsWindows) { "zip" } else { "tar.gz" }
+
     # Download latest release archive
-    $downloadUrl = "$script:CopilotHereReleaseUrl/copilot_here-win-${arch}.zip"
-    $tmpArchive = [System.IO.Path]::GetTempFileName() + ".zip"
+    $downloadUrl = "$script:CopilotHereReleaseUrl/copilot_here-${os}-${arch}.${ext}"
+    $tmpBase = [System.IO.Path]::GetTempFileName()
+    Remove-Item -Path $tmpBase -ErrorAction SilentlyContinue
+    $tmpArchive = $tmpBase + ".${ext}"
     
     Write-Host "📦 Downloading binary from: $downloadUrl"
     try {
@@ -61,13 +78,19 @@ function Download-CopilotHereBinary {
     
     # Extract binary from archive
     try {
-        Expand-Archive -Path $tmpArchive -DestinationPath $binDir -Force
+        if ($IsWindows) {
+            Expand-Archive -Path $tmpArchive -DestinationPath $binDir -Force
+        } else {
+            & tar -xzf $tmpArchive -C $binDir copilot_here
+            if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
+            & chmod +x $script:CopilotHereBin 2>$null
+        }
     } catch {
         Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
         Write-Host "❌ Failed to extract binary: $_" -ForegroundColor Red
         return $false
     }
-    
+
     Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
     Write-Host "✅ Binary installed to: $script:CopilotHereBin"
     return $true
@@ -200,16 +223,12 @@ function Test-ResetArg {
 
 # Safe Mode: Asks for confirmation before executing
 function Copilot-Here {
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromRemainingArguments=$true)]
-        [string[]]$Arguments
-    )
-    
+    $Arguments = @($args)
+
     Write-CopilotDebug "=== Copilot-Here called with args: $Arguments"
     
     # Check if script file version differs from in-memory version
-    $scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
+    $scriptPath = $script:CopilotHereScriptPath
     if (Test-Path $scriptPath) {
         try {
             $fileContent = Get-Content $scriptPath -Raw -ErrorAction SilentlyContinue
@@ -259,16 +278,12 @@ function Copilot-Here {
 
 # YOLO Mode: Auto-approves all tool usage
 function Copilot-Yolo {
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromRemainingArguments=$true)]
-        [string[]]$Arguments
-    )
-    
+    $Arguments = @($args)
+
     Write-CopilotDebug "=== Copilot-Yolo called with args: $Arguments"
     
     # Check if script file version differs from in-memory version
-    $scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
+    $scriptPath = $script:CopilotHereScriptPath
     if (Test-Path $scriptPath) {
         try {
             $fileContent = Get-Content $scriptPath -Raw -ErrorAction SilentlyContinue
