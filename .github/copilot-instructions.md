@@ -394,6 +394,10 @@ dotnet test
 ### Git Workflow - Wait for Approval
 **IMPORTANT**: Wait for user approval before committing changes.
 
+### Issue Linking Requirement
+**IMPORTANT**: If a change request comes in without an issue link/number, ask the requester for the relevant issue first.
+- All commits going forward must reference the relevant issue (e.g. include `#123` in the commit message).
+
 #### Commit Guidelines:
 1. **Prepare changes**: Make your changes and verify them
 2. **Ask for approval**: Present the changes to the user and ask if you should commit
