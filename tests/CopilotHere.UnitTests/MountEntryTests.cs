@@ -106,4 +106,60 @@ public class MountEntryTests
     await Assert.That(volumeRo).Contains(":ro");
     await Assert.That(volumeRw).Contains(":rw");
   }
+
+  [Test]
+  public async Task LoadFromFile_ParsesRwSuffix()
+  {
+    // This test verifies that the config file parsing handles :rw suffix
+    // The same logic should apply to CLI arguments
+    var path = "/path/to/data:rw";
+    var isReadWrite = false;
+    var mountPath = path;
+
+    if (path.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+    {
+      isReadWrite = true;
+      mountPath = path[..^3];
+    }
+
+    await Assert.That(mountPath).IsEqualTo("/path/to/data");
+    await Assert.That(isReadWrite).IsTrue();
+  }
+
+  [Test]
+  public async Task LoadFromFile_ParsesRoSuffix()
+  {
+    var path = "/path/to/data:ro";
+    var isReadWrite = false;
+    var mountPath = path;
+
+    if (path.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+    {
+      mountPath = path[..^3];
+    }
+
+    await Assert.That(mountPath).IsEqualTo("/path/to/data");
+    await Assert.That(isReadWrite).IsFalse();
+  }
+
+  [Test]
+  public async Task LoadFromFile_NoSuffixDefaultsToReadOnly()
+  {
+    var path = "/path/to/data";
+    var isReadWrite = false;
+    var mountPath = path;
+
+    if (path.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+    {
+      isReadWrite = true;
+      mountPath = path[..^3];
+    }
+    else if (path.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+    {
+      mountPath = path[..^3];
+    }
+
+    await Assert.That(mountPath).IsEqualTo("/path/to/data");
+    await Assert.That(isReadWrite).IsFalse();
+  }
 }

@@ -383,10 +383,12 @@ public sealed class RunCommand : ICommand
       // Collect all mounts
       var allMounts = new List<MountEntry>();
       allMounts.AddRange(ctx.MountsConfig.AllConfigMounts);
+      
+      // Parse CLI mounts - handle :rw/:ro suffix
       foreach (var path in cliMountsRo)
-        allMounts.Add(new MountEntry(path, IsReadWrite: false, MountSource.CommandLine));
+        allMounts.Add(ParseCliMount(path, defaultReadWrite: false));
       foreach (var path in cliMountsRw)
-        allMounts.Add(new MountEntry(path, IsReadWrite: true, MountSource.CommandLine));
+        allMounts.Add(ParseCliMount(path, defaultReadWrite: true));
 
       // Validate all mounts (check for sensitive paths, symlinks, existence)
       var validatedMounts = new List<MountEntry>();
@@ -525,5 +527,28 @@ public sealed class RunCommand : ICommand
     args.AddRange(copilotArgs);
 
     return args;
+  }
+
+  /// <summary>
+  /// Parses a CLI mount path, handling :rw/:ro suffix.
+  /// Format: "path" or "path:rw" or "path:ro"
+  /// </summary>
+  private static MountEntry ParseCliMount(string input, bool defaultReadWrite)
+  {
+    var isReadWrite = defaultReadWrite;
+    var mountPath = input;
+
+    if (input.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+    {
+      isReadWrite = true;
+      mountPath = input[..^3];
+    }
+    else if (input.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+    {
+      isReadWrite = false;
+      mountPath = input[..^3];
+    }
+
+    return new MountEntry(mountPath, isReadWrite, MountSource.CommandLine);
   }
 }
