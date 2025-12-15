@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.15.7
+# Version: 2025.12.15.8
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.15.7"
+$script:CopilotHereVersion = "2025.12.15.8"
 
 # Debug logging function
 function Write-CopilotDebug {

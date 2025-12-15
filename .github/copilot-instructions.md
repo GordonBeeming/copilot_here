@@ -59,7 +59,7 @@ grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 - Both scripts MUST have identical version numbers at all times.
 
-**Current version**: 2025.12.15.7
+**Current version**: 2025.12.15.8
 
 ## Technology Stack
 - **CLI Binary**: .NET 10 Native AOT (self-contained, cross-platform)
@@ -443,26 +443,24 @@ Examples:
 3. **GitHub Actions**: When triggered by a comment/issue, use the comment author's details
 4. **Manual request**: When someone asks you to make changes, use their information
 
-**Co-Author Format**:
+**Co-Author Format** (avoid literal `\\n` sequences in commit messages):
 ```bash
-git commit -m "Type: Brief description
-
-Co-authored-by: Name <email@example.com>"
+# Use multiple -m flags to create a multi-line message
+git commit -m "Type: Brief description" \
+  -m "Co-authored-by: Name <email@example.com>"
 ```
 
 **Example**:
 ```bash
-git commit -m "feat: Add Playwright Docker image variant
-
-Co-authored-by: Gordon Beeming <me@gordonbeeming.com>"
+git commit -m "feat: Add Playwright Docker image variant" \
+  -m "Co-authored-by: Gordon Beeming <me@gordonbeeming.com>"
 ```
 
 **Multiple co-authors**:
 ```bash
-git commit -m "feat: Add multi-image build pipeline
-
-Co-authored-by: Gordon Beeming <me@gordonbeeming.com>
-Co-authored-by: Other Contributor <other@example.com>"
+git commit -m "feat: Add multi-image build pipeline" \
+  -m "Co-authored-by: Gordon Beeming <me@gordonbeeming.com>" \
+  -m "Co-authored-by: Other Contributor <other@example.com>"
 ```
 
 **When to add co-authors**:
@@ -499,9 +497,8 @@ Co-authored-by: Other Contributor <other@example.com>"
    - Wait for user confirmation
 8. **Commit your changes with co-author attribution** (after approval):
    ```bash
-   git add . && git commit -m "Type: Description
-
-   Co-authored-by: Name <email@example.com>"
+   git add . && git commit -m "Type: Description" \
+     -m "Co-authored-by: Name <email@example.com>"
    ```
 9. **DO NOT push to remote** - Only commit locally, never use `git push`
 

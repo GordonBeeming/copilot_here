@@ -30,7 +30,7 @@ public static class ShellIntegration
     }
 
     // Don’t warn on help.
-    if (args.Any(a => a is "--help" or "-h" or "--help2"))
+    if (args.Any(a => a is "--help" or "-h" or "-?" or "--help2"))
     {
       return false;
     }

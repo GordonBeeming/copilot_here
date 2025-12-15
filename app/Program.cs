@@ -15,6 +15,7 @@ class Program
   private static readonly Dictionary<string, string> AliasMap = new(StringComparer.OrdinalIgnoreCase)
   {
     // Short aliases (single-dash multi-char)
+    { "-h", "--help" },
     { "-d", "--dotnet" },
     { "-d8", "--dotnet8" },
     { "-d9", "--dotnet9" },
