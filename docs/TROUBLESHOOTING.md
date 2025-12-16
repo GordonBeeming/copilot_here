@@ -15,7 +15,7 @@ copilot_yolo
 **PowerShell:**
 ```powershell
 $env:COPILOT_HERE_DEBUG = "1"
-Copilot-Yolo
+copilot_yolo
 ```
 
 ### What Debug Mode Shows

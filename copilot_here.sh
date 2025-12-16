@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.15.8
+# Version: 2025.12.16.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.15.8"
+COPILOT_HERE_VERSION="2025.12.16.2"
 
 # Debug logging function
 __copilot_debug() {
@@ -188,7 +188,7 @@ __copilot_check_for_updates() {
 # Check if argument is an update command
 __copilot_is_update_arg() {
   case "$1" in
-    --update|-u|--upgrade|-Update|-UpdateScripts|-UpgradeScripts|--update-scripts|--upgrade-scripts)
+    --update|-u|--upgrade|--update-scripts|--upgrade-scripts)
       return 0
       ;;
     *)
@@ -200,7 +200,7 @@ __copilot_is_update_arg() {
 # Check if argument is a reset command
 __copilot_is_reset_arg() {
   case "$1" in
-    --reset|-Reset)
+    --reset)
       return 0
       ;;
     *)

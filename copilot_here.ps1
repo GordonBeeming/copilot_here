@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.15.8
+# Version: 2025.12.16.2
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.15.8"
+$script:CopilotHereVersion = "2025.12.16.2"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -210,22 +210,22 @@ function Test-CopilotHereUpdates {
 # Check if argument is an update command
 function Test-UpdateArg {
     param([string]$Arg)
-    $updateArgs = @("--update", "-u", "--upgrade", "-Update", "-UpdateScripts", "-UpgradeScripts", "--update-scripts", "--upgrade-scripts")
+    $updateArgs = @("--update", "-u", "--upgrade", "--update-scripts", "--upgrade-scripts")
     return $updateArgs -contains $Arg
 }
 
 # Check if argument is a reset command
 function Test-ResetArg {
     param([string]$Arg)
-    $resetArgs = @("--reset", "-Reset")
+    $resetArgs = @("--reset")
     return $resetArgs -contains $Arg
 }
 
 # Safe Mode: Asks for confirmation before executing
-function Copilot-Here {
+function copilot_here {
     $Arguments = @($args)
 
-    Write-CopilotDebug "=== Copilot-Here called with args: $Arguments"
+    Write-CopilotDebug "=== copilot_here called with args: $Arguments"
     
     # Check if script file version differs from in-memory version
     $scriptPath = $script:CopilotHereScriptPath
@@ -238,7 +238,7 @@ function Copilot-Here {
                     Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
                     Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
                     . $scriptPath
-                    Copilot-Here @Arguments
+                    copilot_here @Arguments
                     return
                 }
             }
@@ -247,7 +247,7 @@ function Copilot-Here {
         }
     }
     
-    # Handle --update and variants before binary check
+    # Handle --update before binary check
     if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
@@ -277,10 +277,10 @@ function Copilot-Here {
 }
 
 # YOLO Mode: Auto-approves all tool usage
-function Copilot-Yolo {
+function copilot_yolo {
     $Arguments = @($args)
 
-    Write-CopilotDebug "=== Copilot-Yolo called with args: $Arguments"
+    Write-CopilotDebug "=== copilot_yolo called with args: $Arguments"
     
     # Check if script file version differs from in-memory version
     $scriptPath = $script:CopilotHereScriptPath
@@ -293,7 +293,7 @@ function Copilot-Yolo {
                     Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
                     Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
                     . $scriptPath
-                    Copilot-Yolo @Arguments
+                    copilot_yolo @Arguments
                     return
                 }
             }
@@ -302,7 +302,7 @@ function Copilot-Yolo {
         }
     }
     
-    # Handle --update and variants before binary check
+    # Handle --update before binary check
     if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
@@ -330,7 +330,3 @@ function Copilot-Yolo {
     $global:LASTEXITCODE = $exitCode
     return $exitCode
 }
-
-# Aliases for compatibility
-Set-Alias -Name copilot_here -Value Copilot-Here
-Set-Alias -Name copilot_yolo -Value Copilot-Yolo
