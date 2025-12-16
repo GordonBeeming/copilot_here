@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.16.2
+# Version: 2025.12.16.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.16.2"
+$script:CopilotHereVersion = "2025.12.16.3"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -128,13 +128,22 @@ function Update-CopilotHere {
         return $false
     }
     
-    # Download and execute fresh PowerShell script
+    # Download and persist fresh PowerShell script
     Write-Host ""
     Write-Host "📥 Downloading latest PowerShell script..."
     try {
         $scriptContent = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing).Content
-        Write-Host "✅ Update complete! Reloading PowerShell functions..."
-        Invoke-Expression $scriptContent
+        try {
+            Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
+            Write-Host "✅ Update complete! Reloading PowerShell functions..."
+            . $script:CopilotHereScriptPath
+        } catch {
+            Write-Host "✅ Update complete! Reloading PowerShell functions..."
+            Invoke-Expression $scriptContent
+            Write-Host ""
+            Write-Host "⚠️  Could not write updated PowerShell script to: $script:CopilotHereScriptPath" -ForegroundColor Yellow
+            Write-Host "   It may keep prompting to update until the file can be written." -ForegroundColor Yellow
+        }
     } catch {
         Write-Host ""
         Write-Host "✅ Binary updated!"

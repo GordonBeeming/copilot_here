@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.16.2
+# Version: 2025.12.16.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.16.2"
+COPILOT_HERE_VERSION="2025.12.16.3"
 
 # Debug logging function
 __copilot_debug() {
@@ -127,12 +127,23 @@ __copilot_update() {
   # Download and source fresh shell script
   echo ""
   echo "📥 Downloading latest shell script..."
+  local script_path="$HOME/.copilot_here.sh"
   local tmp_script
   tmp_script="$(mktemp)"
   if curl -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" -o "$tmp_script" 2>/dev/null; then
-    echo "✅ Update complete! Reloading shell functions..."
-    source "$tmp_script"
-    rm -f "$tmp_script"
+    if mv "$tmp_script" "$script_path" 2>/dev/null; then
+      echo "✅ Update complete! Reloading shell functions..."
+      source "$script_path"
+    else
+      rm -f "$tmp_script"
+      echo "✅ Binary updated!"
+      echo ""
+      echo "⚠️  Could not write updated shell script to: $script_path"
+      echo "   Please re-source manually:"
+      echo "   source <(curl -fsSL ${COPILOT_HERE_RELEASE_URL}/copilot_here.sh)"
+      echo ""
+      echo "   Or restart your terminal."
+    fi
   else
     rm -f "$tmp_script"
     echo ""
