@@ -1,4 +1,4 @@
-# copilot-here: A Secure, Portable Copilot CLI Environment
+# copilot_here: A Secure, Portable Copilot CLI Environment
 
 Run the GitHub Copilot CLI from any directory on your machine, inside a sandboxed Docker container that automatically uses your existing `gh` authentication.
 
