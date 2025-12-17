@@ -1,17 +1,34 @@
 # copilot_here shell functions
-# Version: 2025.12.16.3
+# Version: 2025.12.17
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.16.3"
+COPILOT_HERE_VERSION="2025.12.17"
 
 # Debug logging function
 __copilot_debug() {
   if [ "$COPILOT_HERE_DEBUG" = "1" ] || [ "$COPILOT_HERE_DEBUG" = "true" ]; then
     echo "[DEBUG] $*" >&2
   fi
+}
+
+# Returns 0 if version A is newer than version B
+__copilot_version_is_newer() {
+  awk -v a="$1" -v b="$2" '
+    function pad(arr, n, i) { for (i = n + 1; i <= 4; i++) arr[i] = 0 }
+    BEGIN {
+      na = split(a, A, ".");
+      nb = split(b, B, ".");
+      pad(A, na);
+      pad(B, nb);
+      for (i = 1; i <= 4; i++) {
+        if ((A[i] + 0) > (B[i] + 0)) exit 0;
+        if ((A[i] + 0) < (B[i] + 0)) exit 1;
+      }
+      exit 1;
+    }' >/dev/null 2>&1
 }
 
 # Helper function to stop running containers with confirmation
@@ -229,8 +246,8 @@ copilot_here() {
   if [ -f "$script_path" ]; then
     local file_version
     file_version=$(grep '^COPILOT_HERE_VERSION=' "$script_path" 2>/dev/null | sed -n 's/^COPILOT_HERE_VERSION="\(.*\)"$/\1/p')
-    if [ -n "$file_version" ] && [ "$file_version" != "$COPILOT_HERE_VERSION" ]; then
-      __copilot_debug "Version mismatch detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
+    if [ -n "$file_version" ] && __copilot_version_is_newer "$file_version" "$COPILOT_HERE_VERSION"; then
+      __copilot_debug "Newer on-disk script detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
       echo "🔄 Detected updated shell script (v$file_version), reloading..."
       source "$script_path"
       copilot_here "$@"
@@ -280,8 +297,8 @@ copilot_yolo() {
   if [ -f "$script_path" ]; then
     local file_version
     file_version=$(grep '^COPILOT_HERE_VERSION=' "$script_path" 2>/dev/null | sed -n 's/^COPILOT_HERE_VERSION="\(.*\)"$/\1/p')
-    if [ -n "$file_version" ] && [ "$file_version" != "$COPILOT_HERE_VERSION" ]; then
-      __copilot_debug "Version mismatch detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
+    if [ -n "$file_version" ] && __copilot_version_is_newer "$file_version" "$COPILOT_HERE_VERSION"; then
+      __copilot_debug "Newer on-disk script detected: in-memory=$COPILOT_HERE_VERSION, file=$file_version"
       echo "🔄 Detected updated shell script (v$file_version), reloading..."
       source "$script_path"
       copilot_yolo "$@"

@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.16.3
+# Version: 2025.12.17
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.16.3"
+$script:CopilotHereVersion = "2025.12.17"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -244,11 +244,32 @@ function copilot_here {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
-                    Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
-                    . $scriptPath
-                    copilot_here @Arguments
-                    return
+                    $currentParts = $script:CopilotHereVersion -split '\.'
+                    $fileParts = $fileVersion -split '\.'
+
+                    $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
+                    while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
+                    while ($fileParts.Length -lt $maxLen) { $fileParts += "0" }
+
+                    $isNewer = $false
+                    for ($i = 0; $i -lt $maxLen; $i++) {
+                        $currentNum = [int]$currentParts[$i]
+                        $fileNum = [int]$fileParts[$i]
+                        if ($fileNum -gt $currentNum) {
+                            $isNewer = $true
+                            break
+                        } elseif ($fileNum -lt $currentNum) {
+                            break
+                        }
+                    }
+
+                    if ($isNewer) {
+                        Write-CopilotDebug "Newer on-disk script detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
+                        Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                        . $scriptPath
+                        copilot_here @Arguments
+                        return
+                    }
                 }
             }
         } catch {
@@ -299,11 +320,32 @@ function copilot_yolo {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    Write-CopilotDebug "Version mismatch detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
-                    Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
-                    . $scriptPath
-                    copilot_yolo @Arguments
-                    return
+                    $currentParts = $script:CopilotHereVersion -split '\.'
+                    $fileParts = $fileVersion -split '\.'
+
+                    $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
+                    while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
+                    while ($fileParts.Length -lt $maxLen) { $fileParts += "0" }
+
+                    $isNewer = $false
+                    for ($i = 0; $i -lt $maxLen; $i++) {
+                        $currentNum = [int]$currentParts[$i]
+                        $fileNum = [int]$fileParts[$i]
+                        if ($fileNum -gt $currentNum) {
+                            $isNewer = $true
+                            break
+                        } elseif ($fileNum -lt $currentNum) {
+                            break
+                        }
+                    }
+
+                    if ($isNewer) {
+                        Write-CopilotDebug "Newer on-disk script detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
+                        Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                        . $scriptPath
+                        copilot_yolo @Arguments
+                        return
+                    }
                 }
             }
         } catch {
