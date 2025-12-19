@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.17
+# Version: 2025.12.19
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.17"
+COPILOT_HERE_VERSION="2025.12.19"
 
 # Debug logging function
 __copilot_debug() {
@@ -148,7 +148,8 @@ __copilot_update() {
   local tmp_script
   tmp_script="$(mktemp)"
   if curl -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" -o "$tmp_script" 2>/dev/null; then
-    if mv "$tmp_script" "$script_path" 2>/dev/null; then
+    if cat "$tmp_script" > "$script_path" 2>/dev/null; then
+      rm -f "$tmp_script"
       echo "✅ Update complete! Reloading shell functions..."
       source "$script_path"
     else
