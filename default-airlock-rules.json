@@ -13,7 +13,10 @@
     {
       "host": "api.githubcopilot.com",
       "allowed_paths": [
-        "/*"
+        "/models",
+        "/mcp/readonly",
+        "/chat/completions",
+        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
       ]
     },
     {
