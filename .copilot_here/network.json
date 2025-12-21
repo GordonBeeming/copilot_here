@@ -8,7 +8,14 @@
       "host": "api.github.com",
       "allowed_paths": [
         "/user",
-        "/graphql"
+        "/graphql",
+        "/repos/github/copilot-cli/releases/latest"
+      ]
+    },
+    {
+      "host": "api.githubcopilot.com",
+      "allowed_paths": [
+        "/*"
       ]
     },
     {
