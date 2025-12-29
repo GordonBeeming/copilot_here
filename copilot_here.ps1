@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.34
+# Version: 2025.12.29.35
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.34"
+$script:CopilotHereVersion = "2025.12.29.35"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -182,14 +182,10 @@ function Update-ProfileWithMarkers {
     
     # Add fresh marker block
     $scriptPath = $script:CopilotHereScriptPath
-    $block = @"
-
-$markerStart
-if (Test-Path "$scriptPath") {
-    . "$scriptPath"
-}
-$markerEnd
-"@
+    $markerStart = "# >>> copilot_here >>>"
+    $markerEnd = "# <<< copilot_here <<<"
+    
+    $block = "`n`n$markerStart`nif (Test-Path `"$scriptPath`") {`n    . `"$scriptPath`"`n}`n$markerEnd`n"
     
     $profileContent = $profileContent + $block
     Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
