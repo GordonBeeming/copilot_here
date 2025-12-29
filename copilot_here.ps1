@@ -1,29 +1,26 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.3
+# Version: 2025.12.29.4
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
-$script:CopilotHereHome = if ($PSVersionTable.PSVersion.Major -ge 6) {
-    # PowerShell Core 6+
-    if ($IsWindows) {
-        if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
-    } else {
-        if ($env:HOME) { $env:HOME } else { [Environment]::GetFolderPath('UserProfile') }
-    }
-} else {
-    # Windows PowerShell 5.1 (always Windows)
-    if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
+$script:CopilotHereHome = if ($env:USERPROFILE) { 
+    $env:USERPROFILE 
+} elseif ($env:HOME) { 
+    $env:HOME 
+} else { 
+    [Environment]::GetFolderPath('UserProfile') 
 }
 
 $script:CopilotHereScriptPath = Join-Path $script:CopilotHereHome ".copilot_here.ps1"
 
 $script:DefaultCopilotHereBinDir = Join-Path (Join-Path $script:CopilotHereHome ".local") "bin"
-$script:DefaultCopilotHereBinName = if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) { "copilot_here" } else { "copilot_here.exe" }
+# Detect OS: Windows has USERPROFILE, Linux/macOS have HOME but not USERPROFILE
+$script:DefaultCopilotHereBinName = if ($env:USERPROFILE) { "copilot_here.exe" } else { "copilot_here" }
 $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $script:DefaultCopilotHereBinName
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.3"
+$script:CopilotHereVersion = "2025.12.29.4"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -70,12 +67,13 @@ function Download-CopilotHereBinary {
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
     
-    $os = if ($PSVersionTable.PSVersion.Major -ge 6) {
-        # PowerShell Core 6+
-        if ($IsWindows) { "win" } elseif ($IsMacOS) { "macos" } else { "linux" }
-    } else {
-        # Windows PowerShell 5.1 (always Windows)
+    # Detect OS: Windows has USERPROFILE, macOS has specific uname, Linux is the rest
+    $os = if ($env:USERPROFILE) {
         "win"
+    } elseif ((& uname 2>$null) -eq "Darwin") {
+        "macos"
+    } else {
+        "linux"
     }
     $ext = if ($os -eq "win") { "zip" } else { "tar.gz" }
 
@@ -96,11 +94,11 @@ function Download-CopilotHereBinary {
     
     # Extract binary from archive
     try {
-        if ($PSVersionTable.PSVersion.Major -lt 6 -or $IsWindows) {
-            # Windows PowerShell 5.1 or PowerShell Core on Windows
+        if ($env:USERPROFILE) {
+            # Windows (PowerShell 5.1 or Core)
             Expand-Archive -Path $tmpArchive -DestinationPath $binDir -Force
         } else {
-            # PowerShell Core on Linux/macOS
+            # Linux/macOS
             & tar -xzf $tmpArchive -C $binDir copilot_here
             if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
             & chmod +x $script:CopilotHereBin 2>$null
