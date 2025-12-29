@@ -261,7 +261,8 @@ copilot_here --install-shells
 Otherwise, download and run the install script:
 
 ```bash
-curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.sh | bash
+# Use your current shell (not bash if you're in zsh!)
+curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.sh | $SHELL
 ```
 
 To update later, just run: `copilot_here --update`
