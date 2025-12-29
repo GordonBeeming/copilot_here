@@ -118,12 +118,12 @@ Invoke-Expression (Get-Content $scriptPath -Raw)
 # Run update to download binary and latest script
 Write-Host ""
 Write-Host "📦 Downloading binary and updating..." -ForegroundColor Cyan
-Update-CopilotHere
+$null = Update-CopilotHere
 
 # Run install-shells to set up shell integration
 Write-Host ""
 Write-Host "🔧 Setting up shell integration..." -ForegroundColor Cyan
-& (Get-Command copilot_here).ScriptBlock --install-shells
+copilot_here --install-shells
 
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
