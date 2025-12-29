@@ -258,20 +258,10 @@ If you already have the `copilot_here` binary on your PATH, you can install shel
 copilot_here --install-shells
 ```
 
-Otherwise, download and source the script in your shell profile:
+Otherwise, download and run the install script:
 
 ```bash
-# Download the script (from latest release)
-curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh -o ~/.copilot_here.sh
-
-# Add to your shell profile (~/.zshrc or ~/.bashrc) - only if not already there
-if ! grep -q "source ~/.copilot_here.sh" ~/.zshrc 2>/dev/null; then
-  echo '' >> ~/.zshrc
-  echo 'source ~/.copilot_here.sh' >> ~/.zshrc
-fi
-
-# Reload your shell
-source ~/.zshrc  # or source ~/.bashrc
+curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.sh | bash
 ```
 
 To update later, just run: `copilot_here --update`
@@ -308,18 +298,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
 Download and source the script in your PowerShell profile:
 
 ```powershell
-# Download the script (from latest release)
-$scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
-Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
-
-# Create profile if it doesn't exist, then add script reference
-if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
-if (-not (Select-String -Path $PROFILE -Pattern "copilot_here.ps1" -Quiet -ErrorAction SilentlyContinue)) {
-    Add-Content $PROFILE "`n. $scriptPath"
-}
-
-# Reload your profile
-. $PROFILE
+iex (iwr -UseBasicParsing "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.ps1").Content
 ```
 
 To update later, just run: `copilot_here --update`
@@ -340,13 +319,18 @@ If you prefer not to use the quick install method, you can manually copy the scr
    ```powershell
    # Create profile if it doesn't exist
    if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
-   # Add this line to your PowerShell profile
-   Add-Content $PROFILE "`n. `"$env:USERPROFILE\.copilot_here.ps1`""
+   # Remove old entries and add new one
+   $profileContent = Get-Content $PROFILE -Raw
+   $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$', ''
+   $profileContent = $profileContent.TrimEnd() + "`n`n. `"$env:USERPROFILE\.copilot_here.ps1`""
+   Set-Content -Path $PROFILE -Value $profileContent
    ```
    
    Or manually edit your profile:
    ```powershell
    notepad $PROFILE
+   # Remove any old copilot_here.ps1 entries and add:
+   # . "$env:USERPROFILE\.copilot_here.ps1"
    ```
 
 3. **Reload your PowerShell profile:**
