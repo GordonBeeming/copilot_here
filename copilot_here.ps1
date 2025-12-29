@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.36
+# Version: 2025.12.29.37
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.36"
+$script:CopilotHereVersion = "2025.12.29.37"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -182,14 +182,15 @@ function Update-ProfileWithMarkers {
     
     # Add fresh marker block
     $scriptPath = $script:CopilotHereScriptPath
+    $scriptPathEscaped = $scriptPath.Replace("'", "''")
     $markerStart = "# >>> copilot_here >>>"
     $markerEnd = "# <<< copilot_here <<<"
     
-    $block = "`n`n$markerStart`nif (Test-Path `"$scriptPath`") {`n    . `"$scriptPath`"`n}`n$markerEnd`n"
+    $block = "`n`n$markerStart`nif (Test-Path '$scriptPathEscaped') {`n    . '$scriptPathEscaped'`n}`n$markerEnd`n"
     
     $profileContent = $profileContent + $block
     Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
-    Write-Host "   ✓ $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
+    Write-Host "   [OK] $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
 }
 
 # Update function - downloads fresh binary and script
