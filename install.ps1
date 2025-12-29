@@ -66,5 +66,6 @@ Write-Host "🔄 Reloading copilot_here functions..." -ForegroundColor Cyan
 
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
+Write-Host "   Loaded version: $script:CopilotHereVersion" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Try running: copilot_here --help" -ForegroundColor Yellow
