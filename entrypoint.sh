@@ -5,7 +5,27 @@ set -e
 USER_ID=${PUID:-1000}
 GROUP_ID=${PGID:-1000}
 
-# Create a group and user with the specified IDs.
+# Check if the desired UID is already taken
+if id -u $USER_ID >/dev/null 2>&1; then
+    # UID is taken, find the next available UID
+    echo "UID $USER_ID is already in use, finding next available UID..." >&2
+    while id -u $USER_ID >/dev/null 2>&1; do
+        USER_ID=$((USER_ID + 1))
+    done
+    echo "Using UID $USER_ID for appuser" >&2
+fi
+
+# Check if the desired GID is already taken
+if getent group $GROUP_ID >/dev/null 2>&1; then
+    # GID is taken, find the next available GID
+    echo "GID $GROUP_ID is already in use, finding next available GID..." >&2
+    while getent group $GROUP_ID >/dev/null 2>&1; do
+        GROUP_ID=$((GROUP_ID + 1))
+    done
+    echo "Using GID $GROUP_ID for appuser_group" >&2
+fi
+
+# Create a group and user with the available IDs.
 groupadd --gid $GROUP_ID appuser_group >/dev/null 2>&1 || true
 useradd --uid $USER_ID --gid $GROUP_ID --shell /bin/bash --create-home appuser >/dev/null 2>&1 || true
 
