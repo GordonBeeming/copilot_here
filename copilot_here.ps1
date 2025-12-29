@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.30
+# Version: 2025.12.29.31
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.30"
+$script:CopilotHereVersion = "2025.12.29.31"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -162,35 +162,68 @@ function Update-CopilotHere {
         try {
             Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
             
-            # Function to update a profile file
+            # Function to update a profile file with marker blocks
             function Update-SingleProfile {
                 param([string]$ProfilePath)
                 
-                if (-not (Test-Path $ProfilePath)) { return $false }
+                # Create profile directory if needed
+                $profileDir = Split-Path $ProfilePath
+                if (-not (Test-Path $profileDir)) {
+                    New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+                }
+                
+                # Create profile if it doesn't exist
+                if (-not (Test-Path $ProfilePath)) {
+                    New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
+                }
+                
+                $markerStart = "# >>> copilot_here >>>"
+                $markerEnd = "# <<< copilot_here <<<"
                 
                 $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
-                if ([string]::IsNullOrEmpty($profileContent)) { return $false }
-                
-                # Remove all existing copilot_here.ps1 references
-                $oldContent = $profileContent
-                $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-                $profileContent = $profileContent.TrimEnd()
-                
-                # Add the new reference if not present
-                $newEntry = ". `"$script:CopilotHereScriptPath`""
-                $changed = $false
-                if (-not $profileContent.Contains($newEntry)) {
-                    $profileContent = $profileContent + "`n`n$newEntry"
-                    $changed = $true
-                } elseif ($oldContent -ne $profileContent) {
-                    $changed = $true
+                if ([string]::IsNullOrEmpty($profileContent)) {
+                    $profileContent = ""
                 }
                 
-                if ($changed) {
-                    Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+                # Remove old marker block if exists and rebuild fresh
+                if ($profileContent.Contains($markerStart)) {
+                    $startIndex = $profileContent.IndexOf($markerStart)
+                    $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
+                    if ($endIndex -gt $startIndex) {
+                        $endIndex += $markerEnd.Length
+                        $beforeBlock = $profileContent.Substring(0, $startIndex)
+                        $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
+                        
+                        # Remove rogue entries
+                        $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+                        $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+                        
+                        $profileContent = $beforeBlock.TrimEnd()
+                    } else {
+                        # Malformed markers - clean everything
+                        $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
+                        $profileContent = $profileContent.TrimEnd()
+                    }
+                } else {
+                    # No markers - remove rogue entries
+                    $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+                    $profileContent = $profileContent.TrimEnd()
                 }
                 
-                return $changed
+                # Add fresh marker block
+                $block = @"
+
+$markerStart
+if (Test-Path "$script:CopilotHereScriptPath") {
+    . "$script:CopilotHereScriptPath"
+}
+$markerEnd
+"@
+                
+                $profileContent = $profileContent + $block
+                Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+                
+                return $true
             }
             
             # Clean up old profile entries in both PowerShell profiles
