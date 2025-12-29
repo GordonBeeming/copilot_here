@@ -524,22 +524,31 @@ Examples:
 3. **GitHub Actions**: When triggered by a comment/issue, use the comment author's details
 4. **Manual request**: When someone asks you to make changes, use their information
 
-**Co-Author Format** (avoid literal `\\n` sequences in commit messages):
+#### Git Signing
+
+**CRITICAL**: Never modify the user's git signing configuration.
+
+**Rules:**
+- ❌ **NEVER** change `git config` signing settings (user.signingkey, commit.gpgsign, etc.)
+- ✅ **ALWAYS** use `--no-gpg-sign` flag when committing to bypass signing
+- ✅ Leave the user's signing configuration intact for their own commits
+
+**Commit Format** (with co-author and no signing):
 ```bash
-# Use multiple -m flags to create a multi-line message
-git commit -m "Type: Brief description" \
+# Use multiple -m flags and --no-gpg-sign
+git commit --no-gpg-sign -m "Type: Brief description" \
   -m "Co-authored-by: Name <email@example.com>"
 ```
 
 **Example**:
 ```bash
-git commit -m "feat: Add Playwright Docker image variant" \
+git commit --no-gpg-sign -m "feat: Add Playwright Docker image variant" \
   -m "Co-authored-by: Gordon Beeming <me@gordonbeeming.com>"
 ```
 
 **Multiple co-authors**:
 ```bash
-git commit -m "feat: Add multi-image build pipeline" \
+git commit --no-gpg-sign -m "feat: Add multi-image build pipeline" \
   -m "Co-authored-by: Gordon Beeming <me@gordonbeeming.com>" \
   -m "Co-authored-by: Other Contributor <other@example.com>"
 ```
