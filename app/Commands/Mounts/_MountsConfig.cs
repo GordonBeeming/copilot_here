@@ -14,9 +14,6 @@ public sealed record MountsConfig
   /// <summary>Mounts from local config.</summary>
   public required IReadOnlyList<MountEntry> LocalMounts { get; init; }
 
-  /// <summary>All config mounts combined (global + local).</summary>
-  public IEnumerable<MountEntry> AllConfigMounts => GlobalMounts.Concat(LocalMounts);
-
   private const string ConfigFileName = "mounts.conf";
 
   /// <summary>
