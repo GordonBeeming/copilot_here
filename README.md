@@ -498,7 +498,7 @@ This project provides multiple Docker image variants for different development s
 | **Linux** | Bash | ✅ | |
 | **Linux** | Zsh | ✅ | |
 | **Windows 10/11** | PowerShell 5.1 | ✅ | ✅ |
-| **Windows 10/11** | PowerShell 7+ | ✅ | |
+| **Windows 10/11** | PowerShell 7+ | ✅ | ✅ |
 
 > **Note:** "Tested" represents systems personally tested by the maintainer. The tool likely works on other compatible systems too, but hasn't been verified yet. If you successfully use it on an untested configuration, please let us know!
 

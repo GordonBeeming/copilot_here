@@ -4,9 +4,7 @@ This document lists known issues and limitations. Click the issue title for full
 
 | Issue | OS | Shell/Terminal | Fix Planned? |
 |-------|----|----|-------------|
-| [Limited Unicode Support](https://github.com/GordonBeeming/copilot_here/issues/44) | Windows | PowerShell 5.1 | ❌ |
-
-> **Note:** For issues marked with ❌, see the linked GitHub issue for reasoning and recommended workarounds.
+| *No known issues at this time* | - | - | - |
 
 ## Reporting New Issues
 
