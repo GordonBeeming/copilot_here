@@ -703,9 +703,11 @@ jobs:
             cd ../..
           done
 
-          # Include shell scripts in release
+          # Include shell scripts and install scripts in release
           cp copilot_here.sh release/
           cp copilot_here.ps1 release/
+          cp install.sh release/
+          cp install.ps1 release/
 
           ls -la release/
 
