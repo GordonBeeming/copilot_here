@@ -298,7 +298,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
 Download and source the script in your PowerShell profile:
 
 ```powershell
-iex (iwr -UseBasicParsing "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.ps1").Content
+iex ([System.Text.Encoding]::UTF8.GetString((iwr -UseBasicParsing 'https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.ps1').Content))
 ```
 
 To update later, just run: `copilot_here --update`
