@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.33
+# Version: 2025.12.29.34
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.33"
+$script:CopilotHereVersion = "2025.12.29.34"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -132,6 +132,70 @@ function Ensure-CopilotHereBinary {
     return $true
 }
 
+# Helper function to update profile with marker blocks
+function Update-ProfileWithMarkers {
+    param([string]$ProfilePath)
+    
+    # Create profile directory if needed
+    $profileDir = Split-Path $ProfilePath
+    if (-not (Test-Path $profileDir)) {
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+    }
+    
+    # Create profile if it doesn't exist
+    if (-not (Test-Path $ProfilePath)) {
+        New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
+    }
+    
+    $markerStart = "# >>> copilot_here >>>"
+    $markerEnd = "# <<< copilot_here <<<"
+    
+    $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrEmpty($profileContent)) {
+        $profileContent = ""
+    }
+    
+    # Remove old marker block and rebuild fresh
+    if ($profileContent.Contains($markerStart)) {
+        $startIndex = $profileContent.IndexOf($markerStart)
+        $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
+        if ($endIndex -gt $startIndex) {
+            $endIndex += $markerEnd.Length
+            $beforeBlock = $profileContent.Substring(0, $startIndex)
+            $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
+            
+            # Remove rogue entries
+            $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+            $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+            
+            $profileContent = $beforeBlock.TrimEnd()
+        } else {
+            # Malformed markers
+            $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
+            $profileContent = $profileContent.TrimEnd()
+        }
+    } else {
+        # No markers - remove rogue entries
+        $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+        $profileContent = $profileContent.TrimEnd()
+    }
+    
+    # Add fresh marker block
+    $scriptPath = $script:CopilotHereScriptPath
+    $block = @"
+
+$markerStart
+if (Test-Path "$scriptPath") {
+    . "$scriptPath"
+}
+$markerEnd
+"@
+    
+    $profileContent = $profileContent + $block
+    Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+    Write-Host "   ✓ $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
+}
+
 # Update function - downloads fresh binary and script
 function Update-CopilotHere {
     Write-Host "[RELOAD] Updating copilot_here..."
@@ -165,69 +229,6 @@ function Update-CopilotHere {
             # Update PowerShell profiles with marker blocks
             Write-Host ""
             Write-Host "[PROFILE] Updating PowerShell profiles..."
-            
-            function Update-ProfileWithMarkers {
-                param([string]$ProfilePath)
-                
-                # Create profile directory if needed
-                $profileDir = Split-Path $ProfilePath
-                if (-not (Test-Path $profileDir)) {
-                    New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-                }
-                
-                # Create profile if it doesn't exist
-                if (-not (Test-Path $ProfilePath)) {
-                    New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
-                }
-                
-                $markerStart = "# >>> copilot_here >>>"
-                $markerEnd = "# <<< copilot_here <<<"
-                
-                $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
-                if ([string]::IsNullOrEmpty($profileContent)) {
-                    $profileContent = ""
-                }
-                
-                # Remove old marker block and rebuild fresh
-                if ($profileContent.Contains($markerStart)) {
-                    $startIndex = $profileContent.IndexOf($markerStart)
-                    $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
-                    if ($endIndex -gt $startIndex) {
-                        $endIndex += $markerEnd.Length
-                        $beforeBlock = $profileContent.Substring(0, $startIndex)
-                        $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
-                        
-                        # Remove rogue entries
-                        $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-                        $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-                        
-                        $profileContent = $beforeBlock.TrimEnd()
-                    } else {
-                        # Malformed markers
-                        $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
-                        $profileContent = $profileContent.TrimEnd()
-                    }
-                } else {
-                    # No markers - remove rogue entries
-                    $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-                    $profileContent = $profileContent.TrimEnd()
-                }
-                
-                # Add fresh marker block
-                $scriptPath = $script:CopilotHereScriptPath
-                $block = @"
-
-$markerStart
-if (Test-Path "$scriptPath") {
-    . "$scriptPath"
-}
-$markerEnd
-"@
-                
-                $profileContent = $profileContent + $block
-                Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
-                Write-Host "   ✓ $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
-            }
             
             $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
             Update-ProfileWithMarkers -ProfilePath $pwshProfile
