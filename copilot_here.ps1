@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.6
+# Version: 2025.12.29.7
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -20,7 +20,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.6"
+$script:CopilotHereVersion = "2025.12.29.7"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -52,13 +52,14 @@ function Stop-CopilotContainers {
 
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
-    # Detect architecture
-    $arch = if ($PSVersionTable.PSVersion.Major -ge 6) {
-        # PowerShell Core 6+ has RuntimeInformation
-        if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq "Arm64") { "arm64" } else { "x64" }
-    } else {
-        # Windows PowerShell 5.1 - check environment
-        if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
+    # Detect architecture using environment variable (works in all PowerShell versions)
+    $procArch = $env:PROCESSOR_ARCHITECTURE
+    $arch = if ($procArch -eq "ARM64" -or $procArch -eq "ARM") { 
+        "arm64" 
+    } elseif ($procArch -eq "AMD64" -or $procArch -eq "x64") {
+        "x64"
+    } else { 
+        "x64"  # Default fallback
     }
     
     # Create bin directory
