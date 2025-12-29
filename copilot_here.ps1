@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.38
+# Version: 2025.12.29.39
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.38"
+$script:CopilotHereVersion = "2025.12.29.39"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -235,6 +235,15 @@ function Update-CopilotHere {
         Write-Host "[OK] Profiles updated"
         Write-Host "[OK] Update complete! Reloading PowerShell functions..."
         $null = . $script:CopilotHereScriptPath
+        Write-Host ""
+        Write-Host "[VERSION] Script: $script:CopilotHereVersion" -ForegroundColor Cyan
+        try {
+            $binVersion = (& $script:CopilotHereBin --version) | Select-Object -First 1
+            if ($binVersion) {
+                Write-Host "[VERSION] Binary: $binVersion" -ForegroundColor Cyan
+            }
+        } catch { }
+        Write-Host ""
     } catch {
         Write-Host ""
         Write-Host "[OK] Binary updated!"
