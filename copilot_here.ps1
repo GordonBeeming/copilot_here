@@ -225,7 +225,7 @@ function Test-CopilotHereUpdates {
             }
             
             if ($isNewer) {
-                Write-Host "[UPDATE] Update available: $script:CopilotHereVersion → $remoteVersion"
+                Write-Host "[UPDATE] Update available: $script:CopilotHereVersion -> $remoteVersion"
                 $confirmation = Read-Host "Would you like to update now? [y/N]"
                 if ($confirmation -match '^[yY]') {
                     Update-CopilotHere
