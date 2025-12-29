@@ -354,8 +354,9 @@ var deduplicated = RemoveDuplicates(items);
 
 **Deduplication:**
 - When duplicates exist, keep the first occurrence (respects priority order)
-- For mounts: prefer read-write over read-only within same priority level
+- **SECURITY**: Always prefer read-only over read-write within same priority level
 - Normalize paths (remove trailing slashes) before comparing
+- Example: If CLI has path:ro and path:rw, keep path:ro for security
 
 **Testing:**
 - All config systems must have unit tests verifying priority order
@@ -548,9 +549,12 @@ git commit -m "feat: Add multi-image build pipeline" \
    - Did you add new patterns or conventions that should be documented?
    - Did you discover a common mistake that should be warned against?
    - Update `.github/copilot-instructions.md` to prevent repeating the same mistakes
+   - **Add tests for documented patterns** to ensure they are followed
 9. **Ask for approval to commit**:
+   - **ALWAYS ask before committing** unless explicitly told to auto-commit
    - Explain what changes are ready to be committed
-   - Wait for user confirmation
+   - Wait for user confirmation ("commit", "yes", "go ahead", etc.)
+   - If user says "commit" or similar, proceed with commit
 10. **Commit your changes with co-author attribution** (after approval):
     ```bash
     git add . && git commit -m "Type: Description" \

@@ -577,9 +577,10 @@ public sealed class RunCommand : ICommand
   /// <summary>
   /// Removes duplicate mounts by comparing normalized container paths.
   /// Keeps the first occurrence (CLI > Local > Global priority).
-  /// Also prefers read-write over read-only when same source priority.
+  /// Prefers read-only over read-write for security when same source priority.
+  /// Internal for testing via InternalsVisibleTo.
   /// </summary>
-  private static List<MountEntry> RemoveDuplicateMounts(List<MountEntry> mounts, string userHome)
+  internal static List<MountEntry> RemoveDuplicateMounts(List<MountEntry> mounts, string userHome)
   {
     var seen = new Dictionary<string, MountEntry>(StringComparer.OrdinalIgnoreCase);
     
@@ -592,9 +593,9 @@ public sealed class RunCommand : ICommand
         // First occurrence - add it
         seen[containerPath] = mount;
       }
-      else if (mount.Source == existing.Source && mount.IsReadWrite && !existing.IsReadWrite)
+      else if (mount.Source == existing.Source && !mount.IsReadWrite && existing.IsReadWrite)
       {
-        // Same source priority: prefer read-write over read-only
+        // Same source priority: prefer read-only over read-write for security
         seen[containerPath] = mount;
       }
       // Otherwise keep the first (higher priority source)
@@ -605,8 +606,9 @@ public sealed class RunCommand : ICommand
 
   /// <summary>
   /// Normalizes a path by removing trailing slashes and ensuring consistent format.
+  /// Internal for testing via InternalsVisibleTo.
   /// </summary>
-  private static string NormalizePath(string path)
+  internal static string NormalizePath(string path)
   {
     if (string.IsNullOrEmpty(path)) return path;
     
