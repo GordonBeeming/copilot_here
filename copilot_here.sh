@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.29.31
+# Version: 2025.12.29.32
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.29.31"
+COPILOT_HERE_VERSION="2025.12.29.32"
 
 # Debug logging function
 __copilot_debug() {
@@ -150,6 +150,14 @@ __copilot_update() {
   if curl -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" -o "$tmp_script" 2>/dev/null; then
     if cat "$tmp_script" > "$script_path" 2>/dev/null; then
       rm -f "$tmp_script"
+      
+      # Update shell profiles with marker blocks
+      echo ""
+      echo "🔧 Updating shell profiles..."
+      __copilot_update_profile "$HOME/.bashrc" "bash (.bashrc)"
+      __copilot_update_profile "$HOME/.zshrc" "zsh (.zshrc)"
+      echo "✅ Profiles updated"
+      
       echo "✅ Update complete! Reloading shell functions..."
       source "$script_path"
     else
@@ -173,6 +181,50 @@ __copilot_update() {
     echo "   Or restart your terminal."
   fi
   return 0
+}
+
+# Helper function to update a profile file with marker blocks
+__copilot_update_profile() {
+  local profile_path="$1"
+  local profile_name="$2"
+  local script_path="$HOME/.copilot_here.sh"
+  
+  # Create profile if it doesn't exist
+  if [ ! -f "$profile_path" ]; then
+    touch "$profile_path"
+  fi
+  
+  local marker_start="# >>> copilot_here >>>"
+  local marker_end="# <<< copilot_here <<<"
+  local temp_file
+  temp_file=$(mktemp)
+  
+  # Check if marker block exists
+  if grep -qF "$marker_start" "$profile_path" 2>/dev/null; then
+    # Remove the entire marker block and rebuild fresh
+    awk -v start="$marker_start" -v end="$marker_end" '
+      BEGIN { in_block=0 }
+      $0 ~ start { in_block=1; next }
+      $0 ~ end { in_block=0; next }
+      !in_block && $0 !~ /copilot_here\.sh/ { print }
+    ' "$profile_path" > "$temp_file"
+  else
+    # No markers - remove rogue entries
+    grep -v "copilot_here.sh" "$profile_path" > "$temp_file" 2>/dev/null || cat "$profile_path" > "$temp_file" 2>/dev/null || true
+  fi
+  
+  # Add fresh marker block
+  cat >> "$temp_file" << EOF
+
+$marker_start
+if [ -f "$script_path" ]; then
+  source "$script_path"
+fi
+$marker_end
+EOF
+  
+  mv "$temp_file" "$profile_path"
+  echo "   ✓ $profile_name"
 }
 
 # Reset function - same as update (kept for backwards compatibility)

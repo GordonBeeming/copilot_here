@@ -14,7 +14,7 @@ Write-Host "✅ Downloaded to: $scriptPath" -ForegroundColor Green
 Write-Host "🔄 Loading copilot_here functions..." -ForegroundColor Cyan
 Invoke-Expression (Get-Content $scriptPath -Raw)
 
-# Run update to set up everything (binary, profiles, etc.)
+# Run update to set up everything (binary, script, profiles)
 Write-Host ""
 Write-Host "📦 Running update..." -ForegroundColor Cyan
 $null = Update-CopilotHere
@@ -31,4 +31,3 @@ Write-Host "⚠️  Please restart your PowerShell session or run:" -ForegroundC
 Write-Host "   . `$PROFILE" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Then try: copilot_here --help" -ForegroundColor Yellow
-

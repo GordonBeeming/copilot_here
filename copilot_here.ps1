@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.31
+# Version: 2025.12.29.32
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.31"
+$script:CopilotHereVersion = "2025.12.29.32"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -162,8 +162,11 @@ function Update-CopilotHere {
         try {
             Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
             
-            # Function to update a profile file with marker blocks
-            function Update-SingleProfile {
+            # Update PowerShell profiles with marker blocks
+            Write-Host ""
+            Write-Host "[PROFILE] Updating PowerShell profiles..."
+            
+            function Update-ProfileWithMarkers {
                 param([string]$ProfilePath)
                 
                 # Create profile directory if needed
@@ -185,7 +188,7 @@ function Update-CopilotHere {
                     $profileContent = ""
                 }
                 
-                # Remove old marker block if exists and rebuild fresh
+                # Remove old marker block and rebuild fresh
                 if ($profileContent.Contains($markerStart)) {
                     $startIndex = $profileContent.IndexOf($markerStart)
                     $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
@@ -200,7 +203,7 @@ function Update-CopilotHere {
                         
                         $profileContent = $beforeBlock.TrimEnd()
                     } else {
-                        # Malformed markers - clean everything
+                        # Malformed markers
                         $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
                         $profileContent = $profileContent.TrimEnd()
                     }
@@ -222,29 +225,16 @@ $markerEnd
                 
                 $profileContent = $profileContent + $block
                 Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
-                
-                return $true
+                Write-Host "   ✓ $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
             }
             
-            # Clean up old profile entries in both PowerShell profiles
-            Write-Host "[PROFILE] Cleaning up old entries in PowerShell profiles..."
             $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+            Update-ProfileWithMarkers -ProfilePath $pwshProfile
+            
             $winPsProfile = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+            Update-ProfileWithMarkers -ProfilePath $winPsProfile
             
-            $updated = $false
-            if (Update-SingleProfile -ProfilePath $pwshProfile) {
-                Write-Host "[OK] Updated PowerShell Core profile"
-                $updated = $true
-            }
-            if (Update-SingleProfile -ProfilePath $winPsProfile) {
-                Write-Host "[OK] Updated Windows PowerShell profile"
-                $updated = $true
-            }
-            
-            if (-not $updated) {
-                Write-Host "[OK] Profiles already up to date"
-            }
-            
+            Write-Host "[OK] Profiles updated"
             Write-Host "[OK] Update complete! Reloading PowerShell functions..."
             $null = . $script:CopilotHereScriptPath
         } catch {
