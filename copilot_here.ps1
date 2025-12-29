@@ -2,6 +2,9 @@
 # Version: 2025.12.29.9
 # Repository: https://github.com/GordonBeeming/copilot_here
 
+# Set console output encoding to UTF-8 for Unicode character support
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Configuration
 $script:CopilotHereHome = if ($env:USERPROFILE) { 
     $env:USERPROFILE 

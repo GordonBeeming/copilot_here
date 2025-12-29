@@ -84,6 +84,16 @@ class Program
 
   static async Task<int> Main(string[] args)
   {
+    // Set console encoding to UTF-8 for proper Unicode character display
+    try
+    {
+      Console.OutputEncoding = System.Text.Encoding.UTF8;
+    }
+    catch
+    {
+      // Ignore if setting encoding fails (some environments don't support it)
+    }
+    
     DebugLogger.Log("=== Application started ===");
     DebugLogger.Log($"Args: {string.Join(" ", args)}");
     

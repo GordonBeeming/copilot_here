@@ -491,8 +491,6 @@ This project provides multiple Docker image variants for different development s
 
 ## 💻 Supported Systems
 
-The following table shows which operating systems and shells have been tested. The tool is designed to work across all these platforms, but "Tested" indicates systems that have been personally verified.
-
 | Operating System | Shell | Supported | Tested |
 |-----------------|-------|-----------|--------|
 | **macOS** | Zsh | ✅ | ✅ |
