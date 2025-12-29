@@ -496,4 +496,4 @@ This project provides multiple Docker image variants for different development s
 
 ## 📜 License
 
-This project is licensed under the MIT License.
+This project is licensed under the Functional Source License (FSL-1.1-MIT). See [LICENSE](LICENSE) for details.
