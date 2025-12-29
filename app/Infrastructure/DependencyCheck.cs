@@ -349,7 +349,7 @@ public static class DependencyCheck
   {
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
-      return "💡 Install: winget install --id GitHub.cli";
+      return "💡 Install: winget install -e --id GitHub.cli --source winget";
     }
     else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
     {

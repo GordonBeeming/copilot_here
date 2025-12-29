@@ -489,9 +489,25 @@ This project provides multiple Docker image variants for different development s
 - Use **`rust`** for Rust development
 - Use **`dotnet-rust`** for projects combining .NET and Rust
 
+## 💻 Supported Systems
+
+The following table shows which operating systems and shells have been tested. The tool is designed to work across all these platforms, but "Tested" indicates systems that have been personally verified.
+
+| Operating System | Shell | Supported | Tested |
+|-----------------|-------|-----------|--------|
+| **macOS** | Zsh | ✅ | ✅ |
+| **macOS** | Bash | ✅ | |
+| **Linux** | Bash | ✅ | |
+| **Linux** | Zsh | ✅ | |
+| **Windows 10/11** | PowerShell 5.1 | ✅ | ✅ |
+| **Windows 10/11** | PowerShell 7+ | ✅ | |
+
+> **Note:** "Tested" represents systems personally tested by the maintainer. The tool likely works on other compatible systems too, but hasn't been verified yet. If you successfully use it on an untested configuration, please let us know!
+
 ## 📚 Documentation
 
 - [Docker Images Documentation](docs/docker-images.md) - Details about available image variants
+- [Known Issues](docs/known-issues.md) - Known issues, limitations, and workarounds
 - [CLI Icon Legend](docs/icon-legend.md) - Meaning of icons in CLI output
 - [Migration Guide](docs/migration-to-native-binary.md) - Details about the native binary implementation
 - [Task Documentation](docs/tasks/) - Development task history and changes
