@@ -94,6 +94,24 @@ Write-Host "✅ Profile(s) updated" -ForegroundColor Green
 # Reload the new script directly
 Write-Host "🔄 Reloading copilot_here functions..." -ForegroundColor Cyan
 
+# Remove existing functions if they exist to ensure clean reload
+$functionsToRemove = @(
+    'Write-CopilotDebug',
+    'Stop-CopilotContainers',
+    'Download-CopilotHereBinary',
+    'Ensure-CopilotHereBinary',
+    'Update-CopilotHere',
+    'Reset-CopilotHere',
+    'Test-CopilotHereUpdates',
+    'Test-UpdateArg',
+    'Test-ResetArg',
+    'copilot_here',
+    'copilot_yolo'
+)
+foreach ($func in $functionsToRemove) {
+    Remove-Item "Function:\$func" -ErrorAction SilentlyContinue
+}
+
 # Load script content and execute it directly in current scope
 # This will define functions in the scope where this installer script runs
 # Since installer is invoked with iex, that's the interactive session
