@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.5
+# Version: 2025.12.29.6
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -20,7 +20,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.5"
+$script:CopilotHereVersion = "2025.12.29.6"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -32,14 +32,14 @@ function Write-CopilotDebug {
 
 # Helper function to stop running containers with confirmation
 function Stop-CopilotContainers {
-    $runningContainers = docker ps --filter "name=copilot_here-" -q 2>$null
+    $runningContainers = docker ps --filter "name=copilot_here-" -q 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { docker ps --filter "name=copilot_here-" -q }
     
     if ($runningContainers) {
         Write-Host "⚠️  copilot_here is currently running in Docker" -ForegroundColor Yellow
         $response = Read-Host "   Stop running containers to continue? [y/N]"
         if ($response -match '^[yY]') {
             Write-Host "🛑 Stopping copilot_here containers..."
-            docker stop $runningContainers 2>$null | Out-Null
+            docker stop $runningContainers 2>&1 | Out-Null
             Write-Host "   ✓ Stopped"
             return $true
         } else {
@@ -105,7 +105,7 @@ function Download-CopilotHereBinary {
             # Linux/macOS
             & tar -xzf $tmpArchive -C $binDir copilot_here
             if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
-            & chmod +x $script:CopilotHereBin 2>$null
+            & chmod +x $script:CopilotHereBin 2>&1 | Out-Null
         }
     } catch {
         Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
