@@ -167,9 +167,13 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
   public string GetContainerPath(string userHome)
   {
     var hostPath = ResolvePath(userHome);
-    return hostPath.StartsWith(userHome)
-      ? $"/home/appuser/{System.IO.Path.GetRelativePath(userHome, hostPath).Replace("\\", "/")}"
-      : hostPath;
+    if (hostPath.StartsWith(userHome))
+    {
+      return $"/home/appuser/{System.IO.Path.GetRelativePath(userHome, hostPath).Replace("\\", "/")}";
+    }
+    
+    // For paths outside user home, convert to Docker format
+    return ConvertToDockerPath(hostPath);
   }
 
   /// <summary>Gets the Docker volume mount string.</summary>
