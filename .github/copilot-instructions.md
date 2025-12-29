@@ -457,22 +457,33 @@ var deduplicated = RemoveDuplicates(items);
 - ✅ "I noticed there's a change to `.copilot_here/mounts.conf`. Should we include that in this commit, or would you like to handle it separately?"
 
 ### Issue Linking Requirement
-**IMPORTANT**: If a change request comes in without an issue link/number, ask the requester for the relevant issue first.
-- All commits going forward must reference the relevant issue (e.g. include `#123` in the commit message).
+**CRITICAL RULE**: ALL commits MUST link to an issue. NO EXCEPTIONS.
 
-If the requester doesn’t have an issue yet (or details are still fuzzy), offer to draft a **single** backlog entry in `pbi.md` (this file is intentionally ignored by git) so it’s quick to turn into a GitHub issue.
+**Before committing:**
+1. **STOP** - Do you have an issue number?
+2. **If NO**: Ask the user "What issue number should I reference for this commit?"
+3. **If user doesn't have one**: Offer to create a PBI in `pbi.md` that they can turn into a GitHub issue
+4. **ONLY THEN** proceed with commit
+
+**Rules:**
+- ❌ **NEVER** commit without an issue reference (e.g., `#123` in commit message)
+- ✅ **ALWAYS** ask "What issue number should I reference for this commit?" before committing
+- ✅ If no issue exists, create `pbi.md` first for the user to convert to an issue
+
+If the requester doesn't have an issue yet (or details are still fuzzy), offer to draft a **single** backlog entry in `pbi.md` (this file is intentionally ignored by git) so it's quick to turn into a GitHub issue.
 
 **`pbi.md` guidelines (going forward):**
-- Write what the issue is (not the resolution). If you have resolution details, put them under a clearly marked section like “Resolution notes (post-issue comment)”.
-- Focus on the problem and what “working” looks like.
+- Write what the issue is (not the resolution). If you have resolution details, put them under a clearly marked section like "Resolution notes (post-issue comment)".
+- Focus on the problem and what "working" looks like.
 - Keep the structure simple: **Title**, **Summary**, **Acceptance criteria**, **Notes** (add **Environment** / **Steps to reproduce** only when helpful).
-- `pbi.md` should contain one PBI at a time; clear/overwrite it each time (don’t append multiple PBIs).
+- `pbi.md` should contain one PBI at a time; clear/overwrite it each time (don't append multiple PBIs).
 
 #### Commit Guidelines:
-1. **Prepare changes**: Make your changes and verify them
-2. **Ask for approval**: Present the changes to the user and ask if you should commit
-3. **Commit on approval**: Only run the git commit command when the user says "commit" or similar
-4. **Descriptive messages**: Use clear, concise commit messages
+1. **Check for issue**: Ask "What issue number should I reference?" - REQUIRED FIRST STEP
+2. **Prepare changes**: Make your changes and verify them
+3. **Ask for approval**: Present the changes to the user and ask if you should commit
+4. **Commit on approval**: Only run the git commit command when the user says "commit" or similar
+5. **Descriptive messages**: Use clear, concise commit messages
 5. **Fix mistakes**: If you need to fix something in the last commit:
    ```bash
    # Undo last commit but keep changes
