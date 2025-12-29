@@ -40,7 +40,7 @@ function Stop-CopilotContainers {
         if ($response -match '^[yY]') {
             Write-Host "[STOP] Stopping copilot_here containers..."
             docker stop $runningContainers 2>&1 | Out-Null
-            Write-Host "   ✓ Stopped"
+            Write-Host "   [OK] Stopped"
             return $true
         } else {
             Write-Host "[ERROR] Cannot update while containers are running (binary is in use)" -ForegroundColor Red
