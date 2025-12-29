@@ -522,10 +522,10 @@ public sealed class RunCommand : ICommand
       "-it",
       "--name", containerName,
       // Mount current directory
-      "-v", $"{ctx.Paths.CurrentDirectory}:{ctx.Paths.ContainerWorkDir}",
+      "-v", $"{ConvertToDockerPath(ctx.Paths.CurrentDirectory)}:{ctx.Paths.ContainerWorkDir}",
       "-w", ctx.Paths.ContainerWorkDir,
       // Mount copilot config
-      "-v", $"{ctx.Paths.CopilotConfigPath}:/home/appuser/.copilot",
+      "-v", $"{ConvertToDockerPath(ctx.Paths.CopilotConfigPath)}:/home/appuser/.copilot",
       // Environment variables
       "-e", $"PUID={ctx.Environment.UserId}",
       "-e", $"PGID={ctx.Environment.GroupId}",
@@ -620,5 +620,28 @@ public sealed class RunCommand : ICommand
     
     // Remove trailing slashes/backslashes
     return path.TrimEnd('/', '\\');
+  }
+
+  /// <summary>
+  /// Converts a Windows path to Docker-compatible format.
+  /// On Windows: C:\path -> /c/path
+  /// On Unix: /path -> /path (no change)
+  /// </summary>
+  private static string ConvertToDockerPath(string path)
+  {
+    // Convert backslashes to forward slashes
+    var normalizedPath = path.Replace("\\", "/");
+    
+    // On Windows, convert drive letter paths (C:/ -> /c/)
+    if (OperatingSystem.IsWindows() && 
+        normalizedPath.Length >= 2 && 
+        normalizedPath[1] == ':')
+    {
+      var driveLetter = char.ToLowerInvariant(normalizedPath[0]);
+      var pathWithoutDrive = normalizedPath.Substring(2);
+      return $"/{driveLetter}{pathWithoutDrive}";
+    }
+    
+    return normalizedPath;
   }
 }

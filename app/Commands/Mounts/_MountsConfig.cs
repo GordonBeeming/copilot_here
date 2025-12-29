@@ -176,9 +176,33 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
   public string ToDockerVolume(string userHome)
   {
     var hostPath = ResolvePath(userHome);
+    var dockerHostPath = ConvertToDockerPath(hostPath);
     var containerPath = GetContainerPath(userHome);
     var mode = IsReadWrite ? "rw" : "ro";
-    return $"{hostPath}:{containerPath}:{mode}";
+    return $"{dockerHostPath}:{containerPath}:{mode}";
+  }
+
+  /// <summary>
+  /// Converts a Windows path to Docker-compatible format.
+  /// On Windows: C:\path -> /c/path
+  /// On Unix: /path -> /path (no change)
+  /// </summary>
+  private static string ConvertToDockerPath(string path)
+  {
+    // Convert backslashes to forward slashes
+    var normalizedPath = path.Replace("\\", "/");
+    
+    // On Windows, convert drive letter paths (C:/ -> /c/)
+    if (OperatingSystem.IsWindows() && 
+        normalizedPath.Length >= 2 && 
+        normalizedPath[1] == ':')
+    {
+      var driveLetter = char.ToLowerInvariant(normalizedPath[0]);
+      var pathWithoutDrive = normalizedPath.Substring(2);
+      return $"/{driveLetter}{pathWithoutDrive}";
+    }
+    
+    return normalizedPath;
   }
 }
 

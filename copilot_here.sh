@@ -1,11 +1,11 @@
 # copilot_here shell functions
-# Version: 2025.12.29.9
+# Version: 2025.12.29.10
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.29.9"
+COPILOT_HERE_VERSION="2025.12.29.10"
 
 # Debug logging function
 __copilot_debug() {

@@ -243,7 +243,8 @@ public static class AirlockRunner
         var mode = mount.IsReadWrite ? "rw" : "ro";
         var containerPath = mount.GetContainerPath(ctx.Paths.UserHome);
         var resolvedPath = mount.ResolvePath(ctx.Paths.UserHome);
-        extraMounts.AppendLine($"      - {resolvedPath}:{containerPath}:{mode}");
+        var dockerPath = ConvertToDockerPath(resolvedPath);
+        extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
       }
 
       // Build logs mount if logging enabled
@@ -254,7 +255,8 @@ public static class AirlockRunner
       if (rulesContent.Contains("\"enable_logging\": true") || rulesContent.Contains("\"mode\": \"monitor\""))
       {
         var logsDir = Path.Combine(ctx.Paths.LocalConfigPath, "logs");
-        logsMount = $"      - {logsDir}:/logs";
+        var dockerLogsPath = ConvertToDockerPath(logsDir);
+        logsMount = $"      - {dockerLogsPath}:/logs";
       }
 
       // Convert app sandbox flags to YAML
@@ -317,10 +319,10 @@ public static class AirlockRunner
         .Replace("{{PROJECT_NAME}}", projectName)
         .Replace("{{APP_IMAGE}}", appImage)
         .Replace("{{PROXY_IMAGE}}", proxyImage)
-        .Replace("{{WORK_DIR}}", ctx.Paths.CurrentDirectory)
+        .Replace("{{WORK_DIR}}", ConvertToDockerPath(ctx.Paths.CurrentDirectory))
         .Replace("{{CONTAINER_WORK_DIR}}", ctx.Paths.ContainerWorkDir)
-        .Replace("{{COPILOT_CONFIG}}", ctx.Paths.CopilotConfigPath)
-        .Replace("{{NETWORK_CONFIG}}", processedConfigPath)
+        .Replace("{{COPILOT_CONFIG}}", ConvertToDockerPath(ctx.Paths.CopilotConfigPath))
+        .Replace("{{NETWORK_CONFIG}}", ConvertToDockerPath(processedConfigPath))
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
         .Replace("{{SESSION_INFO}}", sessionInfo)
@@ -576,5 +578,28 @@ public static class AirlockRunner
     {
       // Ignore
     }
+  }
+
+  /// <summary>
+  /// Converts a Windows path to Docker-compatible format.
+  /// On Windows: C:\path -> /c/path
+  /// On Unix: /path -> /path (no change)
+  /// </summary>
+  private static string ConvertToDockerPath(string path)
+  {
+    // Convert backslashes to forward slashes
+    var normalizedPath = path.Replace("\\", "/");
+    
+    // On Windows, convert drive letter paths (C:/ -> /c/)
+    if (OperatingSystem.IsWindows() && 
+        normalizedPath.Length >= 2 && 
+        normalizedPath[1] == ':')
+    {
+      var driveLetter = char.ToLowerInvariant(normalizedPath[0]);
+      var pathWithoutDrive = normalizedPath.Substring(2);
+      return $"/{driveLetter}{pathWithoutDrive}";
+    }
+    
+    return normalizedPath;
   }
 }

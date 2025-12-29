@@ -162,4 +162,94 @@ public class MountEntryTests
     await Assert.That(mountPath).IsEqualTo("/path/to/data");
     await Assert.That(isReadWrite).IsFalse();
   }
+
+  [Test]
+  public async Task ToDockerVolume_WindowsPath_ConvertsToDockerFormat()
+  {
+    // Only run on Windows
+    if (!OperatingSystem.IsWindows())
+    {
+      // Skip test on non-Windows
+      return;
+    }
+
+    // Arrange
+    var mount = new MountEntry(@"C:\Users\test\project", false, MountSource.Local);
+    var userHome = @"C:\Users\test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert - should convert C:\Users\test\project to /c/Users/test/project
+    await Assert.That(dockerVolume).Contains("/c/Users/test/project");
+    await Assert.That(dockerVolume).DoesNotContain(@"C:");
+    await Assert.That(dockerVolume).DoesNotContain(@"\");
+    await Assert.That(dockerVolume).Contains(":ro");
+  }
+
+  [Test]
+  public async Task ToDockerVolume_WindowsPathReadWrite_ConvertsCorrectly()
+  {
+    // Only run on Windows
+    if (!OperatingSystem.IsWindows())
+    {
+      // Skip test on non-Windows
+      return;
+    }
+
+    // Arrange
+    var mount = new MountEntry(@"C:\Data\project", true, MountSource.CommandLine);
+    var userHome = @"C:\Users\test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert
+    await Assert.That(dockerVolume).Contains("/c/Data/project");
+    await Assert.That(dockerVolume).Contains(":rw");
+  }
+
+  [Test]
+  public async Task ToDockerVolume_UnixPath_RemainsUnchanged()
+  {
+    // Only run on Unix/Linux/macOS
+    if (OperatingSystem.IsWindows())
+    {
+      // Skip test on Windows
+      return;
+    }
+
+    // Arrange
+    var mount = new MountEntry("/home/user/project", false, MountSource.Local);
+    var userHome = "/home/user";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert - Unix paths should remain as-is
+    await Assert.That(dockerVolume).Contains("/home/user/project");
+    await Assert.That(dockerVolume).Contains(":ro");
+  }
+
+  [Test]
+  public async Task ToDockerVolume_WindowsPathWithDifferentDrives_ConvertsCorrectly()
+  {
+    // Only run on Windows
+    if (!OperatingSystem.IsWindows())
+    {
+      // Skip test on non-Windows
+      return;
+    }
+
+    // Arrange - D: drive
+    var mount = new MountEntry(@"D:\Projects\myapp", false, MountSource.Global);
+    var userHome = @"C:\Users\test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert
+    await Assert.That(dockerVolume).Contains("/d/Projects/myapp");
+    await Assert.That(dockerVolume).DoesNotContain(@"D:");
+  }
 }
