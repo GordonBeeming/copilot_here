@@ -106,4 +106,18 @@ if [ -n "$COPILOT_HERE_VERSION" ]; then
   echo "   Loaded version: $COPILOT_HERE_VERSION"
 fi
 echo ""
-echo "Try running: copilot_here --help"
+echo "⚠️  Please restart your shell or run:"
+CURRENT_SHELL=$(basename "$SHELL")
+case "$CURRENT_SHELL" in
+  zsh)
+    echo "   source ~/.zshrc"
+    ;;
+  bash)
+    echo "   source ~/.bashrc"
+    ;;
+  *)
+    echo "   source ~/.${CURRENT_SHELL}rc"
+    ;;
+esac
+echo ""
+echo "Then try: copilot_here --help"

@@ -128,4 +128,7 @@ copilot_here --install-shells
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Try running: copilot_here --help" -ForegroundColor Yellow
+Write-Host "⚠️  Please restart your PowerShell session or run:" -ForegroundColor Yellow
+Write-Host "   . `$PROFILE" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Then try: copilot_here --help" -ForegroundColor Yellow
