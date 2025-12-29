@@ -320,6 +320,48 @@ dotnet test
 - Add XML documentation comments for public APIs
 - Use AOT-compatible patterns (avoid reflection, dynamic code generation)
 
+### Configuration Priority
+**CRITICAL RULE**: All configuration systems must follow the same priority order.
+
+**Priority Order (highest to lowest):**
+1. **CLI Arguments** - User's explicit command-line flags (highest priority)
+2. **Local Config** - Project-specific config in `.copilot_here/` (medium priority)
+3. **Global Config** - User-wide config in `~/.config/copilot_here/` (low priority)
+4. **Default Values** - Hardcoded fallback values (lowest priority)
+
+**Implementation Pattern:**
+```csharp
+// When collecting config from multiple sources:
+var items = new List<Item>();
+
+// Add CLI items first (highest priority)
+items.AddRange(cliItems);
+
+// Add local config items
+items.AddRange(localConfigItems);
+
+// Add global config items last (lowest priority)
+items.AddRange(globalConfigItems);
+
+// Then deduplicate, keeping first occurrence
+var deduplicated = RemoveDuplicates(items);
+```
+
+**Config Files:**
+- `ImageConfig` - Image tag selection: CLI > Local > Global > "latest"
+- `MountsConfig` - Mount paths: CLI > Local > Global
+- `AirlockConfig` - Network proxy: Local > Global > disabled
+
+**Deduplication:**
+- When duplicates exist, keep the first occurrence (respects priority order)
+- For mounts: prefer read-write over read-only within same priority level
+- Normalize paths (remove trailing slashes) before comparing
+
+**Testing:**
+- All config systems must have unit tests verifying priority order
+- Tests should verify: no configs, global only, local only, both configs
+- See: `ImageConfigTests.cs`, `MountsConfigTests.cs`, `AirlockConfigTests.cs`
+
 ### Debug Logging
 - Use `DebugLogger.Log()` for debug output
 - Only enabled when `COPILOT_HERE_DEBUG=1` or `COPILOT_HERE_DEBUG=true`
@@ -498,17 +540,23 @@ git commit -m "feat: Add multi-image build pipeline" \
 2. Test local build: `./dev-build.sh`
 3. Test Docker builds if image changes: `./dev-build.sh --include-all`
 4. Verify workflow syntax if modified
-5. Document significant changes in `/docs/tasks/` following naming conventions
-6. **Include screenshots in task docs** with relative image paths if applicable
-7. **Ask for approval to commit**:
+5. Run unit tests: `cd tests/CopilotHere.UnitTests && dotnet test`
+6. Document significant changes in `/docs/tasks/` following naming conventions
+7. **Include screenshots in task docs** with relative image paths if applicable
+8. **Review if these instructions need updating**:
+   - Did you fix a bug that was caused by missing documentation?
+   - Did you add new patterns or conventions that should be documented?
+   - Did you discover a common mistake that should be warned against?
+   - Update `.github/copilot-instructions.md` to prevent repeating the same mistakes
+9. **Ask for approval to commit**:
    - Explain what changes are ready to be committed
    - Wait for user confirmation
-8. **Commit your changes with co-author attribution** (after approval):
-   ```bash
-   git add . && git commit -m "Type: Description" \
-     -m "Co-authored-by: Name <email@example.com>"
-   ```
-9. **DO NOT push to remote** - Only commit locally, never use `git push`
+10. **Commit your changes with co-author attribution** (after approval):
+    ```bash
+    git add . && git commit -m "Type: Description" \
+      -m "Co-authored-by: Name <email@example.com>"
+    ```
+11. **DO NOT push to remote** - Only commit locally, never use `git push`
 
 ## Testing and Quality
 
