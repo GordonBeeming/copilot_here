@@ -2,12 +2,16 @@
 # Bash/Zsh Install Script for copilot_here
 # This script downloads copilot_here.sh and configures shell profiles
 
-set -e
+# Note: Not using 'set -e' because this script is designed to be sourced,
+# and we don't want profile errors to exit the user's shell
 
 # Download the main script
 SCRIPT_PATH="$HOME/.copilot_here.sh"
 echo "📥 Downloading copilot_here.sh..."
-curl -fsSL "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh" -o "$SCRIPT_PATH"
+if ! curl -fsSL "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh" -o "$SCRIPT_PATH"; then
+  echo "❌ Failed to download copilot_here.sh" >&2
+  return 1 2>/dev/null || exit 1
+fi
 echo "✅ Downloaded to: $SCRIPT_PATH"
 
 # Function to update a profile file
@@ -90,34 +94,14 @@ fi
 
 echo "✅ Profile(s) updated"
 
-# Reload the current shell profile
-echo "🔄 Reloading shell profile..."
-CURRENT_SHELL=$(basename "$SHELL")
-case "$CURRENT_SHELL" in
-  zsh)
-    if [ -f "$HOME/.zshrc" ]; then
-      # shellcheck disable=SC1091
-      source "$HOME/.zshrc"
-    fi
-    ;;
-  bash)
-    if [ -f "$HOME/.bashrc" ]; then
-      # shellcheck disable=SC1090
-      source "$HOME/.bashrc"
-    elif [ -f "$HOME/.bash_profile" ]; then
-      # shellcheck disable=SC1090
-      source "$HOME/.bash_profile"
-    fi
-    ;;
-  *)
-    # shellcheck disable=SC1090
-    source "$SCRIPT_PATH"
-    ;;
-esac
-
-# Source the script directly to get the version
+# Don't reload profile files - they may have errors or complex logic
+# Just source the copilot_here script directly for immediate availability
+echo "🔄 Loading copilot_here functions..."
 # shellcheck disable=SC1090
-source "$SCRIPT_PATH"
+if ! source "$SCRIPT_PATH"; then
+  echo "❌ Failed to load copilot_here functions" >&2
+  return 1 2>/dev/null || exit 1
+fi
 
 echo ""
 echo "✅ Installation complete!"
