@@ -92,7 +92,14 @@ case "$CURRENT_SHELL" in
     ;;
 esac
 
+# Source the script directly to get the version
+# shellcheck disable=SC1090
+source "$SCRIPT_PATH"
+
 echo ""
 echo "✅ Installation complete!"
+if [ -n "$COPILOT_HERE_VERSION" ]; then
+  echo "   Loaded version: $COPILOT_HERE_VERSION"
+fi
 echo ""
 echo "Try running: copilot_here --help"
