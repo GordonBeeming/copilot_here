@@ -60,9 +60,9 @@ Update-ProfileFile -ProfilePath $winPsProfile
 
 Write-Host "✅ Profile(s) updated" -ForegroundColor Green
 
-# Reload the current profile
-Write-Host "🔄 Reloading PowerShell profile..." -ForegroundColor Cyan
-. $PROFILE
+# Reload the new script directly (not just the profile)
+Write-Host "🔄 Reloading copilot_here functions..." -ForegroundColor Cyan
+. $scriptPath
 
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
