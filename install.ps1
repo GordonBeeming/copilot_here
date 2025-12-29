@@ -36,14 +36,13 @@ function Update-ProfileFile {
         $profileContent = ""
     }
     
-    # Always clean up rogue copilot_here entries outside markers
+    # Always clean up rogue copilot_here entries and rebuild marker block
     if ($profileContent.Contains($markerStart)) {
-        # Markers exist - extract marked block and remove rogue entries
+        # Markers exist - remove the entire block and rebuild it fresh
         $startIndex = $profileContent.IndexOf($markerStart)
         $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
         if ($endIndex -gt $startIndex) {
             $endIndex += $markerEnd.Length
-            $markedBlock = $profileContent.Substring($startIndex, $endIndex - $startIndex)
             $beforeBlock = $profileContent.Substring(0, $startIndex)
             $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
             
@@ -51,19 +50,20 @@ function Update-ProfileFile {
             $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
             $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
             
-            # Reconstruct profile with only marked block
-            $profileContent = ($beforeBlock.TrimEnd() + "`n`n" + $markedBlock + "`n" + $afterBlock.TrimStart()).Trim()
-            Set-Content -Path $ProfilePath -Value $profileContent
-            Write-Host "   ✓ $ProfilePath (cleaned up rogue entries)" -ForegroundColor Gray
+            # Rebuild with fresh marker block
+            $profileContent = $beforeBlock.TrimEnd()
+        } else {
+            # Malformed markers - clean everything
+            $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
+            $profileContent = $profileContent.TrimEnd()
         }
-        return
+    } else {
+        # No markers - remove all copilot_here entries
+        $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+        $profileContent = $profileContent.TrimEnd()
     }
     
-    # No markers - remove all copilot_here entries and add fresh block
-    $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-    $profileContent = $profileContent.TrimEnd()
-    
-    # Add the marker block
+    # Add fresh marker block
     $block = @"
 
 $markerStart
