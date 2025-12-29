@@ -301,6 +301,15 @@ public static class AirlockRunner
       }
       copilotCmd.Append(']');
 
+      // Generate session info JSON for Airlock mode
+      var sessionInfo = SessionInfo.GenerateWithNetworkConfig(
+        ctx, 
+        appImage.Split(':')[1], // Extract tag from full image name
+        appImage, 
+        mounts, 
+        isYolo, 
+        processedConfigPath);
+
       // Do substitutions
       var result = template
         .Replace("{{NETWORKS}}", networksYaml)
@@ -314,6 +323,7 @@ public static class AirlockRunner
         .Replace("{{NETWORK_CONFIG}}", processedConfigPath)
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
+        .Replace("{{SESSION_INFO}}", sessionInfo)
         .Replace("{{COPILOT_ARGS}}", copilotCmd.ToString());
 
       // Handle multiline placeholders

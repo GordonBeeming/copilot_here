@@ -463,7 +463,7 @@ public sealed class RunCommand : ICommand
       // Build Docker args for standard mode
       var sessionId = GenerateSessionId();
       var containerName = $"copilot_here-{sessionId}";
-      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs);
+      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs, _isYolo, imageTag);
 
       // Set terminal title
       var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
@@ -508,8 +508,13 @@ public sealed class RunCommand : ICommand
     string imageName,
     string containerName,
     List<MountEntry> mounts,
-    List<string> copilotArgs)
+    List<string> copilotArgs,
+    bool isYolo,
+    string imageTag)
   {
+    // Generate session info JSON
+    var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
+    
     var args = new List<string>
     {
       "run",
@@ -524,7 +529,8 @@ public sealed class RunCommand : ICommand
       // Environment variables
       "-e", $"PUID={ctx.Environment.UserId}",
       "-e", $"PGID={ctx.Environment.GroupId}",
-      "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}"
+      "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}",
+      "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
 
     // Add additional mounts

@@ -411,6 +411,38 @@ copilot_here --no-cleanup --no-pull "quick question about this code"
 copilot_here --model claude-sonnet-4.5 "explain this algorithm"
 ```
 
+### Accessing Session Information
+
+Inside any copilot_here container, you can view detailed information about your session:
+
+```bash
+# View formatted session info (image, mounts, mode, etc.)
+session-info
+
+# Or manually format with Python (works in all images without rebuild)
+echo $COPILOT_HERE_SESSION_INFO | python3 -m json.tool
+
+# View raw JSON
+echo $COPILOT_HERE_SESSION_INFO
+
+# Query specific fields with jq
+echo $COPILOT_HERE_SESSION_INFO | jq .image.tag
+echo $COPILOT_HERE_SESSION_INFO | jq .mounts
+echo $COPILOT_HERE_SESSION_INFO | jq .airlock.network_config  # If airlock enabled
+```
+
+The `COPILOT_HERE_SESSION_INFO` environment variable contains:
+- **Version**: copilot_here build version
+- **Image**: Tag and full image name
+- **Mode**: "standard" or "yolo"
+- **Working Directory**: Container working directory path
+- **Mounts**: All mounted paths with their modes (ro/rw) and sources
+- **Airlock**: Network proxy status and configuration (if enabled)
+
+This makes it easy for AI assistants to understand the environment without scrolling through startup logs.
+
+> **Note:** The `session-info` command will be available in containers after the next image rebuild. Until then, use `echo $COPILOT_HERE_SESSION_INFO | python3 -m json.tool` for formatted output.
+
 **YOLO Mode** (auto-approves execution):
 
 ```bash

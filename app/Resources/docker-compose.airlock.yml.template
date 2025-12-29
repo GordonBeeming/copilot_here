@@ -45,6 +45,7 @@ services:
       - PGID={{PGID}}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - TERM=${TERM:-xterm-256color}
+      - COPILOT_HERE_SESSION_INFO={{SESSION_INFO}}
     volumes:
       - proxy-ca:/ca:ro
       - {{COPILOT_CONFIG}}:/home/appuser/.copilot
