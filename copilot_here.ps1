@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.19
+# Version: 2025.12.29
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -17,7 +17,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.19"
+$script:CopilotHereVersion = "2025.12.29"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -180,8 +180,8 @@ function Test-CopilotHereUpdates {
         
         if ($script:CopilotHereVersion -ne $remoteVersion) {
             # Compare versions - convert to comparable format
-            $currentParts = $script:CopilotHereVersion -split '\.'
-            $remoteParts = $remoteVersion -split '\.'
+            $currentParts = $script:CopilotHereVersion -split '[.]'
+            $remoteParts = $remoteVersion -split '[.]'
             
             # Pad arrays to same length
             $maxLen = [Math]::Max($currentParts.Length, $remoteParts.Length)
@@ -244,8 +244,8 @@ function copilot_here {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    $currentParts = $script:CopilotHereVersion -split '\.'
-                    $fileParts = $fileVersion -split '\.'
+                    $currentParts = $script:CopilotHereVersion -split '[.]'
+                    $fileParts = $fileVersion -split '[.]'
 
                     $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
                     while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
@@ -320,8 +320,8 @@ function copilot_yolo {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"([^"]+)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    $currentParts = $script:CopilotHereVersion -split '\.'
-                    $fileParts = $fileVersion -split '\.'
+                    $currentParts = $script:CopilotHereVersion -split '[.]'
+                    $fileParts = $fileVersion -split '[.]'
 
                     $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
                     while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }

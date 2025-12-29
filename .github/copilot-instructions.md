@@ -437,6 +437,25 @@ var deduplicated = RemoveDuplicates(items);
 ### Git Workflow - Wait for Approval
 **IMPORTANT**: Wait for user approval before committing changes.
 
+### Never Revert User Changes
+**CRITICAL RULE**: Never use `git checkout`, `git reset`, or any command that reverts uncommitted changes you didn't make.
+
+**Rules:**
+- ❌ **NEVER** revert changes in the working directory that you didn't create
+- ❌ **NEVER** use `git checkout <file>` on uncommitted changes
+- ❌ **NEVER** use `git reset --hard` or similar commands
+- ✅ **ALWAYS** ask the user before reverting any uncommitted changes
+- ✅ If you think a change is unrelated, ask the user if they want to keep it
+
+**Why this matters:**
+- The user may have intentionally made changes (like configuration files)
+- Reverting their work without permission is destructive and disrespectful
+- You cannot know the user's intent - always ask first
+
+**Example scenarios:**
+- ❌ "I see there's a config change that shouldn't be there. Let me revert that."
+- ✅ "I noticed there's a change to `.copilot_here/mounts.conf`. Should we include that in this commit, or would you like to handle it separately?"
+
 ### Issue Linking Requirement
 **IMPORTANT**: If a change request comes in without an issue link/number, ask the requester for the relevant issue first.
 - All commits going forward must reference the relevant issue (e.g. include `#123` in the commit message).
