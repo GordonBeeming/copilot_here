@@ -1,23 +1,29 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.1
+# Version: 2025.12.29.3
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
-$script:CopilotHereHome = if ($IsWindows) {
-    if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
+$script:CopilotHereHome = if ($PSVersionTable.PSVersion.Major -ge 6) {
+    # PowerShell Core 6+
+    if ($IsWindows) {
+        if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
+    } else {
+        if ($env:HOME) { $env:HOME } else { [Environment]::GetFolderPath('UserProfile') }
+    }
 } else {
-    if ($env:HOME) { $env:HOME } else { [Environment]::GetFolderPath('UserProfile') }
+    # Windows PowerShell 5.1 (always Windows)
+    if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath('UserProfile') }
 }
 
 $script:CopilotHereScriptPath = Join-Path $script:CopilotHereHome ".copilot_here.ps1"
 
 $script:DefaultCopilotHereBinDir = Join-Path (Join-Path $script:CopilotHereHome ".local") "bin"
-$script:DefaultCopilotHereBinName = if ($IsWindows) { "copilot_here.exe" } else { "copilot_here" }
+$script:DefaultCopilotHereBinName = if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) { "copilot_here" } else { "copilot_here.exe" }
 $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $script:DefaultCopilotHereBinName
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.1"
+$script:CopilotHereVersion = "2025.12.29.3"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -50,7 +56,13 @@ function Stop-CopilotContainers {
 # Helper function to download and install binary
 function Download-CopilotHereBinary {
     # Detect architecture
-    $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq "Arm64") { "arm64" } else { "x64" }
+    $arch = if ($PSVersionTable.PSVersion.Major -ge 6) {
+        # PowerShell Core 6+ has RuntimeInformation
+        if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq "Arm64") { "arm64" } else { "x64" }
+    } else {
+        # Windows PowerShell 5.1 - check environment
+        if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
+    }
     
     # Create bin directory
     $binDir = Split-Path $script:CopilotHereBin
@@ -58,8 +70,14 @@ function Download-CopilotHereBinary {
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
     
-    $os = if ($IsWindows) { "win" } elseif ($IsMacOS) { "macos" } else { "linux" }
-    $ext = if ($IsWindows) { "zip" } else { "tar.gz" }
+    $os = if ($PSVersionTable.PSVersion.Major -ge 6) {
+        # PowerShell Core 6+
+        if ($IsWindows) { "win" } elseif ($IsMacOS) { "macos" } else { "linux" }
+    } else {
+        # Windows PowerShell 5.1 (always Windows)
+        "win"
+    }
+    $ext = if ($os -eq "win") { "zip" } else { "tar.gz" }
 
     # Download latest release archive
     $downloadUrl = "$script:CopilotHereReleaseUrl/copilot_here-${os}-${arch}.${ext}"
@@ -78,9 +96,11 @@ function Download-CopilotHereBinary {
     
     # Extract binary from archive
     try {
-        if ($IsWindows) {
+        if ($PSVersionTable.PSVersion.Major -lt 6 -or $IsWindows) {
+            # Windows PowerShell 5.1 or PowerShell Core on Windows
             Expand-Archive -Path $tmpArchive -DestinationPath $binDir -Force
         } else {
+            # PowerShell Core on Linux/macOS
             & tar -xzf $tmpArchive -C $binDir copilot_here
             if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
             & chmod +x $script:CopilotHereBin 2>$null
@@ -180,8 +200,8 @@ function Test-CopilotHereUpdates {
         
         if ($script:CopilotHereVersion -ne $remoteVersion) {
             # Compare versions - convert to comparable format
-            $currentParts = $script:CopilotHereVersion -split '[.]'
-            $remoteParts = $remoteVersion -split '[.]'
+            $currentParts = $script:CopilotHereVersion.Split('.')
+            $remoteParts = $remoteVersion.Split('.')
             
             # Pad arrays to same length
             $maxLen = [Math]::Max($currentParts.Length, $remoteParts.Length)
@@ -244,8 +264,8 @@ function copilot_here {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"(.+?)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    $currentParts = $script:CopilotHereVersion -split '[.]'
-                    $fileParts = $fileVersion -split '[.]'
+                    $currentParts = $script:CopilotHereVersion.Split('.')
+                    $fileParts = $fileVersion.Split('.')
 
                     $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
                     while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
@@ -320,8 +340,8 @@ function copilot_yolo {
             if ($fileContent -match '\$script:CopilotHereVersion\s*=\s*"(.+?)"') {
                 $fileVersion = $matches[1]
                 if ($fileVersion -and $fileVersion -ne $script:CopilotHereVersion) {
-                    $currentParts = $script:CopilotHereVersion -split '[.]'
-                    $fileParts = $fileVersion -split '[.]'
+                    $currentParts = $script:CopilotHereVersion.Split('.')
+                    $fileParts = $fileVersion.Split('.')
 
                     $maxLen = [Math]::Max($currentParts.Length, $fileParts.Length)
                     while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
