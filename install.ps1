@@ -27,22 +27,35 @@ function Update-ProfileFile {
         New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
     }
     
-    # Remove any old copilot_here entries and add the new one
+    $markerStart = "# >>> copilot_here >>>"
+    $markerEnd = "# <<< copilot_here <<<"
+    
+    # Check if marker block already exists
     $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
     if ([string]::IsNullOrEmpty($profileContent)) {
         $profileContent = ""
     }
     
-    # Remove all existing copilot_here.ps1 references
+    if ($profileContent.Contains($markerStart)) {
+        Write-Host "   ✓ $ProfilePath (already installed)" -ForegroundColor Gray
+        return
+    }
+    
+    # Remove all existing copilot_here.ps1 references (old entries without markers)
     $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
     $profileContent = $profileContent.TrimEnd()
     
-    # Add the new reference
-    $newEntry = ". `"$scriptPath`""
-    if (-not $profileContent.Contains($newEntry)) {
-        $profileContent = $profileContent + "`n`n$newEntry"
-    }
+    # Add the marker block
+    $block = @"
+
+$markerStart
+if (Test-Path "$scriptPath") {
+    . "$scriptPath"
+}
+$markerEnd
+"@
     
+    $profileContent = $profileContent + $block
     Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
     Write-Host "   ✓ $ProfilePath" -ForegroundColor Gray
 }

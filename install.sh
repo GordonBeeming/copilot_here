@@ -20,17 +20,29 @@ update_profile() {
     touch "$profile_path"
   fi
   
-  # Remove any old copilot_here entries
+  local marker_start="# >>> copilot_here >>>"
+  local marker_end="# <<< copilot_here <<<"
+  
+  # Check if marker block already exists
+  if grep -qF "$marker_start" "$profile_path" 2>/dev/null; then
+    echo "   ✓ $profile_name (already installed)"
+    return
+  fi
+  
+  # Remove any old copilot_here entries (without markers)
   local temp_file
   temp_file=$(mktemp)
   grep -v "copilot_here.sh" "$profile_path" > "$temp_file" 2>/dev/null || true
   
-  # Add the new reference if not present
-  local new_entry="source \"$SCRIPT_PATH\""
-  if ! grep -qF "$new_entry" "$temp_file" 2>/dev/null; then
-    echo "" >> "$temp_file"
-    echo "$new_entry" >> "$temp_file"
-  fi
+  # Add the marker block
+  cat >> "$temp_file" << EOF
+
+$marker_start
+if [ -f "$SCRIPT_PATH" ]; then
+  source "$SCRIPT_PATH"
+fi
+$marker_end
+EOF
   
   mv "$temp_file" "$profile_path"
   echo "   ✓ $profile_name ($profile_path)"
