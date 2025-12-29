@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.12
+# Version: 2025.12.29.13
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.12"
+$script:CopilotHereVersion = "2025.12.29.13"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -162,13 +162,14 @@ function Update-CopilotHere {
         try {
             Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
             
-            # Clean up old profile entries and ensure new one is present
-            if (Test-Path $PROFILE) {
-                Write-Host "[PROFILE] Cleaning up old entries in PowerShell profile..."
-                $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
-                if ([string]::IsNullOrEmpty($profileContent)) {
-                    $profileContent = ""
-                }
+            # Function to update a profile file
+            function Update-SingleProfile {
+                param([string]$ProfilePath)
+                
+                if (-not (Test-Path $ProfilePath)) { return $false }
+                
+                $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
+                if ([string]::IsNullOrEmpty($profileContent)) { return $false }
                 
                 # Remove all existing copilot_here.ps1 references
                 $oldContent = $profileContent
@@ -177,15 +178,38 @@ function Update-CopilotHere {
                 
                 # Add the new reference if not present
                 $newEntry = ". `"$script:CopilotHereScriptPath`""
+                $changed = $false
                 if (-not $profileContent.Contains($newEntry)) {
                     $profileContent = $profileContent + "`n`n$newEntry"
-                    Set-Content -Path $PROFILE -Value $profileContent.TrimStart()
-                    Write-Host "[OK] Profile updated to use: $script:CopilotHereScriptPath"
+                    $changed = $true
                 } elseif ($oldContent -ne $profileContent) {
-                    # Content changed (old entries removed) but new entry already exists
-                    Set-Content -Path $PROFILE -Value $profileContent.TrimStart()
-                    Write-Host "[OK] Removed old profile entries"
+                    $changed = $true
                 }
+                
+                if ($changed) {
+                    Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+                }
+                
+                return $changed
+            }
+            
+            # Clean up old profile entries in both PowerShell profiles
+            Write-Host "[PROFILE] Cleaning up old entries in PowerShell profiles..."
+            $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+            $winPsProfile = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+            
+            $updated = $false
+            if (Update-SingleProfile -ProfilePath $pwshProfile) {
+                Write-Host "[OK] Updated PowerShell Core profile"
+                $updated = $true
+            }
+            if (Update-SingleProfile -ProfilePath $winPsProfile) {
+                Write-Host "[OK] Updated Windows PowerShell profile"
+                $updated = $true
+            }
+            
+            if (-not $updated) {
+                Write-Host "[OK] Profiles already up to date"
             }
             
             Write-Host "[OK] Update complete! Reloading PowerShell functions..."
