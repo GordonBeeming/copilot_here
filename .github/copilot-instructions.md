@@ -79,7 +79,7 @@ grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 - Both scripts MUST have identical version numbers at all times.
 
-**Current version**: 2025.12.19
+**Current version**: 2025.12.29.19
 
 ## Technology Stack
 

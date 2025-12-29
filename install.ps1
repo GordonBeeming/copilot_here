@@ -30,18 +30,36 @@ function Update-ProfileFile {
     $markerStart = "# >>> copilot_here >>>"
     $markerEnd = "# <<< copilot_here <<<"
     
-    # Check if marker block already exists
+    # Load profile content
     $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
     if ([string]::IsNullOrEmpty($profileContent)) {
         $profileContent = ""
     }
     
+    # Always clean up rogue copilot_here entries outside markers
     if ($profileContent.Contains($markerStart)) {
-        Write-Host "   ✓ $ProfilePath (already installed)" -ForegroundColor Gray
+        # Markers exist - extract marked block and remove rogue entries
+        $startIndex = $profileContent.IndexOf($markerStart)
+        $endIndex = $profileContent.IndexOf($markerEnd, $startIndex)
+        if ($endIndex -gt $startIndex) {
+            $endIndex += $markerEnd.Length
+            $markedBlock = $profileContent.Substring($startIndex, $endIndex - $startIndex)
+            $beforeBlock = $profileContent.Substring(0, $startIndex)
+            $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
+            
+            # Remove any rogue copilot_here entries from before/after
+            $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+            $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+            
+            # Reconstruct profile with only marked block
+            $profileContent = ($beforeBlock.TrimEnd() + "`n`n" + $markedBlock + "`n" + $afterBlock.TrimStart()).Trim()
+            Set-Content -Path $ProfilePath -Value $profileContent
+            Write-Host "   ✓ $ProfilePath (cleaned up rogue entries)" -ForegroundColor Gray
+        }
         return
     }
     
-    # Remove all existing copilot_here.ps1 references (old entries without markers)
+    # No markers - remove all copilot_here entries and add fresh block
     $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
     $profileContent = $profileContent.TrimEnd()
     

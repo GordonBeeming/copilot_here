@@ -23,15 +23,26 @@ update_profile() {
   local marker_start="# >>> copilot_here >>>"
   local marker_end="# <<< copilot_here <<<"
   
-  # Check if marker block already exists
+  # Always clean up any rogue copilot_here entries outside markers
+  local temp_file
+  temp_file=$(mktemp)
+  
+  # Check if marker block exists
   if grep -qF "$marker_start" "$profile_path" 2>/dev/null; then
-    echo "   ✓ $profile_name (already installed)"
+    # Markers exist - preserve only the marked block, remove everything else
+    awk -v start="$marker_start" -v end="$marker_end" '
+      BEGIN { in_block=0; outside="" }
+      $0 ~ start { in_block=1; block=$0"\n"; next }
+      in_block { block=block $0"\n"; if ($0 ~ end) { in_block=0 }; next }
+      !in_block && $0 !~ /copilot_here\.sh/ { outside=outside $0"\n" }
+      END { printf "%s%s", outside, block }
+    ' "$profile_path" > "$temp_file"
+    mv "$temp_file" "$profile_path"
+    echo "   ✓ $profile_name (cleaned up rogue entries)"
     return
   fi
   
-  # Remove any old copilot_here entries (without markers)
-  local temp_file
-  temp_file=$(mktemp)
+  # No markers - remove all copilot_here entries and add fresh block
   grep -v "copilot_here.sh" "$profile_path" > "$temp_file" 2>/dev/null || true
   
   # Add the marker block
