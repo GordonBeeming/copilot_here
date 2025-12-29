@@ -394,15 +394,20 @@ public sealed class RunCommand : ICommand
         Console.WriteLine($"{Emoji.Skip(supportsVariant)}  Skipping image cleanup");
       }
 
-      // Collect all mounts
+      // Collect all mounts (CLI first, then local, then global for priority)
       var allMounts = new List<MountEntry>();
-      allMounts.AddRange(ctx.MountsConfig.AllConfigMounts);
       
-      // Parse CLI mounts - handle :rw/:ro suffix
+      // Parse CLI mounts first (highest priority)
       foreach (var path in cliMountsRo)
         allMounts.Add(ParseCliMount(path, defaultReadWrite: false));
       foreach (var path in cliMountsRw)
         allMounts.Add(ParseCliMount(path, defaultReadWrite: true));
+      
+      // Add local mounts (medium priority)
+      allMounts.AddRange(ctx.MountsConfig.LocalMounts);
+      
+      // Add global mounts last (lowest priority)
+      allMounts.AddRange(ctx.MountsConfig.GlobalMounts);
 
       // Validate all mounts (check for sensitive paths, symlinks, existence)
       var validatedMounts = new List<MountEntry>();
@@ -419,6 +424,9 @@ public sealed class RunCommand : ICommand
         }
       }
       allMounts = validatedMounts;
+
+      // Remove duplicates by comparing resolved container paths
+      allMounts = RemoveDuplicateMounts(allMounts, ctx.Paths.UserHome);
 
       // Display mount info
       DisplayMounts(ctx, allMounts);
@@ -564,5 +572,45 @@ public sealed class RunCommand : ICommand
     }
 
     return new MountEntry(mountPath, isReadWrite, MountSource.CommandLine);
+  }
+
+  /// <summary>
+  /// Removes duplicate mounts by comparing normalized container paths.
+  /// Keeps the first occurrence (CLI > Local > Global priority).
+  /// Also prefers read-write over read-only when same source priority.
+  /// </summary>
+  private static List<MountEntry> RemoveDuplicateMounts(List<MountEntry> mounts, string userHome)
+  {
+    var seen = new Dictionary<string, MountEntry>(StringComparer.OrdinalIgnoreCase);
+    
+    foreach (var mount in mounts)
+    {
+      var containerPath = NormalizePath(mount.GetContainerPath(userHome));
+      
+      if (!seen.TryGetValue(containerPath, out var existing))
+      {
+        // First occurrence - add it
+        seen[containerPath] = mount;
+      }
+      else if (mount.Source == existing.Source && mount.IsReadWrite && !existing.IsReadWrite)
+      {
+        // Same source priority: prefer read-write over read-only
+        seen[containerPath] = mount;
+      }
+      // Otherwise keep the first (higher priority source)
+    }
+
+    return [.. seen.Values];
+  }
+
+  /// <summary>
+  /// Normalizes a path by removing trailing slashes and ensuring consistent format.
+  /// </summary>
+  private static string NormalizePath(string path)
+  {
+    if (string.IsNullOrEmpty(path)) return path;
+    
+    // Remove trailing slashes/backslashes
+    return path.TrimEnd('/', '\\');
   }
 }
