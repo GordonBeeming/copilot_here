@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.37
+# Version: 2025.12.29.38
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.37"
+$script:CopilotHereVersion = "2025.12.29.38"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -219,38 +219,30 @@ function Update-CopilotHere {
     Write-Host ""
     Write-Host "[INSTALL] Downloading latest PowerShell script..."
     try {
-        $scriptContent = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing).Content
-        try {
-            Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
-            
-            # Update PowerShell profiles with marker blocks
-            Write-Host ""
-            Write-Host "[PROFILE] Updating PowerShell profiles..."
-            
-            $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-            Update-ProfileWithMarkers -ProfilePath $pwshProfile
-            
-            $winPsProfile = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
-            Update-ProfileWithMarkers -ProfilePath $winPsProfile
-            
-            Write-Host "[OK] Profiles updated"
-            Write-Host "[OK] Update complete! Reloading PowerShell functions..."
-            $null = . $script:CopilotHereScriptPath
-        } catch {
-            Write-Host "[OK] Update complete! Reloading PowerShell functions..."
-            $null = Invoke-Expression $scriptContent
-            Write-Host ""
-            Write-Host "[WARNING]  Could not write updated PowerShell script to: $script:CopilotHereScriptPath" -ForegroundColor Yellow
-            Write-Host "   It may keep prompting to update until the file can be written." -ForegroundColor Yellow
-        }
+        # GitHub release assets may come back as bytes; using -OutFile prevents Set-Content writing byte values line-by-line
+        Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing -OutFile $script:CopilotHereScriptPath
+        
+        # Update PowerShell profiles with marker blocks
+        Write-Host ""
+        Write-Host "[PROFILE] Updating PowerShell profiles..."
+        
+        $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+        Update-ProfileWithMarkers -ProfilePath $pwshProfile
+        
+        $winPsProfile = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+        Update-ProfileWithMarkers -ProfilePath $winPsProfile
+        
+        Write-Host "[OK] Profiles updated"
+        Write-Host "[OK] Update complete! Reloading PowerShell functions..."
+        $null = . $script:CopilotHereScriptPath
     } catch {
         Write-Host ""
         Write-Host "[OK] Binary updated!"
         Write-Host ""
-        Write-Host "[WARNING]  Could not auto-reload PowerShell functions. Please re-import manually:" -ForegroundColor Yellow
-        Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content"
+        Write-Host "[WARNING]  Could not auto-update PowerShell script/profiles. Please re-import manually:" -ForegroundColor Yellow
+        Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "   Or restart your terminal."
+        Write-Host "   Or restart your terminal." -ForegroundColor Yellow
     }
     return $true
 }
