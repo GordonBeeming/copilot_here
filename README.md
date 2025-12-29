@@ -332,8 +332,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
 
 1. **Download the script:**
    ```powershell
-   $scriptPath = "$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1"
-   New-Item -ItemType Directory -Path (Split-Path $scriptPath) -Force | Out-Null
+   $scriptPath = "$env:USERPROFILE\.copilot_here.ps1"
    Invoke-WebRequest -Uri "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.ps1" -OutFile $scriptPath
    ```
 
@@ -342,7 +341,7 @@ If you prefer not to use the quick install method, you can manually copy the scr
    # Create profile if it doesn't exist
    if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
    # Add this line to your PowerShell profile
-   Add-Content $PROFILE "`n. `"$env:USERPROFILE\Documents\PowerShell\copilot_here.ps1`""
+   Add-Content $PROFILE "`n. `"$env:USERPROFILE\.copilot_here.ps1`""
    ```
    
    Or manually edit your profile:
