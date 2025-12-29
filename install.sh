@@ -2,15 +2,12 @@
 # Bash/Zsh Install Script for copilot_here
 # This script downloads copilot_here.sh and configures shell profiles
 
-# Note: Not using 'set -e' because this script is designed to be sourced,
-# and we don't want profile errors to exit the user's shell
-
 # Download the main script
 SCRIPT_PATH="$HOME/.copilot_here.sh"
 echo "📥 Downloading copilot_here.sh..."
 if ! curl -fsSL "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/copilot_here.sh" -o "$SCRIPT_PATH"; then
   echo "❌ Failed to download copilot_here.sh" >&2
-  return 1 2>/dev/null || exit 1
+  return 1
 fi
 echo "✅ Downloaded to: $SCRIPT_PATH"
 
@@ -27,7 +24,6 @@ update_profile() {
   local marker_start="# >>> copilot_here >>>"
   local marker_end="# <<< copilot_here <<<"
   
-  # Always clean up any rogue copilot_here entries outside markers
   local temp_file
   temp_file=$(mktemp)
   
@@ -60,48 +56,49 @@ $marker_end
 EOF
   
   mv "$temp_file" "$profile_path"
-  echo "   ✓ $profile_name ($profile_path)"
+  echo "   ✓ $profile_name"
 }
 
-# Update all relevant shell profiles
+# Update shell profiles
 echo "🔧 Updating shell profiles..."
 
-# Bash profiles
+# Bash
 if [ -f "$HOME/.bashrc" ] || command -v bash >/dev/null 2>&1; then
   if [ -f "$HOME/.bashrc" ]; then
     update_profile "$HOME/.bashrc" "bash (.bashrc)"
-  elif [ -f "$HOME/.bash_profile" ]; then
-    update_profile "$HOME/.bash_profile" "bash (.bash_profile)"
-  elif [ -f "$HOME/.profile" ]; then
-    update_profile "$HOME/.profile" "bash (.profile)"
   else
-    # Create .bashrc if bash exists but no profile found
     update_profile "$HOME/.bashrc" "bash (.bashrc)"
   fi
 fi
 
-# Zsh profiles
+# Zsh
 if [ -f "$HOME/.zshrc" ] || command -v zsh >/dev/null 2>&1; then
   if [ -f "$HOME/.zshrc" ]; then
     update_profile "$HOME/.zshrc" "zsh (.zshrc)"
-  elif [ -f "$HOME/.zprofile" ]; then
-    update_profile "$HOME/.zprofile" "zsh (.zprofile)"
   else
-    # Create .zshrc if zsh exists but no profile found
     update_profile "$HOME/.zshrc" "zsh (.zshrc)"
   fi
 fi
 
 echo "✅ Profile(s) updated"
 
-# Don't reload profile files - they may have errors or complex logic
-# Just source the copilot_here script directly for immediate availability
+# Source the script to load functions
 echo "🔄 Loading copilot_here functions..."
 # shellcheck disable=SC1090
 if ! source "$SCRIPT_PATH"; then
   echo "❌ Failed to load copilot_here functions" >&2
-  return 1 2>/dev/null || exit 1
+  return 1
 fi
+
+# Run update to download binary and latest script
+echo ""
+echo "📦 Downloading binary and updating..."
+copilot_here --update
+
+# Run install-shells to set up shell integration
+echo ""
+echo "🔧 Setting up shell integration..."
+copilot_here --install-shells
 
 echo ""
 echo "✅ Installation complete!"

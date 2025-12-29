@@ -91,10 +91,10 @@ Update-ProfileFile -ProfilePath $winPsProfile
 
 Write-Host "✅ Profile(s) updated" -ForegroundColor Green
 
-# Reload the new script directly
-Write-Host "🔄 Reloading copilot_here functions..." -ForegroundColor Cyan
+# Source the script to load functions
+Write-Host "🔄 Loading copilot_here functions..." -ForegroundColor Cyan
 
-# Remove existing functions if they exist to ensure clean reload
+# Remove existing functions to ensure clean reload
 $functionsToRemove = @(
     'Write-CopilotDebug',
     'Stop-CopilotContainers',
@@ -112,15 +112,20 @@ foreach ($func in $functionsToRemove) {
     Remove-Item "Function:\$func" -ErrorAction SilentlyContinue
 }
 
-# Load script content and execute it directly in current scope
-# This will define functions in the scope where this installer script runs
-# Since installer is invoked with iex, that's the interactive session
+# Source the script
 Invoke-Expression (Get-Content $scriptPath -Raw)
+
+# Run update to download binary and latest script
+Write-Host ""
+Write-Host "📦 Downloading binary and updating..." -ForegroundColor Cyan
+Update-CopilotHere
+
+# Run install-shells to set up shell integration
+Write-Host ""
+Write-Host "🔧 Setting up shell integration..." -ForegroundColor Cyan
+& (Get-Command copilot_here).ScriptBlock --install-shells
 
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
-if (Get-Variable -Name CopilotHereVersion -Scope Script -ErrorAction SilentlyContinue) {
-    Write-Host "   Loaded version: $script:CopilotHereVersion" -ForegroundColor Cyan
-}
 Write-Host ""
 Write-Host "Try running: copilot_here --help" -ForegroundColor Yellow
