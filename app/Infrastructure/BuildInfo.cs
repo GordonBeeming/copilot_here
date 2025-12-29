@@ -10,5 +10,5 @@ public static class BuildInfo
   /// The build date in yyyy.MM.dd or yyyy.MM.dd.N format.
   /// This is replaced during build via MSBuild property.
   /// </summary>
-  public const string BuildDate = "2025.12.29.35";
+  public const string BuildDate = "2025.12.29.36";
 }

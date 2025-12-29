@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.35
+# Version: 2025.12.29.36
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.35"
+$script:CopilotHereVersion = "2025.12.29.36"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -165,18 +165,18 @@ function Update-ProfileWithMarkers {
             $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
             
             # Remove rogue entries
-            $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
-            $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+            $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
+            $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
             
             $profileContent = $beforeBlock.TrimEnd()
         } else {
             # Malformed markers
-            $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$\r?\n?', ''
+            $profileContent = $profileContent -replace '(?m)^.*copilot_here.*$[\r\n]*', ''
             $profileContent = $profileContent.TrimEnd()
         }
     } else {
         # No markers - remove rogue entries
-        $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$\r?\n?', ''
+        $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
         $profileContent = $profileContent.TrimEnd()
     }
     
