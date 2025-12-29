@@ -91,12 +91,17 @@ Update-ProfileFile -ProfilePath $winPsProfile
 
 Write-Host "✅ Profile(s) updated" -ForegroundColor Green
 
-# Reload the new script directly (not just the profile)
+# Reload the new script directly into global scope
 Write-Host "🔄 Reloading copilot_here functions..." -ForegroundColor Cyan
-. $scriptPath
+
+# Execute in global scope using Invoke-Expression with explicit global prefix
+$scriptContent = Get-Content $scriptPath -Raw
+# Replace script: scope with global: scope in variable declarations
+$scriptContent = $scriptContent -replace '\$script:', '$global:'
+Invoke-Expression $scriptContent
 
 Write-Host ""
 Write-Host "✅ Installation complete!" -ForegroundColor Green
-Write-Host "   Loaded version: $script:CopilotHereVersion" -ForegroundColor Cyan
+Write-Host "   Loaded version: $global:CopilotHereVersion" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Try running: copilot_here --help" -ForegroundColor Yellow
