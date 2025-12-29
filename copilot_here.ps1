@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2025.12.29.7
+# Version: 2025.12.29.9
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
@@ -20,7 +20,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2025.12.29.7"
+$script:CopilotHereVersion = "2025.12.29.9"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -35,15 +35,15 @@ function Stop-CopilotContainers {
     $runningContainers = docker ps --filter "name=copilot_here-" -q 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { docker ps --filter "name=copilot_here-" -q }
     
     if ($runningContainers) {
-        Write-Host "⚠️  copilot_here is currently running in Docker" -ForegroundColor Yellow
+        Write-Host "[WARNING]  copilot_here is currently running in Docker" -ForegroundColor Yellow
         $response = Read-Host "   Stop running containers to continue? [y/N]"
         if ($response -match '^[yY]') {
-            Write-Host "🛑 Stopping copilot_here containers..."
+            Write-Host "[STOP] Stopping copilot_here containers..."
             docker stop $runningContainers 2>&1 | Out-Null
             Write-Host "   ✓ Stopped"
             return $true
         } else {
-            Write-Host "❌ Cannot update while containers are running (binary is in use)" -ForegroundColor Red
+            Write-Host "[ERROR] Cannot update while containers are running (binary is in use)" -ForegroundColor Red
             return $false
         }
     }
@@ -74,8 +74,8 @@ function Download-CopilotHereBinary {
     } else {
         # Try to detect macOS with uname command
         try {
-            $unameOutput = & uname -ErrorAction Stop
-            if ($unameOutput -eq "Darwin") { "macos" } else { "linux" }
+            $unameOutput = & uname 2>&1
+            if ($LASTEXITCODE -eq 0 -and $unameOutput -eq "Darwin") { "macos" } else { "linux" }
         } catch {
             "linux"
         }
@@ -88,12 +88,12 @@ function Download-CopilotHereBinary {
     Remove-Item -Path $tmpBase -ErrorAction SilentlyContinue
     $tmpArchive = $tmpBase + ".${ext}"
     
-    Write-Host "📦 Downloading binary from: $downloadUrl"
+    Write-Host "[DOWNLOAD] Downloading binary from: $downloadUrl"
     try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpArchive -UseBasicParsing
     } catch {
         Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
-        Write-Host "❌ Failed to download binary: $_" -ForegroundColor Red
+        Write-Host "[ERROR] Failed to download binary: $_" -ForegroundColor Red
         return $false
     }
     
@@ -110,19 +110,19 @@ function Download-CopilotHereBinary {
         }
     } catch {
         Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
-        Write-Host "❌ Failed to extract binary: $_" -ForegroundColor Red
+        Write-Host "[ERROR] Failed to extract binary: $_" -ForegroundColor Red
         return $false
     }
 
     Remove-Item -Path $tmpArchive -ErrorAction SilentlyContinue
-    Write-Host "✅ Binary installed to: $script:CopilotHereBin"
+    Write-Host "[OK] Binary installed to: $script:CopilotHereBin"
     return $true
 }
 
 # Helper function to ensure binary is installed
 function Ensure-CopilotHereBinary {
     if (-not (Test-Path $script:CopilotHereBin)) {
-        Write-Host "📥 copilot_here binary not found. Installing..."
+        Write-Host "[INSTALL] copilot_here binary not found. Installing..."
         return Download-CopilotHereBinary
     }
     
@@ -131,7 +131,7 @@ function Ensure-CopilotHereBinary {
 
 # Update function - downloads fresh binary and script
 function Update-CopilotHere {
-    Write-Host "🔄 Updating copilot_here..."
+    Write-Host "[RELOAD] Updating copilot_here..."
     
     # Check and stop running containers
     if (-not (Stop-CopilotContainers)) {
@@ -145,33 +145,33 @@ function Update-CopilotHere {
     
     # Download fresh binary
     Write-Host ""
-    Write-Host "📥 Downloading latest binary..."
+    Write-Host "[INSTALL] Downloading latest binary..."
     if (-not (Download-CopilotHereBinary)) {
-        Write-Host "❌ Failed to download binary" -ForegroundColor Red
+        Write-Host "[ERROR] Failed to download binary" -ForegroundColor Red
         return $false
     }
     
     # Download and persist fresh PowerShell script
     Write-Host ""
-    Write-Host "📥 Downloading latest PowerShell script..."
+    Write-Host "[INSTALL] Downloading latest PowerShell script..."
     try {
         $scriptContent = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing).Content
         try {
             Set-Content -Path $script:CopilotHereScriptPath -Value $scriptContent -Encoding UTF8 -Force
-            Write-Host "✅ Update complete! Reloading PowerShell functions..."
+            Write-Host "[OK] Update complete! Reloading PowerShell functions..."
             . $script:CopilotHereScriptPath
         } catch {
-            Write-Host "✅ Update complete! Reloading PowerShell functions..."
+            Write-Host "[OK] Update complete! Reloading PowerShell functions..."
             Invoke-Expression $scriptContent
             Write-Host ""
-            Write-Host "⚠️  Could not write updated PowerShell script to: $script:CopilotHereScriptPath" -ForegroundColor Yellow
+            Write-Host "[WARNING]  Could not write updated PowerShell script to: $script:CopilotHereScriptPath" -ForegroundColor Yellow
             Write-Host "   It may keep prompting to update until the file can be written." -ForegroundColor Yellow
         }
     } catch {
         Write-Host ""
-        Write-Host "✅ Binary updated!"
+        Write-Host "[OK] Binary updated!"
         Write-Host ""
-        Write-Host "⚠️  Could not auto-reload PowerShell functions. Please re-import manually:" -ForegroundColor Yellow
+        Write-Host "[WARNING]  Could not auto-reload PowerShell functions. Please re-import manually:" -ForegroundColor Yellow
         Write-Host "   iex (iwr -UseBasicParsing $script:CopilotHereReleaseUrl/copilot_here.ps1).Content"
         Write-Host ""
         Write-Host "   Or restart your terminal."
@@ -225,7 +225,7 @@ function Test-CopilotHereUpdates {
             }
             
             if ($isNewer) {
-                Write-Host "📢 Update available: $script:CopilotHereVersion → $remoteVersion"
+                Write-Host "[UPDATE] Update available: $script:CopilotHereVersion → $remoteVersion"
                 $confirmation = Read-Host "Would you like to update now? [y/N]"
                 if ($confirmation -match '^[yY]') {
                     Update-CopilotHere
@@ -288,7 +288,7 @@ function copilot_here {
 
                     if ($isNewer) {
                         Write-CopilotDebug "Newer on-disk script detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
-                        Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                        Write-Host "[RELOAD] Detected updated shell script (v$fileVersion), reloading..."
                         . $scriptPath
                         copilot_here @Arguments
                         return
@@ -364,7 +364,7 @@ function copilot_yolo {
 
                     if ($isNewer) {
                         Write-CopilotDebug "Newer on-disk script detected: in-memory=$script:CopilotHereVersion, file=$fileVersion"
-                        Write-Host "🔄 Detected updated shell script (v$fileVersion), reloading..."
+                        Write-Host "[RELOAD] Detected updated shell script (v$fileVersion), reloading..."
                         . $scriptPath
                         copilot_yolo @Arguments
                         return
