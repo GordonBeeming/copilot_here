@@ -180,11 +180,10 @@ public class MountEntryTests
     // Act
     var dockerVolume = mount.ToDockerVolume(userHome);
 
-    // Assert - should convert C:\Users\test\project to /c/Users/test/project
-    await Assert.That(dockerVolume).Contains("/c/Users/test/project");
-    await Assert.That(dockerVolume).DoesNotContain(@"C:");
-    await Assert.That(dockerVolume).DoesNotContain(@"\");
-    await Assert.That(dockerVolume).Contains(":ro");
+    // Assert - host path should be /c/Users/test/project, container path /home/appuser/project
+    await Assert.That(dockerVolume).StartsWith("/c/Users/test/project:");
+    await Assert.That(dockerVolume).Contains(":/home/appuser/project:");
+    await Assert.That(dockerVolume).EndsWith(":ro");
   }
 
   [Test]
@@ -197,16 +196,17 @@ public class MountEntryTests
       return;
     }
 
-    // Arrange
+    // Arrange - path outside user home
     var mount = new MountEntry(@"C:\Data\project", true, MountSource.CommandLine);
     var userHome = @"C:\Users\test";
 
     // Act
     var dockerVolume = mount.ToDockerVolume(userHome);
 
-    // Assert
-    await Assert.That(dockerVolume).Contains("/c/Data/project");
-    await Assert.That(dockerVolume).Contains(":rw");
+    // Assert - host: /c/Data/project, container: /work/c/Data/project
+    await Assert.That(dockerVolume).StartsWith("/c/Data/project:");
+    await Assert.That(dockerVolume).Contains(":/work/c/Data/project:");
+    await Assert.That(dockerVolume).EndsWith(":rw");
   }
 
   [Test]
@@ -241,15 +241,16 @@ public class MountEntryTests
       return;
     }
 
-    // Arrange - D: drive
+    // Arrange - D: drive (outside user home)
     var mount = new MountEntry(@"D:\Projects\myapp", false, MountSource.Global);
     var userHome = @"C:\Users\test";
 
     // Act
     var dockerVolume = mount.ToDockerVolume(userHome);
 
-    // Assert
-    await Assert.That(dockerVolume).Contains("/d/Projects/myapp");
-    await Assert.That(dockerVolume).DoesNotContain(@"D:");
+    // Assert - host: /d/Projects/myapp, container: /work/d/Projects/myapp
+    await Assert.That(dockerVolume).StartsWith("/d/Projects/myapp:");
+    await Assert.That(dockerVolume).Contains(":/work/d/Projects/myapp:");
+    await Assert.That(dockerVolume).EndsWith(":ro");
   }
 }

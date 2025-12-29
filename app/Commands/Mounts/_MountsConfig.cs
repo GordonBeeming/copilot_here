@@ -172,8 +172,17 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
       return $"/home/appuser/{System.IO.Path.GetRelativePath(userHome, hostPath).Replace("\\", "/")}";
     }
     
-    // For paths outside user home, convert to Docker format
-    return ConvertToDockerPath(hostPath);
+    // For paths outside user home, use /work prefix
+    if (OperatingSystem.IsWindows() && hostPath.Length >= 2 && hostPath[1] == ':')
+    {
+      // Windows path outside home (e.g., C:\Data\...) - convert to /work/c/Data/...
+      var driveLetter = char.ToLowerInvariant(hostPath[0]);
+      var pathWithoutDrive = hostPath.Substring(2).Replace("\\", "/");
+      return $"/work/{driveLetter}{pathWithoutDrive}";
+    }
+    
+    // Unix path outside home - use /work prefix
+    return $"/work{hostPath}";
   }
 
   /// <summary>Gets the Docker volume mount string.</summary>
