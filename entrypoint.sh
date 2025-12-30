@@ -42,11 +42,15 @@ mkdir -p /home/appuser/.dotnet
 mkdir -p /home/appuser/.nuget
 mkdir -p /home/appuser/.local
 mkdir -p /home/appuser/.cache
+mkdir -p /home/appuser/.config
+mkdir -p /home/appuser/.npm
 chown -R $USER_ID:$GROUP_ID /home/appuser/.copilot
 chown -R $USER_ID:$GROUP_ID /home/appuser/.dotnet
 chown -R $USER_ID:$GROUP_ID /home/appuser/.nuget
 chown -R $USER_ID:$GROUP_ID /home/appuser/.local
 chown -R $USER_ID:$GROUP_ID /home/appuser/.cache
+chown -R $USER_ID:$GROUP_ID /home/appuser/.config
+chown -R $USER_ID:$GROUP_ID /home/appuser/.npm
 
 # Switch to the new user and execute the command passed to the script.
 exec gosu appuser "$@"
