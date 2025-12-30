@@ -479,7 +479,7 @@ This project provides multiple Docker image variants for different development s
 |-----------------|-------|-----------|--------|
 | **macOS** | Zsh | ✅ | ✅ |
 | **macOS** | Bash | ✅ | ✅ |
-| **Linux** | Bash | ✅ | |
+| **Linux** | Bash | ✅ | ✅ |
 | **Linux** | Zsh | ✅ | |
 | **Windows 10/11** | PowerShell 5.1 | ✅ | ✅ |
 | **Windows 10/11** | PowerShell 7+ | ✅ | ✅ |
