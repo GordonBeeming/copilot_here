@@ -261,8 +261,11 @@ public static class ShellIntegration
   {
     var block = $"{ShMarkerStart}\n" +
                 "# Ensure user bin directory is on PATH\n" +
-                "if [ -d \"$HOME/.local/bin\" ] && [[ \":$PATH:\" != *\":$HOME/.local/bin:\"* ]]; then\n" +
-                "  export PATH=\"$HOME/.local/bin:$PATH\"\n" +
+                "if [ -d \"$HOME/.local/bin\" ]; then\n" +
+                "  case \":$PATH:\" in\n" +
+                "    *\":$HOME/.local/bin:\"*) ;;\n" +
+                "    *) export PATH=\"$HOME/.local/bin:$PATH\" ;;\n" +
+                "  esac\n" +
                 "fi\n" +
                 $"if [ -f \"$HOME/.copilot_here.sh\" ]; then\n" +
                 $"  source \"$HOME/.copilot_here.sh\"\n" +

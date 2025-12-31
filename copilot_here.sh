@@ -1,11 +1,19 @@
 # copilot_here shell functions
-# Version: 2025.12.30.2
+# Version: 2025.12.31
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2025.12.30.2"
+COPILOT_HERE_VERSION="2025.12.31"
+
+# Ensure user bin directory is on PATH (required for the native binary + shell integration checks)
+if [ -d "$HOME/.local/bin" ]; then
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
+fi
 
 # Debug logging function
 __copilot_debug() {
@@ -227,6 +235,13 @@ __copilot_update_profile() {
   cat >> "$temp_file" << EOF
 
 $marker_start
+# Ensure user bin directory is on PATH
+if [ -d "$HOME/.local/bin" ]; then
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
+fi
 if [ -f "$script_path" ]; then
   source "$script_path"
 fi
