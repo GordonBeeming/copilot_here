@@ -37,13 +37,13 @@ RUN npm install -g playwright@${PLAYWRIGHT_VERSION}
 # Set NODE_PATH so Node.js can find globally installed packages
 ENV NODE_PATH=/usr/local/lib/node_modules
 
-# Install Chromium browser in a system-wide location accessible to all users
+# Install all browsers (Chromium, Firefox, WebKit) in a system-wide location
 # This avoids UID mismatch issues when container runs with different user IDs
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx playwright install chromium --with-deps
+RUN npx playwright install --with-deps
 
-# Make playwright browsers directory world-readable so any UID can access them
-RUN chmod -R 755 /ms-playwright
+# Make playwright browsers directory world-writable so any UID can access/update them
+RUN chmod -R 777 /ms-playwright
 
 # The entrypoint and CMD remain the same as the base image
 # They are inherited automatically
