@@ -2,6 +2,7 @@ using System.CommandLine;
 using CopilotHere.Commands;
 using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Images;
+using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Commands.Run;
 using CopilotHere.Infrastructure;
@@ -56,6 +57,12 @@ class Program
     { "-SetImageGlobal", "--set-image-global" },
     { "-ClearImage", "--clear-image" },
     { "-ClearImageGlobal", "--clear-image-global" },
+    { "-ListModels", "--list-models" },
+    { "-ShowModel", "--show-model" },
+    { "-SetModel", "--set-model" },
+    { "-SetModelGlobal", "--set-model-global" },
+    { "-ClearModel", "--clear-model" },
+    { "-ClearModelGlobal", "--clear-model-global" },
     { "-EnableAirlock", "--enable-airlock" },
     { "-EnableGlobalAirlock", "--enable-global-airlock" },
     { "-DisableAirlock", "--disable-airlock" },
@@ -118,6 +125,7 @@ class Program
       new RunCommand(isYolo),  // Main run command (default) - includes update option
       new MountCommands(),     // Mount management
       new ImageCommands(),     // Image management
+      new ModelCommands(),     // Model management
       new AirlockCommands(),   // Airlock proxy
     ];
 

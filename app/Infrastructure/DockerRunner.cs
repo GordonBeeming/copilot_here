@@ -258,4 +258,35 @@ public static class DockerRunner
     }
     return false;
   }
+
+  /// <summary>
+  /// Runs a Docker command and captures stdout/stderr output.
+  /// Returns (exitCode, stdout, stderr).
+  /// </summary>
+  public static (int exitCode, string stdout, string stderr) RunAndCapture(IEnumerable<string> args)
+  {
+    var startInfo = new ProcessStartInfo
+    {
+      FileName = "docker",
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+      CreateNoWindow = true
+    };
+
+    foreach (var arg in args)
+      startInfo.ArgumentList.Add(arg);
+
+    using var process = Process.Start(startInfo);
+    if (process is null)
+    {
+      return (1, "", "Failed to start Docker");
+    }
+
+    var stdout = process.StandardOutput.ReadToEnd();
+    var stderr = process.StandardError.ReadToEnd();
+    process.WaitForExit();
+
+    return (process.ExitCode, stdout, stderr);
+  }
 }

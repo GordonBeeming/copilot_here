@@ -105,6 +105,47 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 - Global: `~/.config/copilot_here/image.conf`
 - Local: `.copilot_here/image.conf`
 
+### Model Management
+
+You can configure the default AI model to use so you don't have to pass `--model` every time.
+
+**Management Commands:**
+- `--list-models` - List available AI models (queries Copilot CLI error message)
+- `--show-model` - Show current default model configuration
+- `--set-model <model-id>` - Set default model in local config
+- `--set-model-global <model-id>` - Set default model in global config
+- `--clear-model` - Clear default model from local config
+- `--clear-model-global` - Clear default model from global config
+
+**Special value:** Use `default` as the model ID to explicitly use Copilot CLI's default model. This is useful for overriding a global setting at the local level.
+
+**Note:** The `--list-models` command uses a workaround by triggering an invalid model error, which causes the Copilot CLI to list valid models. This is a temporary approach until a proper API is available.
+
+**Configuration Files:**
+- Global: `~/.config/copilot_here/model.conf`
+- Local: `.copilot_here/model.conf`
+
+**Configuration Priority:**
+1. CLI argument (`--model <model-id>`)
+2. Local config (`.copilot_here/model.conf`)
+3. Global config (`~/.config/copilot_here/model.conf`)
+4. Default (GitHub Copilot CLI default)
+
+**Example Usage:**
+```bash
+# Set model for current project
+copilot_here --set-model gpt-5
+
+# Set model globally for all projects
+copilot_here --set-model-global claude-sonnet-4.5
+
+# Override saved model for one session
+copilot_here --model gpt-5-mini
+
+# View current configuration
+copilot_here --show-model
+```
+
 ### Custom Docker Flags (SANDBOX_FLAGS)
 
 Pass additional Docker flags using the `SANDBOX_FLAGS` environment variable (compatible with Gemini CLI):

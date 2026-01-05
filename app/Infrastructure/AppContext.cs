@@ -1,5 +1,6 @@
 using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Images;
+using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
 
 namespace CopilotHere.Infrastructure;
@@ -19,6 +20,9 @@ public sealed record AppContext
   /// <summary>Image configuration (loaded from config files).</summary>
   public required ImageConfig ImageConfig { get; init; }
 
+  /// <summary>Model configuration (loaded from config files).</summary>
+  public required ModelConfig ModelConfig { get; init; }
+
   /// <summary>Mounts configuration (loaded from config files).</summary>
   public required MountsConfig MountsConfig { get; init; }
 
@@ -36,6 +40,7 @@ public sealed record AppContext
       Paths = paths,
       Environment = environment,
       ImageConfig = ImageConfig.Load(paths),
+      ModelConfig = ModelConfig.Load(paths),
       MountsConfig = MountsConfig.Load(paths),
       AirlockConfig = AirlockConfig.Load(paths)
     };

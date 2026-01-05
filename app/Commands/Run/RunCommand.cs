@@ -1,6 +1,7 @@
 using System.CommandLine;
 using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Images;
+using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Infrastructure;
 
@@ -278,6 +279,13 @@ public sealed class RunCommand : ICommand
         copilotArgs.Add("--allow-all-paths");
       }
 
+      // Determine model (CLI overrides config)
+      var effectiveModel = model ?? ctx.ModelConfig.Model;
+      if (!string.IsNullOrEmpty(effectiveModel))
+      {
+        DebugLogger.Log($"Using model: {effectiveModel} (source: {(model != null ? "CLI" : ctx.ModelConfig.Source.ToString())})");
+      }
+
       // Handle --help2 (native copilot help)
       if (help2)
       {
@@ -291,10 +299,10 @@ public sealed class RunCommand : ICommand
           copilotArgs.Add("--prompt");
           copilotArgs.Add(prompt);
         }
-        if (!string.IsNullOrEmpty(model))
+        if (!string.IsNullOrEmpty(effectiveModel))
         {
           copilotArgs.Add("--model");
-          copilotArgs.Add(model);
+          copilotArgs.Add(effectiveModel);
         }
         if (continueSession)
         {
@@ -365,6 +373,21 @@ public sealed class RunCommand : ICommand
 
       var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
       Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
+      
+      // Show model - always display even if using default
+      if (!string.IsNullOrEmpty(effectiveModel))
+      {
+        var modelSourceIcon = model != null 
+          ? Emoji.Tool(supportsVariant) // CLI flag
+          : ctx.ModelConfig.Source == ModelConfigSource.Local 
+            ? Emoji.Local(supportsVariant) // Local config
+            : Emoji.Global(supportsVariant); // Global config
+        Console.WriteLine($"{Emoji.Robot(supportsVariant)} Using model: {effectiveModel} {modelSourceIcon}");
+      }
+      else
+      {
+        Console.WriteLine($"{Emoji.Robot(supportsVariant)} Using model: default");
+      }
 
       // Pull image unless skipped
       if (!noPull)

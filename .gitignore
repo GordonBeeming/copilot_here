@@ -12,6 +12,7 @@ obj/
 # --- IDE & Editor Settings ---
 .vs/
 .vscode/
+.idea/
 *.user
 *.suo
 *.diff

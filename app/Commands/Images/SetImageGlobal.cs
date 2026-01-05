@@ -17,7 +17,7 @@ public sealed partial class ImageCommands
       var tag = parseResult.GetValue(tagArg)!;
       var paths = AppPaths.Resolve();
       ImageConfig.SaveGlobal(paths, tag);
-      Console.WriteLine($"✅ Set global default image: {tag}");
+      Console.WriteLine($"✅ Set global image: {tag}");
       return 0;
     });
     return command;

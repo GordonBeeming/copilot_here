@@ -17,7 +17,7 @@ public sealed partial class ImageCommands
       var tag = parseResult.GetValue(tagArg)!;
       var paths = AppPaths.Resolve();
       ImageConfig.SaveLocal(paths, tag);
-      Console.WriteLine($"✅ Set local default image: {tag}");
+      Console.WriteLine($"✅ Set local image: {tag}");
       return 0;
     });
     return command;
