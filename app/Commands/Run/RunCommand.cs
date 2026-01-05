@@ -365,7 +365,12 @@ public sealed class RunCommand : ICommand
         copilotArgs.AddRange(passthroughArgs);
 
         // If no args (interactive mode), add --banner
-        if (copilotArgs.Count == 1 || (copilotArgs.Count <= 3 && _isYolo))
+        // Check count excluding model args since model doesn't mean non-interactive
+        var argsWithoutModel = copilotArgs.Count;
+        if (!string.IsNullOrEmpty(effectiveModel))
+          argsWithoutModel -= 2; // Subtract --model and its value
+        
+        if (argsWithoutModel == 1 || (argsWithoutModel <= 3 && _isYolo))
         {
           copilotArgs.Add("--banner");
         }
