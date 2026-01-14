@@ -38,6 +38,26 @@ Extends the base image with:
 Extends the base image with:
 - .NET 10 SDK
 
+## Rust Image: `rust`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:rust`
+
+Extends the base image with:
+- Rust toolchain (stable)
+- Cargo package manager
+- Build tools
+
+**Use Case:** Rust development and projects
+
+## Golang Image: `golang`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:golang`
+
+Extends the base image with:
+- Go toolchain (latest stable)
+- Go workspace configured
+- Build tools
+
+**Use Case:** Go development and projects
+
 ## Playwright Image: `dotnet-playwright`
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright`
 
@@ -48,6 +68,16 @@ Extends the **Full .NET Image** with:
 
 **Use Case:** Web testing, browser automation, checking published web content
 
+## .NET + Rust Image: `dotnet-rust`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-rust`
+
+Extends the **Full .NET Image** with:
+- Rust toolchain (stable)
+- Cargo package manager
+- Build tools for both .NET and Rust
+
+**Use Case:** Projects combining .NET and Rust code
+
 ## Build Dependency Chain
 
 ```mermaid
@@ -56,7 +86,10 @@ graph TD
     Base --> Dotnet8[.NET 8 Image]
     Base --> Dotnet9[.NET 9 Image]
     Base --> Dotnet10[.NET 10 Image]
+    Base --> Rust[Rust Image]
+    Base --> Golang[Golang Image]
     Dotnet --> Playwright[Playwright Image]
+    Dotnet --> DotnetRust[.NET + Rust Image]
 ```
 
 ## Version Tags
@@ -67,7 +100,10 @@ Each image variant is also tagged with the commit SHA for reproducibility:
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-8-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-9-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-10-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:rust-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:golang-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:dotnet-rust-sha-<commit>`
 
 ## Image Management
 

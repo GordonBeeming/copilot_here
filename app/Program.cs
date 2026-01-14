@@ -25,6 +25,7 @@ class Program
     { "-pw", "--playwright" },
     { "-rs", "--rust" },
     { "-dr", "--dotnet-rust" },
+    { "-go", "--golang" },
 
     // PowerShell-style aliases (hidden from help, for backwards compatibility)
     { "-Dotnet", "--dotnet" },
@@ -35,6 +36,7 @@ class Program
     { "-DotnetPlaywright", "--dotnet-playwright" },
     { "-Rust", "--rust" },
     { "-DotnetRust", "--dotnet-rust" },
+    { "-Golang", "--golang" },
     { "-Mount", "--mount" },
     { "-MountRW", "--mount-rw" },
     { "-NoCleanup", "--no-cleanup" },

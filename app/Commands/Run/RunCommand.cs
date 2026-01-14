@@ -24,6 +24,7 @@ public sealed class RunCommand : ICommand
   private readonly Option<bool> _dotnetPlaywrightOption;
   private readonly Option<bool> _rustOption;
   private readonly Option<bool> _dotnetRustOption;
+  private readonly Option<bool> _golangOption;
 
   // === MOUNT OPTIONS ===
   private readonly Option<string[]> _mountOption;
@@ -91,6 +92,8 @@ public sealed class RunCommand : ICommand
 
     _dotnetRustOption = new Option<bool>("--dotnet-rust") { Description = "[-dr] Use .NET + Rust image variant" };
 
+    _golangOption = new Option<bool>("--golang") { Description = "[-go] Use Golang image variant" };
+
     _mountOption = new Option<string[]>("--mount") { Description = "Mount additional directory (read-only)" };
 
     _mountRwOption = new Option<string[]>("--mount-rw") { Description = "Mount additional directory (read-write)" };
@@ -147,6 +150,7 @@ public sealed class RunCommand : ICommand
     root.Add(_dotnetPlaywrightOption);
     root.Add(_rustOption);
     root.Add(_dotnetRustOption);
+    root.Add(_golangOption);
     root.Add(_mountOption);
     root.Add(_mountRwOption);
     root.Add(_noCleanupOption);
@@ -185,6 +189,7 @@ public sealed class RunCommand : ICommand
       var dotnetPlaywright = parseResult.GetValue(_dotnetPlaywrightOption);
       var rust = parseResult.GetValue(_rustOption);
       var dotnetRust = parseResult.GetValue(_dotnetRustOption);
+      var golang = parseResult.GetValue(_golangOption);
       var cliMountsRo = parseResult.GetValue(_mountOption) ?? [];
       var cliMountsRw = parseResult.GetValue(_mountRwOption) ?? [];
       var noCleanup = parseResult.GetValue(_noCleanupOption);
@@ -264,6 +269,7 @@ public sealed class RunCommand : ICommand
       else if (dotnetPlaywright) imageTag = "dotnet-playwright";
       else if (rust) imageTag = "rust";
       else if (dotnetRust) imageTag = "dotnet-rust";
+      else if (golang) imageTag = "golang";
 
       var imageName = DockerRunner.GetImageName(imageTag);
       DebugLogger.Log($"Selected image: {imageName}");
