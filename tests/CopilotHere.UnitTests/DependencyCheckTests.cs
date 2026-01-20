@@ -1,4 +1,5 @@
 using CopilotHere.Infrastructure;
+using CopilotHere.Tools;
 
 namespace CopilotHere.UnitTests;
 
@@ -7,8 +8,11 @@ public class DependencyCheckTests
   [Test]
   public async Task CheckAll_ReturnsResults()
   {
+    // Arrange
+    var tool = new GitHubCopilotTool();
+
     // Act
-    var results = DependencyCheck.CheckAll();
+    var results = DependencyCheck.CheckAll(tool);
 
     // Assert
     await Assert.That(results).IsNotEmpty();
@@ -18,8 +22,11 @@ public class DependencyCheckTests
   [Test]
   public async Task CheckAll_IncludesGitHubCli()
   {
+    // Arrange
+    var tool = new GitHubCopilotTool();
+
     // Act
-    var results = DependencyCheck.CheckAll();
+    var results = DependencyCheck.CheckAll(tool);
 
     // Assert
     var ghResult = results.FirstOrDefault(r => r.Name.Contains("GitHub CLI"));
@@ -29,8 +36,11 @@ public class DependencyCheckTests
   [Test]
   public async Task CheckAll_IncludesDocker()
   {
+    // Arrange
+    var tool = new GitHubCopilotTool();
+
     // Act
-    var results = DependencyCheck.CheckAll();
+    var results = DependencyCheck.CheckAll(tool);
 
     // Assert
     var dockerResult = results.FirstOrDefault(r => r.Name == "Docker");
@@ -40,8 +50,11 @@ public class DependencyCheckTests
   [Test]
   public async Task CheckAll_IncludesDockerDaemon()
   {
+    // Arrange
+    var tool = new GitHubCopilotTool();
+
     // Act
-    var results = DependencyCheck.CheckAll();
+    var results = DependencyCheck.CheckAll(tool);
 
     // Assert
     var daemonResult = results.FirstOrDefault(r => r.Name == "Docker Daemon");

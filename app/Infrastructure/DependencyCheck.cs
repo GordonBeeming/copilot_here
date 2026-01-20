@@ -20,16 +20,33 @@ public static class DependencyCheck
   );
 
   /// <summary>
-  /// Checks all required dependencies and returns their status.
+  /// Checks all required dependencies for the specified tool and returns their status.
   /// </summary>
-  public static List<DependencyResult> CheckAll()
+  public static List<DependencyResult> CheckAll(ICliTool tool)
   {
-    return
-    [
-      CheckGitHubCli(),
-      CheckDocker(),
-      CheckDockerRunning()
-    ];
+    var results = new List<DependencyResult>();
+
+    // Always check Docker and Docker daemon first
+    results.Add(CheckDocker());
+    results.Add(CheckDockerRunning());
+
+    // Check tool-specific dependencies
+    var toolDeps = tool.GetRequiredDependencies();
+    foreach (var dep in toolDeps)
+    {
+      if (dep.Equals("docker", StringComparison.OrdinalIgnoreCase))
+      {
+        // Already checked
+        continue;
+      }
+      else if (dep.Equals("gh", StringComparison.OrdinalIgnoreCase))
+      {
+        results.Add(CheckGitHubCli(tool));
+      }
+      // Add more dependency checks here as needed
+    }
+
+    return results;
   }
 
   /// <summary>
@@ -86,7 +103,7 @@ public static class DependencyCheck
   /// <summary>
   /// Checks if GitHub CLI is installed and authenticated.
   /// </summary>
-  private static DependencyResult CheckGitHubCli()
+  private static DependencyResult CheckGitHubCli(ICliTool tool)
   {
     try
     {
@@ -145,7 +162,7 @@ public static class DependencyCheck
           false,
           version,
           "Failed to check authentication status",
-          GetGitHubAuthHelp()
+          GetGitHubAuthHelp(tool)
         );
       }
 
@@ -158,7 +175,7 @@ public static class DependencyCheck
           false,
           version,
           "Not authenticated",
-          GetGitHubAuthHelp()
+          GetGitHubAuthHelp(tool)
         );
       }
 
@@ -364,9 +381,10 @@ public static class DependencyCheck
   /// <summary>
   /// Gets help for authenticating with GitHub CLI.
   /// </summary>
-  private static string GetGitHubAuthHelp()
+  private static string GetGitHubAuthHelp(ICliTool tool)
   {
-    var scopes = string.Join(",", GitHubAuth.RequiredScopes);
+    var authProvider = tool.GetAuthProvider();
+    var scopes = string.Join(",", authProvider.GetRequiredScopes());
     return $"💡 Authenticate: gh auth login -h github.com -s {scopes}";
   }
 

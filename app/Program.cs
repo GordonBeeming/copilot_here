@@ -5,6 +5,7 @@ using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Commands.Run;
+using CopilotHere.Commands.Tool;
 using CopilotHere.Infrastructure;
 
 class Program
@@ -126,6 +127,7 @@ class Program
       new MountCommands(),     // Mount management
       new ImageCommands(),     // Image management
       new ModelCommands(),     // Model management
+      new ToolCommands(),      // Tool management
       new AirlockCommands(),   // Airlock proxy
     ];
 

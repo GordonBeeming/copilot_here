@@ -385,7 +385,7 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
-          file: ./docker/Dockerfile.base
+          file: ./docker/tools/github-copilot/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: false
           load: false
@@ -412,12 +412,13 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
-          file: ./docker/Dockerfile.base
+          file: ./docker/tools/github-copilot/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:latest
-            ghcr.io/${{ steps.repo.outputs.name }}:sha-${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}:copilot-latest
+            ghcr.io/${{ steps.repo.outputs.name }}:copilot-sha-${{ github.sha }}
           labels: project=copilot_here
           build-args: |
             COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
@@ -436,22 +437,22 @@ jobs:
         include:
           - variant: rust
             dockerfile: ./docker/variants/Dockerfile.rust
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}"
           - variant: playwright
             dockerfile: ./docker/variants/Dockerfile.playwright
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
           - variant: dotnet-8
             dockerfile: ./docker/variants/Dockerfile.dotnet8
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
           - variant: dotnet-9
             dockerfile: ./docker/variants/Dockerfile.dotnet9
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
           - variant: dotnet-10
             dockerfile: ./docker/variants/Dockerfile.dotnet10
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
           - variant: dotnet
             dockerfile: ./docker/variants/Dockerfile.dotnet
-            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -491,7 +492,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}-sha-${{ github.sha }}
+            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}
+            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}-sha-${{ github.sha }}
           labels: project=copilot_here
           build-args: ${{ steps.args.outputs.build_args }}
           cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
@@ -509,10 +511,10 @@ jobs:
         include:
           - variant: dotnet-playwright
             dockerfile: ./docker/compound-variants/Dockerfile.dotnet-playwright
-            build_args: "DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+            build_args: "DOTNET_IMAGE_TAG=copilot-dotnet-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
           - variant: dotnet-rust
             dockerfile: ./docker/compound-variants/Dockerfile.dotnet-rust
-            build_args: "DOTNET_IMAGE_TAG=dotnet-sha-${{ github.sha }}"
+            build_args: "DOTNET_IMAGE_TAG=copilot-dotnet-sha-${{ github.sha }}"
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -548,7 +550,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}-sha-${{ github.sha }}
+            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}
+            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}-sha-${{ github.sha }}
           labels: project=copilot_here
           build-args: ${{ steps.args.outputs.build_args }}
           cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
@@ -582,16 +585,19 @@ jobs:
 
           if [[ "${{ needs.build-base.outputs.push_needed }}" == "true" ]]; then
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:latest\` (legacy)" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-latest\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:proxy\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:rust\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:playwright\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-8\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-9\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-10\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Variants (with copilot- prefix):**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`rust\`, \`copilot-rust\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`playwright\`, \`copilot-playwright\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet\`, \`copilot-dotnet\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet-8\`, \`copilot-dotnet-8\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet-9\`, \`copilot-dotnet-9\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet-10\`, \`copilot-dotnet-10\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet-playwright\`, \`copilot-dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`dotnet-rust\`, \`copilot-dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi

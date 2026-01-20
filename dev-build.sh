@@ -174,12 +174,14 @@ echo "   ✓ Tagged as ${REGISTRY}:proxy"
 echo ""
 
 # Build base image
-echo "🔧 Building base image..."
+echo "🔧 Building base image (GitHub Copilot)..."
 docker build $NO_CACHE \
   -t "${REGISTRY}:latest" \
-  -f "${SCRIPT_DIR}/docker/Dockerfile.base" \
+  -t "${REGISTRY}:copilot-latest" \
+  -f "${SCRIPT_DIR}/docker/tools/github-copilot/Dockerfile" \
   "${SCRIPT_DIR}"
 echo "   ✓ Tagged as ${REGISTRY}:latest"
+echo "   ✓ Tagged as ${REGISTRY}:copilot-latest"
 echo ""
 
 # Build variant images (only if explicitly requested)
@@ -194,13 +196,15 @@ build_variant() {
   fi
   
   if [[ -f "$variant_file" ]]; then
-    echo "🔧 Building variant: $variant_name..."
+    echo "🔧 Building variant: $variant_name (GitHub Copilot)..."
     docker build $NO_CACHE \
       $build_args \
       -t "${REGISTRY}:${variant_name}" \
+      -t "${REGISTRY}:copilot-${variant_name}" \
       -f "$variant_file" \
       "${SCRIPT_DIR}"
     echo "   ✓ Tagged as ${REGISTRY}:${variant_name}"
+    echo "   ✓ Tagged as ${REGISTRY}:copilot-${variant_name}"
     echo ""
   else
     echo "⚠️  Variant not found: $variant_name"
@@ -211,14 +215,14 @@ build_variant() {
 # Build regular variants first (depend on base)
 if [[ ${#REGULAR_VARIANTS[@]} -gt 0 ]]; then
   for variant_name in "${REGULAR_VARIANTS[@]}"; do
-    build_variant "$variant_name" "--build-arg BASE_IMAGE_TAG=latest"
+    build_variant "$variant_name" "--build-arg BASE_IMAGE_TAG=copilot-latest"
   done
 fi
 
 # Build compound variants (depend on other variants like dotnet)
 if [[ ${#COMPOUND_VARIANTS[@]} -gt 0 ]]; then
   for variant_name in "${COMPOUND_VARIANTS[@]}"; do
-    build_variant "$variant_name" "--build-arg DOTNET_IMAGE_TAG=dotnet"
+    build_variant "$variant_name" "--build-arg DOTNET_IMAGE_TAG=copilot-dotnet"
   done
 fi
 

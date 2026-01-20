@@ -1,6 +1,6 @@
-# Build on top of the base copilot_here image
-# ARG will be provided by the build process with the commit hash
-ARG BASE_IMAGE_TAG=latest
+# Build on top of any tool's base image
+# BASE_IMAGE_TAG can be copilot-latest, echo-latest, claude-latest, etc.
+ARG BASE_IMAGE_TAG=copilot-latest
 FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 
 # Switch to root to install packages

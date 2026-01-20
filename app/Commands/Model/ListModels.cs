@@ -17,7 +17,7 @@ public sealed partial class ModelCommands
       
       var ctx = AppContext.Create();
       var imageTag = ctx.ImageConfig.Tag;
-      var imageName = DockerRunner.GetImageName(imageTag);
+      var imageName = ctx.ActiveTool.GetImageName(imageTag);
       
       // Pull image if needed (quietly)
       if (!DockerRunner.PullImage(imageName))

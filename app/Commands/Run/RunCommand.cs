@@ -15,6 +15,9 @@ public sealed class RunCommand : ICommand
 {
   private readonly bool _isYolo;
 
+  // === TOOL SELECTION ===
+  private readonly Option<string?> _toolOption;
+
   // === IMAGE SELECTION OPTIONS ===
   private readonly Option<bool> _dotnetOption;
   private readonly Option<bool> _dotnet8Option;
@@ -74,6 +77,8 @@ public sealed class RunCommand : ICommand
     // - Short aliases like -d, -d8, -d9 are handled in Program.NormalizeArgs
     // - PowerShell-style aliases are also handled in Program.NormalizeArgs for backwards compatibility
     // - Descriptions show available short aliases in brackets
+
+    _toolOption = new Option<string?>("--tool") { Description = "Override CLI tool (github-copilot, echo, etc.)" };
 
     _dotnetOption = new Option<bool>("--dotnet") { Description = "[-d] Use .NET image variant (all versions)" };
 
@@ -139,6 +144,7 @@ public sealed class RunCommand : ICommand
 
   public void Configure(RootCommand root)
   {
+    root.Add(_toolOption);
     root.Add(_dotnetOption);
     root.Add(_dotnet8Option);
     root.Add(_dotnet9Option);
@@ -175,7 +181,22 @@ public sealed class RunCommand : ICommand
 
     root.SetAction(parseResult =>
     {
-      var ctx = Infrastructure.AppContext.Create();
+      var toolOverride = parseResult.GetValue(_toolOption);
+      
+      // Validate tool if specified
+      if (!string.IsNullOrWhiteSpace(toolOverride) && !ToolRegistry.Exists(toolOverride))
+      {
+        Console.WriteLine($"❌ Unknown tool: {toolOverride}");
+        Console.WriteLine();
+        Console.WriteLine("Available tools:");
+        foreach (var name in ToolRegistry.GetToolNames())
+        {
+          Console.WriteLine($"  • {name}");
+        }
+        return 1;
+      }
+      
+      var ctx = Infrastructure.AppContext.Create(toolOverride);
 
       var dotnet = parseResult.GetValue(_dotnetOption);
       var dotnet8 = parseResult.GetValue(_dotnet8Option);
@@ -232,7 +253,7 @@ public sealed class RunCommand : ICommand
 
       DebugLogger.Log("Checking dependencies...");
       // Check dependencies
-      var dependencyResults = DependencyCheck.CheckAll();
+      var dependencyResults = DependencyCheck.CheckAll(ctx.ActiveTool);
       var allDependenciesSatisfied = DependencyCheck.DisplayResults(dependencyResults);
       
       if (!allDependenciesSatisfied)
@@ -242,9 +263,10 @@ public sealed class RunCommand : ICommand
       }
       DebugLogger.Log("All dependencies satisfied");
 
-      DebugLogger.Log("Validating GitHub auth scopes...");
+      DebugLogger.Log("Validating auth...");
       // Security check
-      var (isValid, error) = GitHubAuth.ValidateScopes();
+      var authProvider = ctx.ActiveTool.GetAuthProvider();
+      var (isValid, error) = authProvider.ValidateAuth();
       if (!isValid)
       {
         DebugLogger.Log($"Auth validation failed: {error}");
@@ -265,19 +287,8 @@ public sealed class RunCommand : ICommand
       else if (rust) imageTag = "rust";
       else if (dotnetRust) imageTag = "dotnet-rust";
 
-      var imageName = DockerRunner.GetImageName(imageTag);
+      var imageName = ctx.ActiveTool.GetImageName(imageTag);
       DebugLogger.Log($"Selected image: {imageName}");
-
-      // Build copilot args list
-      var copilotArgs = new List<string> { "copilot" };
-
-      // Add YOLO mode flags
-      if (_isYolo)
-      {
-        DebugLogger.Log("Adding YOLO mode flags");
-        copilotArgs.Add("--allow-all-tools");
-        copilotArgs.Add("--allow-all-paths");
-      }
 
       // Determine model (CLI overrides config)
       var effectiveModel = model ?? ctx.ModelConfig.Model;
@@ -286,95 +297,98 @@ public sealed class RunCommand : ICommand
         DebugLogger.Log($"Using model: {effectiveModel} (source: {(model != null ? "CLI" : ctx.ModelConfig.Source.ToString())})");
       }
 
-      // Handle --help2 (native copilot help)
+      // Build user arguments list (tool-specific passthrough options)
+      var userArgs = new List<string>();
+      
+      // Handle --help2 (native help)
       if (help2)
       {
-        copilotArgs.Add("--help");
+        userArgs.Add("--help");
       }
       else
       {
         // Add passthrough options
         if (!string.IsNullOrEmpty(prompt))
         {
-          copilotArgs.Add("--prompt");
-          copilotArgs.Add(prompt);
-        }
-        if (!string.IsNullOrEmpty(effectiveModel))
-        {
-          copilotArgs.Add("--model");
-          copilotArgs.Add(effectiveModel);
+          userArgs.Add("--prompt");
+          userArgs.Add(prompt);
         }
         if (continueSession)
         {
-          copilotArgs.Add("--continue");
+          userArgs.Add("--continue");
         }
         // Check if --resume was actually passed (even without a value)
         var resumeOptionResult = parseResult.GetResult(_resumeOption);
         if (resumeOptionResult != null)
         {
-          copilotArgs.Add("--resume");
+          userArgs.Add("--resume");
           if (!string.IsNullOrEmpty(resumeSession))
-            copilotArgs.Add(resumeSession);
+            userArgs.Add(resumeSession);
         }
         if (silent)
         {
-          copilotArgs.Add("--silent");
+          userArgs.Add("--silent");
         }
         if (!string.IsNullOrEmpty(agent))
         {
-          copilotArgs.Add("--agent");
-          copilotArgs.Add(agent);
+          userArgs.Add("--agent");
+          userArgs.Add(agent);
         }
         if (noColor)
         {
-          copilotArgs.Add("--no-color");
+          userArgs.Add("--no-color");
         }
         foreach (var tool in allowTools)
         {
-          copilotArgs.Add("--allow-tool");
-          copilotArgs.Add(tool);
+          userArgs.Add("--allow-tool");
+          userArgs.Add(tool);
         }
         foreach (var tool in denyTools)
         {
-          copilotArgs.Add("--deny-tool");
-          copilotArgs.Add(tool);
+          userArgs.Add("--deny-tool");
+          userArgs.Add(tool);
         }
         if (!string.IsNullOrEmpty(stream))
         {
-          copilotArgs.Add("--stream");
-          copilotArgs.Add(stream);
+          userArgs.Add("--stream");
+          userArgs.Add(stream);
         }
         if (!string.IsNullOrEmpty(logLevel))
         {
-          copilotArgs.Add("--log-level");
-          copilotArgs.Add(logLevel);
+          userArgs.Add("--log-level");
+          userArgs.Add(logLevel);
         }
         if (screenReader)
         {
-          copilotArgs.Add("--screen-reader");
+          userArgs.Add("--screen-reader");
         }
         if (noCustomInstructions)
         {
-          copilotArgs.Add("--no-custom-instructions");
+          userArgs.Add("--no-custom-instructions");
         }
         foreach (var mcpConfig in additionalMcpConfigs)
         {
-          copilotArgs.Add("--additional-mcp-config");
-          copilotArgs.Add(mcpConfig);
+          userArgs.Add("--additional-mcp-config");
+          userArgs.Add(mcpConfig);
         }
-        copilotArgs.AddRange(passthroughArgs);
-
-        // If no args (interactive mode), add --banner
-        // Check count excluding model args since model doesn't mean non-interactive
-        var argsWithoutModel = copilotArgs.Count;
-        if (!string.IsNullOrEmpty(effectiveModel))
-          argsWithoutModel -= 2; // Subtract --model and its value
-        
-        if (argsWithoutModel == 1 || (argsWithoutModel <= 3 && _isYolo))
-        {
-          copilotArgs.Add("--banner");
-        }
+        userArgs.AddRange(passthroughArgs);
       }
+
+      // Build command context for the tool
+      var commandContext = new CommandContext
+      {
+        UserArgs = userArgs,
+        IsYolo = _isYolo,
+        IsInteractive = userArgs.Count == 0 || (userArgs.Count == 1 && userArgs[0] == "--help"),
+        Model = effectiveModel,
+        ImageTag = imageTag,
+        Mounts = [], // Will be populated later
+        Environment = new Dictionary<string, string>()
+      };
+
+      // Use the tool to build the final command
+      var copilotArgs = ctx.ActiveTool.BuildCommand(commandContext);
+      DebugLogger.Log($"Built command: {string.Join(" ", copilotArgs)}");
 
       var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
       Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
