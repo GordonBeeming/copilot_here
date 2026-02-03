@@ -47,6 +47,7 @@ All functions support switching between Docker image variants using flags:
 - **`--dotnet-playwright`** (`-dp`) - .NET + Playwright image (includes browser automation)
 - **`--rust`** (`-rs`) - Rust image (includes Rust toolchain)
 - **`--dotnet-rust`** (`-dr`) - .NET + Rust image
+- **`--golang`** (`-go`) - Golang image (includes Go toolchain)
 
 ### Additional Options
 
@@ -504,6 +505,7 @@ This project provides multiple Docker image variants for different development s
 | `dotnet-playwright` | `--dotnet-playwright` | .NET + Playwright combined |
 | `rust` | `--rust` | Rust toolchain |
 | `dotnet-rust` | `--dotnet-rust` | .NET + Rust combined |
+| `golang` | `--golang` | Go toolchain |
 
 ### Choosing the Right Image
 
@@ -513,6 +515,7 @@ This project provides multiple Docker image variants for different development s
 - Use **`dotnet-playwright`** when you need both .NET and browser automation capabilities
 - Use **`rust`** for Rust development
 - Use **`dotnet-rust`** for projects combining .NET and Rust
+- Use **`golang`** for Go development
 
 ## 💻 Supported Systems
 

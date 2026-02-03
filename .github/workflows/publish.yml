@@ -437,6 +437,9 @@ jobs:
           - variant: rust
             dockerfile: ./docker/variants/Dockerfile.rust
             build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}"
+          - variant: golang
+            dockerfile: ./docker/variants/Dockerfile.golang
+            build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}"
           - variant: playwright
             dockerfile: ./docker/variants/Dockerfile.playwright
             build_args: "BASE_IMAGE_TAG=sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
@@ -585,6 +588,7 @@ jobs:
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:latest\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:proxy\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:rust\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:golang\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:playwright\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:dotnet-8\`" >> $GITHUB_STEP_SUMMARY

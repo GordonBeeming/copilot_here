@@ -14,7 +14,8 @@ public sealed partial class ImageCommands
     "dotnet-10",
     "dotnet-playwright",
     "rust",
-    "dotnet-rust"
+    "dotnet-rust",
+    "golang"
   ];
 
   private static Command SetListImagesCommand()
