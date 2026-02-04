@@ -32,6 +32,9 @@ public sealed record AppContext
   /// <summary>Airlock configuration (loaded from config files).</summary>
   public required AirlockConfig AirlockConfig { get; init; }
 
+  /// <summary>Container runtime configuration (loaded from config files or auto-detected).</summary>
+  public required ContainerRuntimeConfig RuntimeConfig { get; init; }
+
   /// <summary>Creates an AppContext with all state resolved and configs loaded.</summary>
   /// <param name="toolOverride">Optional tool name to override config (from CLI --tool argument)</param>
   public static AppContext Create(string? toolOverride = null)
@@ -55,7 +58,8 @@ public sealed record AppContext
       ImageConfig = ImageConfig.Load(paths),
       ModelConfig = ModelConfig.Load(paths),
       MountsConfig = MountsConfig.Load(paths),
-      AirlockConfig = AirlockConfig.Load(paths)
+      AirlockConfig = AirlockConfig.Load(paths),
+      RuntimeConfig = ContainerRuntimeConfig.Load(paths)
     };
   }
 

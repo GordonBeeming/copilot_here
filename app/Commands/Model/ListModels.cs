@@ -20,9 +20,9 @@ public sealed partial class ModelCommands
       var imageName = ctx.ActiveTool.GetImageName(imageTag);
       
       // Pull image if needed (quietly)
-      if (!DockerRunner.PullImage(imageName))
+      if (!ContainerRunner.PullImage(ctx.RuntimeConfig, imageName))
       {
-        Console.WriteLine("❌ Failed to pull Docker image");
+        Console.WriteLine($"❌ Failed to pull image");
         return 1;
       }
       
@@ -37,8 +37,8 @@ public sealed partial class ModelCommands
         "--model", "invalid-model-to-trigger-list"
       };
       
-      DebugLogger.Log("Running: docker run ... copilot --model invalid-model-to-trigger-list");
-      var (exitCode, stdout, stderr) = DockerRunner.RunAndCapture(args);
+      DebugLogger.Log($"Running: {ctx.RuntimeConfig.Runtime} run ... copilot --model invalid-model-to-trigger-list");
+      var (exitCode, stdout, stderr) = ContainerRunner.RunAndCapture(ctx.RuntimeConfig, args);
       
       DebugLogger.Log($"Exit code: {exitCode}");
       DebugLogger.Log($"stderr: {stderr}");

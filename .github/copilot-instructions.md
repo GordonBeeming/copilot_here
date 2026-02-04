@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a secure, portable Docker environment for running the GitHub Copilot CLI. It provides sandboxed execution with automatic authentication, token validation, and multiple specialized image variants for different development scenarios.
+This is a secure, portable container environment for running the GitHub Copilot CLI. It provides sandboxed execution with automatic authentication, token validation, and multiple specialized image variants for different development scenarios. Supports Docker, OrbStack, and Podman container runtimes with automatic detection.
 
 ## Code Repos/Name locations part of this "platform"
 
@@ -88,7 +88,7 @@ grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 - **Base OS**: Debian (node:20-slim)
 - **Runtime**: Node.js 20
 - **CLI Tool**: GitHub Copilot CLI (@github/copilot)
-- **Container**: Docker (Multi-arch: AMD64 & ARM64)
+- **Container**: Docker, OrbStack, or Podman (Multi-arch: AMD64 & ARM64)
 - **CI/CD**: GitHub Actions
 - **Registry**: GitHub Container Registry (ghcr.io)
 
@@ -99,7 +99,8 @@ grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 The core CLI is a .NET 10 Native AOT application that:
 
 - Validates GitHub authentication and token scopes
-- Manages Docker image selection and pulling
+- Detects and manages container runtime (Docker, OrbStack, or Podman)
+- Manages container image selection and pulling
 - Configures mounts, airlock, and container settings
 - Builds and executes Docker Compose configurations
 - Handles both safe mode (confirmation required) and YOLO mode (auto-approve)
@@ -108,8 +109,10 @@ The core CLI is a .NET 10 Native AOT application that:
 
 - `Program.cs` - Entry point, argument parsing, command routing
 - `Commands/Run/RunCommand.cs` - Main execution logic
+- `Commands/Runtime/` - Runtime configuration commands
 - `Infrastructure/GitHubAuth.cs` - Token validation and scope checking
-- `Infrastructure/DockerRunner.cs` - Docker process management
+- `Infrastructure/ContainerRunner.cs` - Container process management
+- `Infrastructure/ContainerRuntimeConfig.cs` - Runtime detection and configuration
 - `Infrastructure/AirlockRunner.cs` - Network proxy mode
 - `Infrastructure/DebugLogger.cs` - Debug logging infrastructure
 
@@ -168,6 +171,40 @@ Extends the Playwright image with:
 
 **Use Case**: .NET development, building and testing .NET applications with web testing capabilities
 
+## Container Runtime Support
+
+The CLI supports multiple container runtimes with automatic detection:
+
+### Supported Runtimes
+
+1. **Docker** - Standard Docker Engine or Docker Desktop
+2. **OrbStack** - Automatically detected when Docker context is set to OrbStack
+3. **Podman** - Open-source alternative with rootless support
+
+### Runtime Detection
+
+- **Auto-detection**: Tries Docker first, then Podman
+- **Configuration**: Users can override via config files or commands
+- **Per-project**: Different projects can use different runtimes
+
+### Configuration System
+
+**Priority order:**
+1. Local config (`.copilot_here/runtime.conf`)
+2. Global config (`~/.config/copilot_here/runtime.conf`)
+3. Auto-detection
+
+**Commands:**
+- `--show-runtime` - Display current runtime configuration
+- `--list-runtimes` - List all available runtimes on the system
+- `--set-runtime <runtime>` - Set local runtime preference
+- `--set-runtime-global <runtime>` - Set global runtime preference
+
+**Implementation:**
+- `Infrastructure/ContainerRuntimeConfig.cs` - Runtime detection and configuration
+- `Commands/Runtime/` - Runtime management commands
+- All container operations use `ContainerRunner` (formerly `DockerRunner`)
+
 ## Airlock Network Proxy
 
 Airlock is a security feature that provides network request monitoring and control:
@@ -195,7 +232,7 @@ Airlock is a security feature that provides network request monitoring and contr
 **Technical implementation:**
 
 - Proxy: mitmproxy-based container (`docker/Dockerfile.proxy`)
-- Runner: `Infrastructure/AirlockRunner.cs` orchestrates Docker Compose setup
+- Runner: `Infrastructure/AirlockRunner.cs` orchestrates container compose setup
 - Certificates: CA cert shared between proxy and app containers
 - Logging: Network activity logged to `.copilot_here/logs/`
 
@@ -474,11 +511,13 @@ var deduplicated = RemoveDuplicates(items);
   │   │   ├── Run/                 # Main run command
   │   │   ├── Images/              # Image management
   │   │   ├── Mounts/              # Mount configuration
+  │   │   ├── Runtime/             # Runtime configuration
   │   │   └── Airlock/             # Network proxy
   │   ├── Infrastructure/          # Core services
   │   │   ├── AppPaths.cs          # Path resolution
   │   │   ├── GitHubAuth.cs        # Authentication
-  │   │   ├── DockerRunner.cs      # Docker management
+  │   │   ├── ContainerRunner.cs   # Container management
+  │   │   ├── ContainerRuntimeConfig.cs # Runtime detection
   │   │   ├── AirlockRunner.cs     # Proxy mode
   │   │   └── DebugLogger.cs       # Debug logging
   │   ├── Program.cs               # Entry point

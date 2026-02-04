@@ -253,7 +253,7 @@ public sealed class RunCommand : ICommand
 
       DebugLogger.Log("Checking dependencies...");
       // Check dependencies
-      var dependencyResults = DependencyCheck.CheckAll(ctx.ActiveTool);
+      var dependencyResults = DependencyCheck.CheckAll(ctx.ActiveTool, ctx.RuntimeConfig);
       var allDependenciesSatisfied = DependencyCheck.DisplayResults(dependencyResults);
       
       if (!allDependenciesSatisfied)
@@ -392,6 +392,7 @@ public sealed class RunCommand : ICommand
 
       var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
       Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
+      Console.WriteLine($"🐳 Container runtime: {ctx.RuntimeConfig.RuntimeFlavor}");
       
       // Show model - always display even if using default
       if (!string.IsNullOrEmpty(effectiveModel))
@@ -411,14 +412,14 @@ public sealed class RunCommand : ICommand
       // Pull image unless skipped
       if (!noPull)
       {
-        DebugLogger.Log("Pulling Docker image...");
-        if (!DockerRunner.PullImage(imageName))
+        DebugLogger.Log("Pulling image...");
+        if (!ContainerRunner.PullImage(ctx.RuntimeConfig, imageName))
         {
-          DebugLogger.Log("Docker image pull failed");
-          Console.WriteLine("Error: Failed to pull Docker image. Check Docker setup and network.");
+          DebugLogger.Log("Image pull failed");
+          Console.WriteLine($"Error: Failed to pull image. Check {ctx.RuntimeConfig.RuntimeFlavor} setup and network.");
           return 1;
         }
-        DebugLogger.Log("Docker image pull succeeded");
+        DebugLogger.Log("Image pull succeeded");
       }
       else
       {
@@ -429,7 +430,7 @@ public sealed class RunCommand : ICommand
       // Cleanup old images unless skipped
       if (!noCleanup)
       {
-        DockerRunner.CleanupOldImages(imageName);
+        ContainerRunner.CleanupOldImages(ctx.RuntimeConfig, imageName);
       }
       else
       {
@@ -485,7 +486,7 @@ public sealed class RunCommand : ICommand
         Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
 
         // Run in Airlock mode with Docker Compose
-        return AirlockRunner.Run(ctx, imageTag, _isYolo, allMounts, copilotArgs);
+        return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, copilotArgs);
       }
 
       // Add directories for YOLO mode
@@ -505,14 +506,14 @@ public sealed class RunCommand : ICommand
       // Build Docker args for standard mode
       var sessionId = GenerateSessionId();
       var containerName = $"copilot_here-{sessionId}";
-      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs, _isYolo, imageTag);
+      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs, _isYolo, imageTag, noPull);
 
       // Set terminal title
       var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
       var dirName = SystemInfo.GetCurrentDirectoryName();
       var title = $"{titleEmoji} {dirName}";
 
-      return DockerRunner.RunInteractive(dockerArgs, title);
+      return ContainerRunner.RunInteractive(ctx.RuntimeConfig, dockerArgs, title);
     });
   }
 
@@ -552,7 +553,8 @@ public sealed class RunCommand : ICommand
     List<MountEntry> mounts,
     List<string> copilotArgs,
     bool isYolo,
-    string imageTag)
+    string imageTag,
+    bool noPull)
   {
     // Generate session info JSON
     var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
@@ -574,6 +576,14 @@ public sealed class RunCommand : ICommand
       "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}",
       "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
+
+    // Add --pull=never when --no-pull is specified
+    // This prevents the container runtime from auto-pulling missing images
+    // Both Docker (19.09+) and Podman support this flag
+    if (noPull)
+    {
+      args.Insert(1, "--pull=never"); // Insert after "run"
+    }
 
     // Add additional mounts
     foreach (var mount in mounts)

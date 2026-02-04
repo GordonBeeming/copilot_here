@@ -3,9 +3,9 @@ using System.Diagnostics;
 namespace CopilotHere.Infrastructure;
 
 /// <summary>
-/// Handles Docker process execution.
+/// Handles container runtime process execution (Docker, Podman, OrbStack).
 /// </summary>
-public static class DockerRunner
+public static class ContainerRunner
 {
   private const string ImagePrefix = "ghcr.io/gordonbeeming/copilot_here";
 
@@ -15,16 +15,16 @@ public static class DockerRunner
   public static string GetImageName(string tag) => $"{ImagePrefix}:{tag}";
 
   /// <summary>
-  /// Runs a Docker command with the given arguments.
+  /// Runs a container command with the given arguments.
   /// </summary>
-  public static int Run(IEnumerable<string> args)
+  public static int Run(ContainerRuntimeConfig runtimeConfig, IEnumerable<string> args)
   {
-    // Intercept Ctrl+C to let Docker handle it
+    // Intercept Ctrl+C to let container runtime handle it
     Console.CancelKeyPress += (_, e) => e.Cancel = true;
 
     var startInfo = new ProcessStartInfo
     {
-      FileName = "docker",
+      FileName = runtimeConfig.Runtime,
       UseShellExecute = false,
       RedirectStandardInput = false,
       RedirectStandardOutput = false,
@@ -38,7 +38,7 @@ public static class DockerRunner
     using var process = Process.Start(startInfo);
     if (process is null)
     {
-      Console.Error.WriteLine("❌ Failed to start Docker. Is it installed and in PATH?");
+      Console.Error.WriteLine($"❌ Failed to start {runtimeConfig.RuntimeFlavor}. Is it installed and in PATH?");
       return 1;
     }
 
@@ -47,9 +47,9 @@ public static class DockerRunner
   }
 
   /// <summary>
-  /// Runs Docker interactively with the given arguments, setting terminal title.
+  /// Runs container runtime interactively with the given arguments, setting terminal title.
   /// </summary>
-  public static int RunInteractive(IEnumerable<string> args, string? terminalTitle = null)
+  public static int RunInteractive(ContainerRuntimeConfig runtimeConfig, IEnumerable<string> args, string? terminalTitle = null)
   {
     // Set terminal title if provided
     if (!string.IsNullOrEmpty(terminalTitle))
@@ -59,7 +59,7 @@ public static class DockerRunner
 
     try
     {
-      return Run(args);
+      return Run(runtimeConfig, args);
     }
     finally
     {
@@ -72,34 +72,34 @@ public static class DockerRunner
   }
 
   /// <summary>
-  /// Pulls a Docker image with progress output.
+  /// Pulls a container image with progress output.
   /// </summary>
-  public static bool PullImage(string imageName)
+  public static bool PullImage(ContainerRuntimeConfig runtimeConfig, string imageName)
   {
     DebugLogger.Log($"PullImage called for: {imageName}");
     Console.WriteLine($"📥 Pulling image: {imageName}");
 
     var startInfo = new ProcessStartInfo
     {
-      FileName = "docker",
+      FileName = runtimeConfig.Runtime,
       UseShellExecute = false
     };
     startInfo.ArgumentList.Add("pull");
     startInfo.ArgumentList.Add(imageName);
 
-    DebugLogger.Log($"Starting docker process: docker pull {imageName}");
+    DebugLogger.Log($"Starting {runtimeConfig.Runtime} process: {runtimeConfig.Runtime} pull {imageName}");
     using var process = Process.Start(startInfo);
     if (process is null)
     {
-      DebugLogger.Log("Failed to start docker process");
-      Console.WriteLine("❌ Failed to start Docker");
+      DebugLogger.Log($"Failed to start {runtimeConfig.Runtime} process");
+      Console.WriteLine($"❌ Failed to start {runtimeConfig.RuntimeFlavor}");
       return false;
     }
 
-    DebugLogger.Log($"Docker process started with PID: {process.Id}");
-    DebugLogger.Log("Waiting for docker process to exit...");
+    DebugLogger.Log($"{runtimeConfig.RuntimeFlavor} process started with PID: {process.Id}");
+    DebugLogger.Log($"Waiting for {runtimeConfig.Runtime} process to exit...");
     process.WaitForExit();
-    DebugLogger.Log($"Docker process exited with code: {process.ExitCode}");
+    DebugLogger.Log($"{runtimeConfig.RuntimeFlavor} process exited with code: {process.ExitCode}");
 
     if (process.ExitCode == 0)
     {
@@ -114,7 +114,7 @@ public static class DockerRunner
   /// <summary>
   /// Cleans up old copilot_here images older than 7 days.
   /// </summary>
-  public static void CleanupOldImages(string keepImageName)
+  public static void CleanupOldImages(ContainerRuntimeConfig runtimeConfig, string keepImageName)
   {
     Console.WriteLine("🧹 Cleaning up old images (older than 7 days)...");
 
@@ -123,7 +123,7 @@ public static class DockerRunner
       // Get list of all copilot_here images
       var startInfo = new ProcessStartInfo
       {
-        FileName = "docker",
+        FileName = runtimeConfig.Runtime,
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
@@ -148,7 +148,7 @@ public static class DockerRunner
       }
 
       // Get the ID of the image to keep
-      var keepImageId = GetImageId(keepImageName);
+      var keepImageId = GetImageId(runtimeConfig, keepImageName);
       var cutoffDate = DateTime.Now.AddDays(-7);
       var removedCount = 0;
 
@@ -163,7 +163,7 @@ public static class DockerRunner
         // Try to parse the date and check if older than 7 days
         if (TryParseDockerDate(img.CreatedAt, out var imageDate) && imageDate < cutoffDate)
         {
-          if (RemoveImage(img.ImageId))
+          if (RemoveImage(runtimeConfig, img.ImageId))
           {
             Console.WriteLine($"  🗑️  Removed: {img.ImageName}");
             removedCount++;
@@ -182,13 +182,13 @@ public static class DockerRunner
     }
   }
 
-  private static string? GetImageId(string imageName)
+  private static string? GetImageId(ContainerRuntimeConfig runtimeConfig, string imageName)
   {
     try
     {
       var startInfo = new ProcessStartInfo
       {
-        FileName = "docker",
+        FileName = runtimeConfig.Runtime,
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
@@ -212,13 +212,13 @@ public static class DockerRunner
     }
   }
 
-  private static bool RemoveImage(string imageId)
+  private static bool RemoveImage(ContainerRuntimeConfig runtimeConfig, string imageId)
   {
     try
     {
       var startInfo = new ProcessStartInfo
       {
-        FileName = "docker",
+        FileName = runtimeConfig.Runtime,
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
@@ -260,14 +260,14 @@ public static class DockerRunner
   }
 
   /// <summary>
-  /// Runs a Docker command and captures stdout/stderr output.
+  /// Runs a container command and captures stdout/stderr output.
   /// Returns (exitCode, stdout, stderr).
   /// </summary>
-  public static (int exitCode, string stdout, string stderr) RunAndCapture(IEnumerable<string> args)
+  public static (int exitCode, string stdout, string stderr) RunAndCapture(ContainerRuntimeConfig runtimeConfig, IEnumerable<string> args)
   {
     var startInfo = new ProcessStartInfo
     {
-      FileName = "docker",
+      FileName = runtimeConfig.Runtime,
       UseShellExecute = false,
       RedirectStandardOutput = true,
       RedirectStandardError = true,
@@ -280,7 +280,7 @@ public static class DockerRunner
     using var process = Process.Start(startInfo);
     if (process is null)
     {
-      return (1, "", "Failed to start Docker");
+      return (1, "", $"Failed to start {runtimeConfig.RuntimeFlavor}");
     }
 
     var stdout = process.StandardOutput.ReadToEnd();

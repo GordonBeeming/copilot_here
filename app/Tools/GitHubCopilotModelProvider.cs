@@ -17,9 +17,9 @@ public sealed partial class GitHubCopilotModelProvider : IModelProvider
     var imageName = ctx.ActiveTool.GetImageName(imageTag);
     
     // Pull image if needed (quietly)
-    if (!DockerRunner.PullImage(imageName))
+    if (!ContainerRunner.PullImage(ctx.RuntimeConfig, imageName))
     {
-      DebugLogger.Log("Failed to pull Docker image");
+      DebugLogger.Log("Failed to pull image");
       return Task.FromResult(new List<string>());
     }
     
@@ -34,8 +34,8 @@ public sealed partial class GitHubCopilotModelProvider : IModelProvider
       "--model", "invalid-model-to-trigger-list"
     };
     
-    DebugLogger.Log("Running: docker run ... copilot --model invalid-model-to-trigger-list");
-    var (exitCode, stdout, stderr) = DockerRunner.RunAndCapture(args);
+    DebugLogger.Log($"Running: {ctx.RuntimeConfig.Runtime} run ... copilot --model invalid-model-to-trigger-list");
+    var (exitCode, stdout, stderr) = ContainerRunner.RunAndCapture(ctx.RuntimeConfig, args);
     
     DebugLogger.Log($"Exit code: {exitCode}");
     DebugLogger.Log($"stderr: {stderr}");

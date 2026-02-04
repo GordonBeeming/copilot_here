@@ -10,13 +10,15 @@ public class DependencyCheckTests
   {
     // Arrange
     var tool = new GitHubCopilotTool();
+    var paths = AppPaths.Resolve();
+    var runtimeConfig = ContainerRuntimeConfig.Load(paths);
 
     // Act
-    var results = DependencyCheck.CheckAll(tool);
+    var results = DependencyCheck.CheckAll(tool, runtimeConfig);
 
     // Assert
     await Assert.That(results).IsNotEmpty();
-    await Assert.That(results.Count).IsEqualTo(3); // GitHub CLI, Docker, Docker Daemon
+    await Assert.That(results.Count).IsEqualTo(3); // GitHub CLI, Container Runtime, Runtime Daemon
   }
 
   [Test]
@@ -24,9 +26,11 @@ public class DependencyCheckTests
   {
     // Arrange
     var tool = new GitHubCopilotTool();
+    var paths = AppPaths.Resolve();
+    var runtimeConfig = ContainerRuntimeConfig.Load(paths);
 
     // Act
-    var results = DependencyCheck.CheckAll(tool);
+    var results = DependencyCheck.CheckAll(tool, runtimeConfig);
 
     // Assert
     var ghResult = results.FirstOrDefault(r => r.Name.Contains("GitHub CLI"));
@@ -38,12 +42,14 @@ public class DependencyCheckTests
   {
     // Arrange
     var tool = new GitHubCopilotTool();
+    var paths = AppPaths.Resolve();
+    var runtimeConfig = ContainerRuntimeConfig.Load(paths);
 
     // Act
-    var results = DependencyCheck.CheckAll(tool);
+    var results = DependencyCheck.CheckAll(tool, runtimeConfig);
 
     // Assert
-    var dockerResult = results.FirstOrDefault(r => r.Name == "Docker");
+    var dockerResult = results.FirstOrDefault(r => r.Name == "Docker" || r.Name == "OrbStack" || r.Name == "Podman");
     await Assert.That(dockerResult).IsNotNull();
   }
 
@@ -52,12 +58,14 @@ public class DependencyCheckTests
   {
     // Arrange
     var tool = new GitHubCopilotTool();
+    var paths = AppPaths.Resolve();
+    var runtimeConfig = ContainerRuntimeConfig.Load(paths);
 
     // Act
-    var results = DependencyCheck.CheckAll(tool);
+    var results = DependencyCheck.CheckAll(tool, runtimeConfig);
 
     // Assert
-    var daemonResult = results.FirstOrDefault(r => r.Name == "Docker Daemon");
+    var daemonResult = results.FirstOrDefault(r => r.Name.Contains("Daemon"));
     await Assert.That(daemonResult).IsNotNull();
   }
 

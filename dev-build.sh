@@ -12,6 +12,37 @@ NO_CACHE=""
 INCLUDE_ALL=false
 declare -a INCLUDE_VARIANTS=()
 
+# Detect container runtime from local config or auto-detect
+detect_runtime() {
+  local runtime=""
+  
+  # Check local .copilot_here/runtime.conf
+  if [[ -f "${SCRIPT_DIR}/.copilot_here/runtime.conf" ]]; then
+    runtime=$(cat "${SCRIPT_DIR}/.copilot_here/runtime.conf" | tr -d '[:space:]')
+  fi
+  
+  # Check global config if not set locally
+  if [[ -z "$runtime" ]] && [[ -f "$HOME/.config/copilot_here/runtime.conf" ]]; then
+    runtime=$(cat "$HOME/.config/copilot_here/runtime.conf" | tr -d '[:space:]')
+  fi
+  
+  # Auto-detect if not configured
+  if [[ -z "$runtime" ]] || [[ "$runtime" == "auto" ]]; then
+    if command -v docker &> /dev/null; then
+      runtime="docker"
+    elif command -v podman &> /dev/null; then
+      runtime="podman"
+    else
+      echo "Error: No container runtime found (docker or podman)"
+      exit 1
+    fi
+  fi
+  
+  echo "$runtime"
+}
+
+CONTAINER_RUNTIME=$(detect_runtime)
+
 # Detect OS and architecture for native binary
 detect_rid() {
   local os=""
@@ -94,10 +125,11 @@ for variant in "${INCLUDE_VARIANTS[@]}"; do
 done
 
 echo "========================================"
-echo "   Building Docker Images Locally"
+echo "   Building Container Images Locally"
 echo "========================================"
 echo ""
 echo "Registry: $REGISTRY"
+echo "Runtime:  $CONTAINER_RUNTIME"
 echo ""
 
 # Build native binary
@@ -107,14 +139,14 @@ PUBLISH_DIR="${SCRIPT_DIR}/publish/${RID}"
 BIN_DIR="$HOME/.local/bin"
 
 # Check for running copilot_here containers
-RUNNING_CONTAINERS=$(docker ps --filter "name=copilot_here-" -q)
+RUNNING_CONTAINERS=$($CONTAINER_RUNTIME ps --filter "name=copilot_here-" -q)
 if [ -n "$RUNNING_CONTAINERS" ]; then
-  echo "⚠️  copilot_here is currently running in Docker"
+  echo "⚠️  copilot_here is currently running in $CONTAINER_RUNTIME"
   printf "   Stop running containers to continue? [y/N]: "
   read -r response
   if [ "$response" = "y" ] || [ "$response" = "Y" ] || [ "$response" = "yes" ] || [ "$response" = "YES" ]; then
     echo "🛑 Stopping copilot_here containers..."
-    docker stop $RUNNING_CONTAINERS 2>/dev/null
+    $CONTAINER_RUNTIME stop $RUNNING_CONTAINERS 2>/dev/null
     echo "   ✓ Stopped"
   else
     echo "❌ Cannot build while containers are running (binary is in use)"
@@ -166,7 +198,7 @@ echo ""
 
 # Build proxy image
 echo "🔧 Building proxy image..."
-docker build $NO_CACHE \
+$CONTAINER_RUNTIME build $NO_CACHE \
   -t "${REGISTRY}:proxy" \
   -f "${SCRIPT_DIR}/docker/Dockerfile.proxy" \
   "${SCRIPT_DIR}"
@@ -175,7 +207,7 @@ echo ""
 
 # Build base image
 echo "🔧 Building base image (GitHub Copilot)..."
-docker build $NO_CACHE \
+$CONTAINER_RUNTIME build $NO_CACHE \
   -t "${REGISTRY}:latest" \
   -t "${REGISTRY}:copilot-latest" \
   -f "${SCRIPT_DIR}/docker/tools/github-copilot/Dockerfile" \
@@ -197,7 +229,7 @@ build_variant() {
   
   if [[ -f "$variant_file" ]]; then
     echo "🔧 Building variant: $variant_name (GitHub Copilot)..."
-    docker build $NO_CACHE \
+    $CONTAINER_RUNTIME build $NO_CACHE \
       $build_args \
       -t "${REGISTRY}:${variant_name}" \
       -t "${REGISTRY}:copilot-${variant_name}" \
@@ -236,7 +268,7 @@ echo "   Build Complete!"
 echo "========================================"
 echo ""
 echo "Built images:"
-docker images --format "  {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$REGISTRY" | sort
+$CONTAINER_RUNTIME images --format "  {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$REGISTRY" | sort
 echo ""
 echo "Run integration tests with:"
 echo "  ./tests/integration/test_airlock.sh --use-local"
