@@ -438,6 +438,9 @@ jobs:
           - variant: rust
             dockerfile: ./docker/variants/Dockerfile.rust
             build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}"
+          - variant: golang
+            dockerfile: ./docker/variants/Dockerfile.golang
+            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}"
           - variant: playwright
             dockerfile: ./docker/variants/Dockerfile.playwright
             build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
@@ -591,6 +594,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Variants (with copilot- prefix):**" >> $GITHUB_STEP_SUMMARY
             echo "- \`rust\`, \`copilot-rust\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`golang\`, \`copilot-golang\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`playwright\`, \`copilot-playwright\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet\`, \`copilot-dotnet\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet-8\`, \`copilot-dotnet-8\`" >> $GITHUB_STEP_SUMMARY
