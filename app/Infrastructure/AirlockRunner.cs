@@ -36,7 +36,7 @@ public static class AirlockRunner
   }
 
   /// <summary>
-  /// Runs the Copilot CLI in Airlock mode with a proxy container.
+  /// Runs the CLI tool in Airlock mode with a proxy container.
   /// </summary>
   public static int Run(
     ContainerRuntimeConfig runtimeConfig,
@@ -44,7 +44,7 @@ public static class AirlockRunner
     string imageTag,
     bool isYolo,
     List<MountEntry> mounts,
-    List<string> copilotArgs)
+    List<string> toolArgs)
   {
     var rulesPath = ctx.AirlockConfig.RulesPath;
     if (string.IsNullOrEmpty(rulesPath) || !File.Exists(rulesPath))
@@ -104,7 +104,7 @@ public static class AirlockRunner
     // Generate compose file
     var composeFile = GenerateComposeFile(
       runtimeConfig, ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, externalNetwork, appFlags, mounts, copilotArgs, isYolo);
+      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, isYolo);
 
     if (composeFile is null)
     {
@@ -133,14 +133,14 @@ public static class AirlockRunner
       Console.WriteLine();
 
       // Start proxy in background
-      if (!StartProxy(runtimeConfig, composeFile, projectName, ctx.Environment.GitHubToken))
+      if (!StartProxy(runtimeConfig, composeFile, projectName, ctx))
       {
         Console.WriteLine("❌ Failed to start proxy container");
         return 1;
       }
 
       // Run app interactively
-      var exitCode = RunApp(runtimeConfig, composeFile, projectName, ctx.Environment.GitHubToken);
+      var exitCode = RunApp(runtimeConfig, composeFile, projectName, ctx);
 
       return exitCode;
     }
@@ -233,7 +233,7 @@ public static class AirlockRunner
     string externalNetwork,
     List<string> appSandboxFlags,
     List<MountEntry> mounts,
-    List<string> copilotArgs,
+    List<string> toolArgs,
     bool isYolo)
   {
     try
@@ -282,28 +282,30 @@ public static class AirlockRunner
     external: true";
       }
 
-      // Build copilot command
-      var copilotCmd = new StringBuilder("[\"copilot\"");
-      if (isYolo)
+      // Build tool command - already built by the caller via ICliTool.BuildCommand()
+      // The toolArgs already contains the complete command including:
+      // - Tool name (e.g., "copilot", "bash")
+      // - YOLO flags if applicable (e.g., "--allow-all-tools", "--allow-all-paths")
+      // - Model if specified
+      // - User arguments
+      // - Interactive flag (e.g., "--banner") if applicable
+      
+      // Convert command to JSON array format for docker-compose
+      var toolCmd = new StringBuilder("[");
+      for (int i = 0; i < toolArgs.Count; i++)
       {
-        copilotCmd.Append(", \"--allow-all-tools\", \"--allow-all-paths\"");
-        copilotCmd.Append($", \"--add-dir\", \"{ctx.Paths.ContainerWorkDir}\"");
+        if (i > 0) toolCmd.Append(", ");
+        var arg = toolArgs[i].Replace("\"", "\\\"");
+        toolCmd.Append($"\"{arg}\"");
       }
+      toolCmd.Append(']');
 
-      if (copilotArgs.Count <= 1 || (copilotArgs.Count <= 3 && isYolo))
+      // Build auth environment variables from the active tool's auth provider
+      var authEnvVars = new StringBuilder();
+      foreach (var (key, value) in ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars())
       {
-        copilotCmd.Append(", \"--banner\"");
+        authEnvVars.AppendLine($"      - {key}=${{{key}}}");
       }
-      else
-      {
-        // Skip "copilot" at index 0
-        for (var i = 1; i < copilotArgs.Count; i++)
-        {
-          var arg = copilotArgs[i].Replace("\"", "\\\"");
-          copilotCmd.Append($", \"{arg}\"");
-        }
-      }
-      copilotCmd.Append(']');
 
       // Generate session info JSON for Airlock mode
       var sessionInfo = SessionInfo.GenerateWithNetworkConfig(
@@ -328,7 +330,7 @@ public static class AirlockRunner
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
         .Replace("{{SESSION_INFO}}", sessionInfo)
-        .Replace("{{COPILOT_ARGS}}", copilotCmd.ToString());
+        .Replace("{{COPILOT_ARGS}}", toolCmd.ToString());
 
       // Handle multiline placeholders
       var lines = result.Split('\n').ToList();
@@ -355,6 +357,13 @@ public static class AirlockRunner
           else
             lines.RemoveAt(i);
         }
+        else if (lines[i].Contains("{{AUTH_ENV_VARS}}"))
+        {
+          if (authEnvVars.Length > 0)
+            lines[i] = authEnvVars.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
       }
 
       result = string.Join('\n', lines);
@@ -370,7 +379,7 @@ public static class AirlockRunner
     }
   }
 
-  private static bool StartProxy(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, string? token)
+  private static bool StartProxy(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, AppContext ctx)
   {
     try
     {
@@ -383,7 +392,13 @@ public static class AirlockRunner
         CreateNoWindow = true
       };
 
-      startInfo.EnvironmentVariables["GITHUB_TOKEN"] = token ?? "";
+      // Get auth environment variables from the active tool's auth provider
+      var authEnvVars = ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars();
+      foreach (var (key, value) in authEnvVars)
+      {
+        startInfo.EnvironmentVariables[key] = value;
+      }
+      
       startInfo.EnvironmentVariables["COMPOSE_MENU"] = "0";
 
       startInfo.ArgumentList.Add(runtimeConfig.ComposeCommand);
@@ -415,7 +430,7 @@ public static class AirlockRunner
     }
   }
 
-  private static int RunApp(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, string? token)
+  private static int RunApp(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, AppContext ctx)
   {
     // Let container runtime handle Ctrl+C
     Console.CancelKeyPress += (_, e) => e.Cancel = true;
@@ -430,7 +445,13 @@ public static class AirlockRunner
       CreateNoWindow = false
     };
 
-    startInfo.EnvironmentVariables["GITHUB_TOKEN"] = token ?? "";
+    // Get auth environment variables from the active tool's auth provider
+    var authEnvVars = ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars();
+    foreach (var (key, value) in authEnvVars)
+    {
+      startInfo.EnvironmentVariables[key] = value;
+    }
+    
     startInfo.EnvironmentVariables["COMPOSE_MENU"] = "0";
 
     startInfo.ArgumentList.Add(runtimeConfig.ComposeCommand);

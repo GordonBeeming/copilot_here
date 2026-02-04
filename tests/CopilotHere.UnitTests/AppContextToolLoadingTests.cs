@@ -16,6 +16,8 @@ public class AppContextToolLoadingTests
   private string _tempDir = null!;
   private string _originalWorkingDir = null!;
   private string _testProjectDir = null!;
+  private string _testHomeDir = null!;
+  private string? _originalHome;
 
   [Before(Test)]
   public void Setup()
@@ -23,9 +25,21 @@ public class AppContextToolLoadingTests
     _originalWorkingDir = Directory.GetCurrentDirectory();
     _tempDir = Path.Combine(Path.GetTempPath(), $"copilot_here_tests_{Guid.NewGuid():N}");
     _testProjectDir = Path.Combine(_tempDir, "project");
+    _testHomeDir = Path.Combine(_tempDir, "home");
     
     Directory.CreateDirectory(_tempDir);
     Directory.CreateDirectory(_testProjectDir);
+    Directory.CreateDirectory(_testHomeDir);
+    
+    // Redirect HOME to test directory to isolate config files
+    _originalHome = Environment.GetEnvironmentVariable("HOME");
+    Environment.SetEnvironmentVariable("HOME", _testHomeDir);
+    
+    // Also set USERPROFILE for Windows
+    if (OperatingSystem.IsWindows())
+    {
+      Environment.SetEnvironmentVariable("USERPROFILE", _testHomeDir);
+    }
     
     // Set working directory to test project
     Directory.SetCurrentDirectory(_testProjectDir);
@@ -34,14 +48,17 @@ public class AppContextToolLoadingTests
   [After(Test)]
   public void Cleanup()
   {
+    // Restore original HOME
+    Environment.SetEnvironmentVariable("HOME", _originalHome);
+    if (OperatingSystem.IsWindows())
+    {
+      Environment.SetEnvironmentVariable("USERPROFILE", _originalHome);
+    }
+    
     Directory.SetCurrentDirectory(_originalWorkingDir);
     
     if (Directory.Exists(_tempDir))
       Directory.Delete(_tempDir, recursive: true);
-    
-    // Clean up global config files created during tests
-    CleanupGlobalToolConfig();
-    CleanupLegacyGlobalToolConfig();
   }
 
   [Test]
@@ -371,47 +388,15 @@ public class AppContextToolLoadingTests
 
   private void SetupGlobalToolConfig(string toolName)
   {
-    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    var configDir = Path.Combine(homeDir, ".config", "cli_mate");
+    var configDir = Path.Combine(_testHomeDir, ".config", "cli_mate");
     Directory.CreateDirectory(configDir);
     File.WriteAllText(Path.Combine(configDir, "tool.conf"), toolName);
   }
 
   private void SetupLegacyGlobalToolConfig(string toolName)
   {
-    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    var configDir = Path.Combine(homeDir, ".config", "copilot_here");
+    var configDir = Path.Combine(_testHomeDir, ".config", "copilot_here");
     Directory.CreateDirectory(configDir);
     File.WriteAllText(Path.Combine(configDir, "tool.conf"), toolName);
-  }
-
-  private void CleanupGlobalToolConfig()
-  {
-    try
-    {
-      var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-      var toolConfigFile = Path.Combine(homeDir, ".config", "cli_mate", "tool.conf");
-      if (File.Exists(toolConfigFile))
-        File.Delete(toolConfigFile);
-    }
-    catch
-    {
-      // Ignore cleanup errors
-    }
-  }
-
-  private void CleanupLegacyGlobalToolConfig()
-  {
-    try
-    {
-      var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-      var toolConfigFile = Path.Combine(homeDir, ".config", "copilot_here", "tool.conf");
-      if (File.Exists(toolConfigFile))
-        File.Delete(toolConfigFile);
-    }
-    catch
-    {
-      // Ignore cleanup errors
-    }
   }
 }

@@ -278,17 +278,6 @@ public class ContainerRuntimeConfigTests
   }
 
   [Test]
-  public async Task IsCommandAvailable_Docker_ChecksCorrectly()
-  {
-    // Act
-    var isAvailable = ContainerRuntimeConfig.IsCommandAvailable("docker");
-    
-    // Assert - On most dev machines, this should be true
-    // We can't assert true/false definitively, just that it doesn't throw
-    await Assert.That(isAvailable == true || isAvailable == false).IsTrue();
-  }
-
-  [Test]
   public async Task IsCommandAvailable_NonExistentCommand_ReturnsFalse()
   {
     // Act

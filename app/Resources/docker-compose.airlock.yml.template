@@ -5,7 +5,7 @@
 # The proxy bridges to the external network - no direct internet access from app.
 #
 # Environment variables read from shell (NOT written to file for security):
-#   GITHUB_TOKEN           - GitHub token for authentication
+#   Authentication tokens are provided by the active tool's IAuthProvider
 
 {{NETWORKS}}
 
@@ -43,7 +43,7 @@ services:
       - https_proxy=http://proxy:58080
       - PUID={{PUID}}
       - PGID={{PGID}}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+{{AUTH_ENV_VARS}}
       - TERM=${TERM:-xterm-256color}
       - COPILOT_HERE_SESSION_INFO={{SESSION_INFO}}
     volumes:

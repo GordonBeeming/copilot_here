@@ -393,8 +393,8 @@ public sealed class RunCommand : ICommand
       };
 
       // Use the tool to build the final command
-      var copilotArgs = ctx.ActiveTool.BuildCommand(commandContext);
-      DebugLogger.Log($"Built command: {string.Join(" ", copilotArgs)}");
+      var toolCommand = ctx.ActiveTool.BuildCommand(commandContext);
+      DebugLogger.Log($"Built command: {string.Join(" ", toolCommand)}");
 
       var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
       Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
@@ -492,27 +492,27 @@ public sealed class RunCommand : ICommand
         Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
 
         // Run in Airlock mode with Docker Compose
-        return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, copilotArgs);
+        return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, toolCommand);
       }
 
       // Add directories for YOLO mode
       if (_isYolo)
       {
         // Add current dir and all mount paths to --add-dir
-        copilotArgs.Add("--add-dir");
-        copilotArgs.Add(ctx.Paths.ContainerWorkDir);
+        toolCommand.Add("--add-dir");
+        toolCommand.Add(ctx.Paths.ContainerWorkDir);
 
         foreach (var mount in allMounts)
         {
-          copilotArgs.Add("--add-dir");
-          copilotArgs.Add(mount.GetContainerPath(ctx.Paths.UserHome));
+          toolCommand.Add("--add-dir");
+          toolCommand.Add(mount.GetContainerPath(ctx.Paths.UserHome));
         }
       }
 
       // Build Docker args for standard mode
       var sessionId = GenerateSessionId();
       var containerName = $"copilot_here-{sessionId}";
-      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs, _isYolo, imageTag, noPull);
+      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull);
 
       // Set terminal title
       var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
@@ -557,7 +557,7 @@ public sealed class RunCommand : ICommand
     string imageName,
     string containerName,
     List<MountEntry> mounts,
-    List<string> copilotArgs,
+    List<string> toolCommand,
     bool isYolo,
     string imageTag,
     bool noPull)
@@ -579,9 +579,15 @@ public sealed class RunCommand : ICommand
       // Environment variables
       "-e", $"PUID={ctx.Environment.UserId}",
       "-e", $"PGID={ctx.Environment.GroupId}",
-      "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}",
       "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
+
+    // Add auth environment variables from the active tool's auth provider
+    foreach (var (key, value) in ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars())
+    {
+      args.Add("-e");
+      args.Add($"{key}={value}");
+    }
 
     // Add --pull=never when --no-pull is specified
     // This prevents the container runtime from auto-pulling missing images
@@ -609,8 +615,8 @@ public sealed class RunCommand : ICommand
     // Add image name
     args.Add(imageName);
 
-    // Add copilot args
-    args.AddRange(copilotArgs);
+    // Add tool command
+    args.AddRange(toolCommand);
 
     return args;
   }
