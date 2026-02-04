@@ -415,6 +415,10 @@ dotnet test
 - Follow .NET naming conventions (PascalCase for public members)
 - Add XML documentation comments for public APIs
 - Use AOT-compatible patterns (avoid reflection, dynamic code generation)
+- **NEVER use `[Obsolete]` attribute** - just remove or refactor code instead
+  - Obsolete attributes clutter the codebase and create compiler warnings
+  - If something needs to change, change it - don't mark it as obsolete
+  - If you need to maintain backward compatibility, keep both approaches working
 
 ### Configuration Priority
 

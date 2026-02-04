@@ -27,12 +27,21 @@ public sealed partial class GitHubCopilotModelProvider : IModelProvider
     var args = new List<string>
     {
       "run",
-      "--rm",
-      "--env", $"GH_TOKEN={ctx.Environment.GitHubToken}",
-      imageName,
-      "copilot",  // Just "copilot", not "gh copilot"
-      "--model", "invalid-model-to-trigger-list"
+      "--rm"
     };
+    
+    // Add auth environment variables
+    var authProvider = ctx.ActiveTool.GetAuthProvider();
+    foreach (var (key, value) in authProvider.GetEnvironmentVars())
+    {
+      args.Add("--env");
+      args.Add($"{key}={value}");
+    }
+    
+    args.Add(imageName);
+    args.Add("copilot");  // Just "copilot", not "gh copilot"
+    args.Add("--model");
+    args.Add("invalid-model-to-trigger-list");
     
     DebugLogger.Log($"Running: {ctx.RuntimeConfig.Runtime} run ... copilot --model invalid-model-to-trigger-list");
     var (exitCode, stdout, stderr) = ContainerRunner.RunAndCapture(ctx.RuntimeConfig, args);
