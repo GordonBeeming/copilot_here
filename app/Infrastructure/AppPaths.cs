@@ -28,7 +28,13 @@ public sealed record AppPaths
   public static AppPaths Resolve()
   {
     var currentDir = Directory.GetCurrentDirectory();
-    var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    
+    // Get user home, respecting environment variables (important for tests)
+    // Check env vars first before falling back to SpecialFolder
+    var userHome = Environment.GetEnvironmentVariable("HOME")
+                   ?? Environment.GetEnvironmentVariable("USERPROFILE")
+                   ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    
     var globalConfigPath = Path.Combine(userHome, ".config", "copilot_here");
     var copilotConfigPath = Path.Combine(userHome, ".config", "copilot-cli-docker");
 
