@@ -301,9 +301,15 @@ EOF
       -v pgid="$(id -g)" \
       -v extra_mounts="" \
       -v copilot_args="[\"sleep\", \"infinity\"]" \
+      -v session_info="{}" \
+      -v auth_env_vars="      - GITHUB_TOKEN=\${GITHUB_TOKEN}" \
       '{
         if ($0 ~ /\{\{NETWORKS\}\}/) {
           while ((getline line < "'"$TEST_DIR"'/.networks.tmp") > 0) print line;
+          next;
+        }
+        if ($0 ~ /\{\{AUTH_ENV_VARS\}\}/) {
+          print auth_env_vars;
           next;
         }
         gsub(/\{\{EXTERNAL_NETWORK\}\}/, external_network);
@@ -320,6 +326,7 @@ EOF
         gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
         gsub(/\{\{EXTRA_SANDBOX_FLAGS\}\}/, extra_sandbox_flags);
         gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
+        gsub(/\{\{SESSION_INFO\}\}/, session_info);
         print
       }' "$template_file" > "$COMPOSE_FILE"
   

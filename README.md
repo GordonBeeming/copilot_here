@@ -19,7 +19,7 @@ The `copilot_here` shell function is a lightweight wrapper around a Docker conta
 ## ✅ Prerequisites
 
 Before you start, make sure you have the following installed and configured on your machine:
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux).
+- **Container Runtime**: [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack](https://orbstack.dev/), or [Podman](https://podman.io/). The system will auto-detect your available runtime.
 - The [GitHub CLI (`gh`)](https://cli.github.com/).
 - You must be logged in to the GitHub CLI. You can check by running `gh auth status`. Your token **must** have the `copilot` and `read:packages` scopes. If it doesn't, run `gh auth refresh -h github.com -s copilot,read:packages` to add them.
 
@@ -129,6 +129,30 @@ You can configure the default AI model to use so you don't have to pass `--model
 **Configuration Priority:**
 1. CLI argument (`--model <model-id>`)
 2. Local config (`.copilot_here/model.conf`)
+
+### Container Runtime Management
+
+`copilot_here` supports multiple container runtimes: **Docker**, **OrbStack**, and **Podman**. The system automatically detects the available runtime, but you can also configure a preferred runtime.
+
+**Management Commands:**
+- `--show-runtime` - Show current container runtime configuration
+- `--list-runtimes` - List all available container runtimes on your system
+- `--set-runtime <runtime>` - Set runtime in local config (values: `docker`, `podman`, or `auto`)
+- `--set-runtime-global <runtime>` - Set runtime in global config
+
+**Configuration Files:**
+- Global: `~/.config/copilot_here/runtime.conf`
+- Local: `.copilot_here/runtime.conf`
+
+**Configuration Priority:**
+1. Local config (`.copilot_here/runtime.conf`)
+2. Global config (`~/.config/copilot_here/runtime.conf`)
+3. Auto-detection (tries Docker first, then Podman)
+
+**Supported Runtimes:**
+- **Docker** - Standard Docker Engine or Docker Desktop
+- **OrbStack** - Automatically detected when Docker context is set to OrbStack
+- **Podman** - Open-source container runtime (auto-detects compose support)
 3. Global config (`~/.config/copilot_here/model.conf`)
 4. Default (GitHub Copilot CLI default)
 

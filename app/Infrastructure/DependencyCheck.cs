@@ -20,16 +20,33 @@ public static class DependencyCheck
   );
 
   /// <summary>
-  /// Checks all required dependencies and returns their status.
+  /// Checks all required dependencies for the specified tool and returns their status.
   /// </summary>
-  public static List<DependencyResult> CheckAll()
+  public static List<DependencyResult> CheckAll(ICliTool tool, ContainerRuntimeConfig runtimeConfig)
   {
-    return
-    [
-      CheckGitHubCli(),
-      CheckDocker(),
-      CheckDockerRunning()
-    ];
+    var results = new List<DependencyResult>();
+
+    // Check container runtime and daemon first
+    results.Add(CheckContainerRuntime(runtimeConfig));
+    results.Add(CheckContainerRuntimeRunning(runtimeConfig));
+
+    // Check tool-specific dependencies
+    var toolDeps = tool.GetRequiredDependencies();
+    foreach (var dep in toolDeps)
+    {
+      if (dep.Equals("docker", StringComparison.OrdinalIgnoreCase))
+      {
+        // Already checked (as container runtime)
+        continue;
+      }
+      else if (dep.Equals("gh", StringComparison.OrdinalIgnoreCase))
+      {
+        results.Add(CheckGitHubCli(tool));
+      }
+      // Add more dependency checks here as needed
+    }
+
+    return results;
   }
 
   /// <summary>
@@ -86,7 +103,7 @@ public static class DependencyCheck
   /// <summary>
   /// Checks if GitHub CLI is installed and authenticated.
   /// </summary>
-  private static DependencyResult CheckGitHubCli()
+  private static DependencyResult CheckGitHubCli(ICliTool tool)
   {
     try
     {
@@ -145,7 +162,7 @@ public static class DependencyCheck
           false,
           version,
           "Failed to check authentication status",
-          GetGitHubAuthHelp()
+          GetGitHubAuthHelp(tool)
         );
       }
 
@@ -158,7 +175,7 @@ public static class DependencyCheck
           false,
           version,
           "Not authenticated",
-          GetGitHubAuthHelp()
+          GetGitHubAuthHelp(tool)
         );
       }
 
@@ -183,13 +200,13 @@ public static class DependencyCheck
   }
 
   /// <summary>
-  /// Checks if Docker is installed.
+  /// Checks if the configured container runtime is installed.
   /// </summary>
-  private static DependencyResult CheckDocker()
+  private static DependencyResult CheckContainerRuntime(ContainerRuntimeConfig runtimeConfig)
   {
     try
     {
-      var startInfo = new ProcessStartInfo("docker", "--version")
+      var startInfo = new ProcessStartInfo(runtimeConfig.Runtime, "--version")
       {
         RedirectStandardOutput = true,
         RedirectStandardError = true,
@@ -201,11 +218,11 @@ public static class DependencyCheck
       if (process is null)
       {
         return new DependencyResult(
-          "Docker",
+          runtimeConfig.RuntimeFlavor,
           false,
           null,
-          "Failed to run 'docker --version'",
-          GetDockerInstallHelp()
+          $"Failed to run '{runtimeConfig.Runtime} --version'",
+          GetContainerRuntimeInstallHelp(runtimeConfig)
         );
       }
 
@@ -215,19 +232,19 @@ public static class DependencyCheck
       if (process.ExitCode != 0)
       {
         return new DependencyResult(
-          "Docker",
+          runtimeConfig.RuntimeFlavor,
           false,
           null,
-          "Docker not found",
-          GetDockerInstallHelp()
+          $"{runtimeConfig.RuntimeFlavor} not found",
+          GetContainerRuntimeInstallHelp(runtimeConfig)
         );
       }
 
-      // Extract version from output (e.g., "Docker version 24.0.7, build afdd53b")
-      var version = ExtractDockerVersion(output);
+      // Extract version from output
+      var version = ExtractContainerRuntimeVersion(output, runtimeConfig.Runtime);
 
       return new DependencyResult(
-        "Docker",
+        runtimeConfig.RuntimeFlavor,
         true,
         version,
         null,
@@ -237,23 +254,23 @@ public static class DependencyCheck
     catch (Exception ex)
     {
       return new DependencyResult(
-        "Docker",
+        runtimeConfig.RuntimeFlavor,
         false,
         null,
-        $"Error checking Docker: {ex.Message}",
-        GetDockerInstallHelp()
+        $"Error checking {runtimeConfig.RuntimeFlavor}: {ex.Message}",
+        GetContainerRuntimeInstallHelp(runtimeConfig)
       );
     }
   }
 
   /// <summary>
-  /// Checks if Docker daemon is running.
+  /// Checks if the container runtime daemon is running.
   /// </summary>
-  private static DependencyResult CheckDockerRunning()
+  private static DependencyResult CheckContainerRuntimeRunning(ContainerRuntimeConfig runtimeConfig)
   {
     try
     {
-      var startInfo = new ProcessStartInfo("docker", "info")
+      var startInfo = new ProcessStartInfo(runtimeConfig.Runtime, "info")
       {
         RedirectStandardOutput = true,
         RedirectStandardError = true,
@@ -265,11 +282,11 @@ public static class DependencyCheck
       if (process is null)
       {
         return new DependencyResult(
-          "Docker Daemon",
+          $"{runtimeConfig.RuntimeFlavor} Daemon",
           false,
           null,
-          "Failed to run 'docker info'",
-          GetDockerRunningHelp()
+          $"Failed to run '{runtimeConfig.Runtime} info'",
+          GetContainerRuntimeRunningHelp(runtimeConfig)
         );
       }
 
@@ -278,16 +295,16 @@ public static class DependencyCheck
       if (process.ExitCode != 0)
       {
         return new DependencyResult(
-          "Docker Daemon",
+          $"{runtimeConfig.RuntimeFlavor} Daemon",
           false,
           null,
-          "Docker daemon not running",
-          GetDockerRunningHelp()
+          $"{runtimeConfig.RuntimeFlavor} daemon not running",
+          GetContainerRuntimeRunningHelp(runtimeConfig)
         );
       }
 
       return new DependencyResult(
-        "Docker Daemon",
+        $"{runtimeConfig.RuntimeFlavor} Daemon",
         true,
         "Running",
         null,
@@ -297,11 +314,11 @@ public static class DependencyCheck
     catch (Exception ex)
     {
       return new DependencyResult(
-        "Docker Daemon",
+        $"{runtimeConfig.RuntimeFlavor} Daemon",
         false,
         null,
-        $"Error checking Docker daemon: {ex.Message}",
-        GetDockerRunningHelp()
+        $"Error checking {runtimeConfig.RuntimeFlavor} daemon: {ex.Message}",
+        GetContainerRuntimeRunningHelp(runtimeConfig)
       );
     }
   }
@@ -326,17 +343,22 @@ public static class DependencyCheck
   }
 
   /// <summary>
-  /// Extracts Docker version from output.
+  /// Extracts container runtime version from output.
   /// </summary>
-  private static string? ExtractDockerVersion(string output)
+  private static string? ExtractContainerRuntimeVersion(string output, string runtime)
   {
-    // Expected format: "Docker version 24.0.7, build afdd53b"
+    // Expected format: "Docker version 24.0.7, build afdd53b" or "podman version 4.5.0"
     var parts = output.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-    if (parts.Length >= 3 && parts[0] == "Docker" && parts[1] == "version")
+    
+    // Look for "version X.Y.Z" pattern
+    for (int i = 0; i < parts.Length - 1; i++)
     {
-      // Remove trailing comma if present
-      var version = parts[2].TrimEnd(',');
-      return version;
+      if (parts[i].Equals("version", StringComparison.OrdinalIgnoreCase))
+      {
+        // Remove trailing comma if present
+        var version = parts[i + 1].TrimEnd(',');
+        return version;
+      }
     }
 
     return null;
@@ -364,44 +386,80 @@ public static class DependencyCheck
   /// <summary>
   /// Gets help for authenticating with GitHub CLI.
   /// </summary>
-  private static string GetGitHubAuthHelp()
+  private static string GetGitHubAuthHelp(ICliTool tool)
   {
-    var scopes = string.Join(",", GitHubAuth.RequiredScopes);
+    var authProvider = tool.GetAuthProvider();
+    var scopes = string.Join(",", authProvider.GetRequiredScopes());
     return $"💡 Authenticate: gh auth login -h github.com -s {scopes}";
   }
 
   /// <summary>
-  /// Gets platform-specific help for installing Docker.
+  /// Gets platform-specific help for installing the container runtime.
   /// </summary>
-  private static string GetDockerInstallHelp()
+  private static string GetContainerRuntimeInstallHelp(ContainerRuntimeConfig runtimeConfig)
   {
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    if (runtimeConfig.Runtime == "podman")
     {
-      return "💡 Install: https://docs.docker.com/desktop/install/windows-install/";
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+      {
+        return "💡 Install: https://podman.io/docs/installation#windows";
+      }
+      else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+      {
+        return "💡 Install: brew install podman";
+      }
+      else // Linux
+      {
+        return "💡 Install: https://podman.io/docs/installation#installing-on-linux";
+      }
     }
-    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+    else // Docker
     {
-      return "💡 Install: https://docs.docker.com/desktop/install/mac-install/";
-    }
-    else // Linux
-    {
-      return "💡 Install: https://docs.docker.com/engine/install/";
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+      {
+        return "💡 Install: https://docs.docker.com/desktop/install/windows-install/";
+      }
+      else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+      {
+        return "💡 Install: https://docs.docker.com/desktop/install/mac-install/ or brew install --cask orbstack";
+      }
+      else // Linux
+      {
+        return "💡 Install: https://docs.docker.com/engine/install/";
+      }
     }
   }
 
   /// <summary>
-  /// Gets help for starting Docker daemon.
+  /// Gets help for starting the container runtime daemon.
   /// </summary>
-  private static string GetDockerRunningHelp()
+  private static string GetContainerRuntimeRunningHelp(ContainerRuntimeConfig runtimeConfig)
   {
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
-        RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+    if (runtimeConfig.Runtime == "podman")
     {
-      return "💡 Start Docker Desktop application";
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
+          RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+      {
+        return "💡 Start Podman: podman machine start";
+      }
+      else // Linux
+      {
+        return "💡 Start Podman: sudo systemctl start podman";
+      }
     }
-    else // Linux
+    else // Docker
     {
-      return "💡 Start Docker: sudo systemctl start docker";
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
+          RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+      {
+        return runtimeConfig.RuntimeFlavor == "OrbStack" 
+          ? "💡 Start OrbStack application" 
+          : "💡 Start Docker Desktop application";
+      }
+      else // Linux
+      {
+        return "💡 Start Docker: sudo systemctl start docker";
+      }
     }
   }
 }

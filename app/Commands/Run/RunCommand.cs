@@ -15,6 +15,9 @@ public sealed class RunCommand : ICommand
 {
   private readonly bool _isYolo;
 
+  // === TOOL SELECTION ===
+  private readonly Option<string?> _toolOption;
+
   // === IMAGE SELECTION OPTIONS ===
   private readonly Option<bool> _dotnetOption;
   private readonly Option<bool> _dotnet8Option;
@@ -75,6 +78,8 @@ public sealed class RunCommand : ICommand
     // - Short aliases like -d, -d8, -d9 are handled in Program.NormalizeArgs
     // - PowerShell-style aliases are also handled in Program.NormalizeArgs for backwards compatibility
     // - Descriptions show available short aliases in brackets
+
+    _toolOption = new Option<string?>("--tool") { Description = "Override CLI tool (github-copilot, echo, etc.)" };
 
     _dotnetOption = new Option<bool>("--dotnet") { Description = "[-d] Use .NET image variant (all versions)" };
 
@@ -142,6 +147,7 @@ public sealed class RunCommand : ICommand
 
   public void Configure(RootCommand root)
   {
+    root.Add(_toolOption);
     root.Add(_dotnetOption);
     root.Add(_dotnet8Option);
     root.Add(_dotnet9Option);
@@ -179,7 +185,22 @@ public sealed class RunCommand : ICommand
 
     root.SetAction(parseResult =>
     {
-      var ctx = Infrastructure.AppContext.Create();
+      var toolOverride = parseResult.GetValue(_toolOption);
+      
+      // Validate tool if specified
+      if (!string.IsNullOrWhiteSpace(toolOverride) && !ToolRegistry.Exists(toolOverride))
+      {
+        Console.WriteLine($"❌ Unknown tool: {toolOverride}");
+        Console.WriteLine();
+        Console.WriteLine("Available tools:");
+        foreach (var name in ToolRegistry.GetToolNames())
+        {
+          Console.WriteLine($"  • {name}");
+        }
+        return 1;
+      }
+      
+      var ctx = Infrastructure.AppContext.Create(toolOverride);
 
       var dotnet = parseResult.GetValue(_dotnetOption);
       var dotnet8 = parseResult.GetValue(_dotnet8Option);
@@ -237,7 +258,7 @@ public sealed class RunCommand : ICommand
 
       DebugLogger.Log("Checking dependencies...");
       // Check dependencies
-      var dependencyResults = DependencyCheck.CheckAll();
+      var dependencyResults = DependencyCheck.CheckAll(ctx.ActiveTool, ctx.RuntimeConfig);
       var allDependenciesSatisfied = DependencyCheck.DisplayResults(dependencyResults);
       
       if (!allDependenciesSatisfied)
@@ -247,9 +268,10 @@ public sealed class RunCommand : ICommand
       }
       DebugLogger.Log("All dependencies satisfied");
 
-      DebugLogger.Log("Validating GitHub auth scopes...");
+      DebugLogger.Log("Validating auth...");
       // Security check
-      var (isValid, error) = GitHubAuth.ValidateScopes();
+      var authProvider = ctx.ActiveTool.GetAuthProvider();
+      var (isValid, error) = authProvider.ValidateAuth();
       if (!isValid)
       {
         DebugLogger.Log($"Auth validation failed: {error}");
@@ -271,19 +293,8 @@ public sealed class RunCommand : ICommand
       else if (dotnetRust) imageTag = "dotnet-rust";
       else if (golang) imageTag = "golang";
 
-      var imageName = DockerRunner.GetImageName(imageTag);
+      var imageName = ctx.ActiveTool.GetImageName(imageTag);
       DebugLogger.Log($"Selected image: {imageName}");
-
-      // Build copilot args list
-      var copilotArgs = new List<string> { "copilot" };
-
-      // Add YOLO mode flags
-      if (_isYolo)
-      {
-        DebugLogger.Log("Adding YOLO mode flags");
-        copilotArgs.Add("--allow-all-tools");
-        copilotArgs.Add("--allow-all-paths");
-      }
 
       // Determine model (CLI overrides config)
       var effectiveModel = model ?? ctx.ModelConfig.Model;
@@ -292,98 +303,102 @@ public sealed class RunCommand : ICommand
         DebugLogger.Log($"Using model: {effectiveModel} (source: {(model != null ? "CLI" : ctx.ModelConfig.Source.ToString())})");
       }
 
-      // Handle --help2 (native copilot help)
+      // Build user arguments list (tool-specific passthrough options)
+      var userArgs = new List<string>();
+      
+      // Handle --help2 (native help)
       if (help2)
       {
-        copilotArgs.Add("--help");
+        userArgs.Add("--help");
       }
       else
       {
         // Add passthrough options
         if (!string.IsNullOrEmpty(prompt))
         {
-          copilotArgs.Add("--prompt");
-          copilotArgs.Add(prompt);
-        }
-        if (!string.IsNullOrEmpty(effectiveModel))
-        {
-          copilotArgs.Add("--model");
-          copilotArgs.Add(effectiveModel);
+          userArgs.Add("--prompt");
+          userArgs.Add(prompt);
         }
         if (continueSession)
         {
-          copilotArgs.Add("--continue");
+          userArgs.Add("--continue");
         }
         // Check if --resume was actually passed (even without a value)
         var resumeOptionResult = parseResult.GetResult(_resumeOption);
         if (resumeOptionResult != null)
         {
-          copilotArgs.Add("--resume");
+          userArgs.Add("--resume");
           if (!string.IsNullOrEmpty(resumeSession))
-            copilotArgs.Add(resumeSession);
+            userArgs.Add(resumeSession);
         }
         if (silent)
         {
-          copilotArgs.Add("--silent");
+          userArgs.Add("--silent");
         }
         if (!string.IsNullOrEmpty(agent))
         {
-          copilotArgs.Add("--agent");
-          copilotArgs.Add(agent);
+          userArgs.Add("--agent");
+          userArgs.Add(agent);
         }
         if (noColor)
         {
-          copilotArgs.Add("--no-color");
+          userArgs.Add("--no-color");
         }
         foreach (var tool in allowTools)
         {
-          copilotArgs.Add("--allow-tool");
-          copilotArgs.Add(tool);
+          userArgs.Add("--allow-tool");
+          userArgs.Add(tool);
         }
         foreach (var tool in denyTools)
         {
-          copilotArgs.Add("--deny-tool");
-          copilotArgs.Add(tool);
+          userArgs.Add("--deny-tool");
+          userArgs.Add(tool);
         }
         if (!string.IsNullOrEmpty(stream))
         {
-          copilotArgs.Add("--stream");
-          copilotArgs.Add(stream);
+          userArgs.Add("--stream");
+          userArgs.Add(stream);
         }
         if (!string.IsNullOrEmpty(logLevel))
         {
-          copilotArgs.Add("--log-level");
-          copilotArgs.Add(logLevel);
+          userArgs.Add("--log-level");
+          userArgs.Add(logLevel);
         }
         if (screenReader)
         {
-          copilotArgs.Add("--screen-reader");
+          userArgs.Add("--screen-reader");
         }
         if (noCustomInstructions)
         {
-          copilotArgs.Add("--no-custom-instructions");
+          userArgs.Add("--no-custom-instructions");
         }
         foreach (var mcpConfig in additionalMcpConfigs)
         {
-          copilotArgs.Add("--additional-mcp-config");
-          copilotArgs.Add(mcpConfig);
+          userArgs.Add("--additional-mcp-config");
+          userArgs.Add(mcpConfig);
         }
-        copilotArgs.AddRange(passthroughArgs);
-
-        // If no args (interactive mode), add --banner
-        // Check count excluding model args since model doesn't mean non-interactive
-        var argsWithoutModel = copilotArgs.Count;
-        if (!string.IsNullOrEmpty(effectiveModel))
-          argsWithoutModel -= 2; // Subtract --model and its value
-        
-        if (argsWithoutModel == 1 || (argsWithoutModel <= 3 && _isYolo))
-        {
-          copilotArgs.Add("--banner");
-        }
+        userArgs.AddRange(passthroughArgs);
       }
+
+      // Build command context for the tool
+      var commandContext = new CommandContext
+      {
+        UserArgs = userArgs,
+        IsYolo = _isYolo,
+        IsInteractive = userArgs.Count == 0 || (userArgs.Count == 1 && userArgs[0] == "--help"),
+        Model = effectiveModel,
+        ImageTag = imageTag,
+        Mounts = [], // Will be populated later
+        Environment = new Dictionary<string, string>()
+      };
+
+      // Use the tool to build the final command
+      var toolCommand = ctx.ActiveTool.BuildCommand(commandContext);
+      DebugLogger.Log($"Built command: {string.Join(" ", toolCommand)}");
 
       var supportsVariant = ctx.Environment.SupportsEmojiVariationSelectors;
       Console.WriteLine($"{Emoji.Rocket(supportsVariant)} Using image: {imageName}");
+      Console.WriteLine($"🐳 Container runtime: {ctx.RuntimeConfig.RuntimeFlavor}");
       
       // Show model - always display even if using default
       if (!string.IsNullOrEmpty(effectiveModel))
@@ -403,14 +418,14 @@ public sealed class RunCommand : ICommand
       // Pull image unless skipped
       if (!noPull)
       {
-        DebugLogger.Log("Pulling Docker image...");
-        if (!DockerRunner.PullImage(imageName))
+        DebugLogger.Log("Pulling image...");
+        if (!ContainerRunner.PullImage(ctx.RuntimeConfig, imageName))
         {
-          DebugLogger.Log("Docker image pull failed");
-          Console.WriteLine("Error: Failed to pull Docker image. Check Docker setup and network.");
+          DebugLogger.Log("Image pull failed");
+          Console.WriteLine($"Error: Failed to pull image. Check {ctx.RuntimeConfig.RuntimeFlavor} setup and network.");
           return 1;
         }
-        DebugLogger.Log("Docker image pull succeeded");
+        DebugLogger.Log("Image pull succeeded");
       }
       else
       {
@@ -421,7 +436,7 @@ public sealed class RunCommand : ICommand
       // Cleanup old images unless skipped
       if (!noCleanup)
       {
-        DockerRunner.CleanupOldImages(imageName);
+        ContainerRunner.CleanupOldImages(ctx.RuntimeConfig, imageName);
       }
       else
       {
@@ -477,34 +492,34 @@ public sealed class RunCommand : ICommand
         Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
 
         // Run in Airlock mode with Docker Compose
-        return AirlockRunner.Run(ctx, imageTag, _isYolo, allMounts, copilotArgs);
+        return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, toolCommand);
       }
 
       // Add directories for YOLO mode
       if (_isYolo)
       {
         // Add current dir and all mount paths to --add-dir
-        copilotArgs.Add("--add-dir");
-        copilotArgs.Add(ctx.Paths.ContainerWorkDir);
+        toolCommand.Add("--add-dir");
+        toolCommand.Add(ctx.Paths.ContainerWorkDir);
 
         foreach (var mount in allMounts)
         {
-          copilotArgs.Add("--add-dir");
-          copilotArgs.Add(mount.GetContainerPath(ctx.Paths.UserHome));
+          toolCommand.Add("--add-dir");
+          toolCommand.Add(mount.GetContainerPath(ctx.Paths.UserHome));
         }
       }
 
       // Build Docker args for standard mode
       var sessionId = GenerateSessionId();
       var containerName = $"copilot_here-{sessionId}";
-      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, copilotArgs, _isYolo, imageTag);
+      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull);
 
       // Set terminal title
       var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
       var dirName = SystemInfo.GetCurrentDirectoryName();
       var title = $"{titleEmoji} {dirName}";
 
-      return DockerRunner.RunInteractive(dockerArgs, title);
+      return ContainerRunner.RunInteractive(ctx.RuntimeConfig, dockerArgs, title);
     });
   }
 
@@ -542,9 +557,10 @@ public sealed class RunCommand : ICommand
     string imageName,
     string containerName,
     List<MountEntry> mounts,
-    List<string> copilotArgs,
+    List<string> toolCommand,
     bool isYolo,
-    string imageTag)
+    string imageTag,
+    bool noPull)
   {
     // Generate session info JSON
     var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
@@ -563,9 +579,23 @@ public sealed class RunCommand : ICommand
       // Environment variables
       "-e", $"PUID={ctx.Environment.UserId}",
       "-e", $"PGID={ctx.Environment.GroupId}",
-      "-e", $"GITHUB_TOKEN={ctx.Environment.GitHubToken}",
       "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
+
+    // Add auth environment variables from the active tool's auth provider
+    foreach (var (key, value) in ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars())
+    {
+      args.Add("-e");
+      args.Add($"{key}={value}");
+    }
+
+    // Add --pull=never when --no-pull is specified
+    // This prevents the container runtime from auto-pulling missing images
+    // Both Docker (19.09+) and Podman support this flag
+    if (noPull)
+    {
+      args.Insert(1, "--pull=never"); // Insert after "run"
+    }
 
     // Add additional mounts
     foreach (var mount in mounts)
@@ -585,8 +615,8 @@ public sealed class RunCommand : ICommand
     // Add image name
     args.Add(imageName);
 
-    // Add copilot args
-    args.AddRange(copilotArgs);
+    // Add tool command
+    args.AddRange(toolCommand);
 
     return args;
   }

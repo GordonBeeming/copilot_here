@@ -1,6 +1,6 @@
-# Build on top of the base image to add Playwright capabilities
-# ARG will be provided by the build process with the commit hash
-ARG BASE_IMAGE_TAG
+# Build on top of any tool's base image to add Playwright capabilities
+# BASE_IMAGE_TAG can be copilot-latest, echo-latest, claude-latest, etc.
+ARG BASE_IMAGE_TAG=copilot-latest
 ARG PLAYWRIGHT_VERSION=latest
 FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 

@@ -36,14 +36,15 @@ public static class AirlockRunner
   }
 
   /// <summary>
-  /// Runs the Copilot CLI in Airlock mode with a proxy container.
+  /// Runs the CLI tool in Airlock mode with a proxy container.
   /// </summary>
   public static int Run(
+    ContainerRuntimeConfig runtimeConfig,
     AppContext ctx,
     string imageTag,
     bool isYolo,
     List<MountEntry> mounts,
-    List<string> copilotArgs)
+    List<string> toolArgs)
   {
     var rulesPath = ctx.AirlockConfig.RulesPath;
     if (string.IsNullOrEmpty(rulesPath) || !File.Exists(rulesPath))
@@ -53,17 +54,17 @@ public static class AirlockRunner
     }
 
     // Cleanup orphaned networks/containers first
-    CleanupOrphanedResources();
+    CleanupOrphanedResources(runtimeConfig);
 
     // Parse sandbox flags
     var sandboxFlags = SandboxFlags.Parse();
-    var externalNetwork = SandboxFlags.ExtractNetwork(sandboxFlags) ?? "bridge";
+    var externalNetwork = SandboxFlags.ExtractNetwork(sandboxFlags) ?? runtimeConfig.DefaultNetworkName;
     var appFlags = SandboxFlags.FilterNetworkFlags(sandboxFlags);
 
     if (sandboxFlags.Count > 0)
     {
       DebugLogger.Log($"SANDBOX_FLAGS detected: {sandboxFlags.Count} flags");
-      if (externalNetwork != "bridge")
+      if (externalNetwork != runtimeConfig.DefaultNetworkName)
         DebugLogger.Log($"Using external network: {externalNetwork}");
     }
 
@@ -74,7 +75,7 @@ public static class AirlockRunner
     Console.WriteLine($"   App image: {appImage}");
     Console.WriteLine($"   Proxy image: {proxyImage}");
     Console.WriteLine($"   Network config: {rulesPath}");
-    if (externalNetwork != "bridge")
+    if (externalNetwork != runtimeConfig.DefaultNetworkName)
       Console.WriteLine($"   External network: {externalNetwork}");
 
     // Generate session ID for unique naming
@@ -102,8 +103,8 @@ public static class AirlockRunner
 
     // Generate compose file
     var composeFile = GenerateComposeFile(
-      ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, externalNetwork, appFlags, mounts, copilotArgs, isYolo);
+      runtimeConfig, ctx, templateContent, projectName, appImage, proxyImage,
+      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, isYolo);
 
     if (composeFile is null)
     {
@@ -132,14 +133,14 @@ public static class AirlockRunner
       Console.WriteLine();
 
       // Start proxy in background
-      if (!StartProxy(composeFile, projectName, ctx.Environment.GitHubToken))
+      if (!StartProxy(runtimeConfig, composeFile, projectName, ctx))
       {
         Console.WriteLine("❌ Failed to start proxy container");
         return 1;
       }
 
       // Run app interactively
-      var exitCode = RunApp(composeFile, projectName, ctx.Environment.GitHubToken);
+      var exitCode = RunApp(runtimeConfig, composeFile, projectName, ctx);
 
       return exitCode;
     }
@@ -151,7 +152,7 @@ public static class AirlockRunner
       // Cleanup
       Console.WriteLine();
       Console.WriteLine("🧹 Cleaning up airlock...");
-      CleanupSession(projectName, composeFile, processedConfigPath);
+      CleanupSession(runtimeConfig, projectName, composeFile, processedConfigPath);
     }
   }
 
@@ -222,6 +223,7 @@ public static class AirlockRunner
   }
 
   private static string? GenerateComposeFile(
+    ContainerRuntimeConfig runtimeConfig,
     AppContext ctx,
     string template,
     string projectName,
@@ -231,7 +233,7 @@ public static class AirlockRunner
     string externalNetwork,
     List<string> appSandboxFlags,
     List<MountEntry> mounts,
-    List<string> copilotArgs,
+    List<string> toolArgs,
     bool isYolo)
   {
     try
@@ -264,12 +266,12 @@ public static class AirlockRunner
 
       // Build networks section
       string networksYaml;
-      if (externalNetwork == "bridge")
+      if (externalNetwork == runtimeConfig.DefaultNetworkName)
       {
-        networksYaml = @"networks:
+        networksYaml = $@"networks:
   airlock:
     internal: true
-  bridge:";
+  {runtimeConfig.DefaultNetworkName}:";
       }
       else
       {
@@ -280,28 +282,30 @@ public static class AirlockRunner
     external: true";
       }
 
-      // Build copilot command
-      var copilotCmd = new StringBuilder("[\"copilot\"");
-      if (isYolo)
+      // Build tool command - already built by the caller via ICliTool.BuildCommand()
+      // The toolArgs already contains the complete command including:
+      // - Tool name (e.g., "copilot", "bash")
+      // - YOLO flags if applicable (e.g., "--allow-all-tools", "--allow-all-paths")
+      // - Model if specified
+      // - User arguments
+      // - Interactive flag (e.g., "--banner") if applicable
+      
+      // Convert command to JSON array format for docker-compose
+      var toolCmd = new StringBuilder("[");
+      for (int i = 0; i < toolArgs.Count; i++)
       {
-        copilotCmd.Append(", \"--allow-all-tools\", \"--allow-all-paths\"");
-        copilotCmd.Append($", \"--add-dir\", \"{ctx.Paths.ContainerWorkDir}\"");
+        if (i > 0) toolCmd.Append(", ");
+        var arg = toolArgs[i].Replace("\"", "\\\"");
+        toolCmd.Append($"\"{arg}\"");
       }
+      toolCmd.Append(']');
 
-      if (copilotArgs.Count <= 1 || (copilotArgs.Count <= 3 && isYolo))
+      // Build auth environment variables from the active tool's auth provider
+      var authEnvVars = new StringBuilder();
+      foreach (var (key, value) in ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars())
       {
-        copilotCmd.Append(", \"--banner\"");
+        authEnvVars.AppendLine($"      - {key}=${{{key}}}");
       }
-      else
-      {
-        // Skip "copilot" at index 0
-        for (var i = 1; i < copilotArgs.Count; i++)
-        {
-          var arg = copilotArgs[i].Replace("\"", "\\\"");
-          copilotCmd.Append($", \"{arg}\"");
-        }
-      }
-      copilotCmd.Append(']');
 
       // Generate session info JSON for Airlock mode
       var sessionInfo = SessionInfo.GenerateWithNetworkConfig(
@@ -326,7 +330,7 @@ public static class AirlockRunner
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
         .Replace("{{SESSION_INFO}}", sessionInfo)
-        .Replace("{{COPILOT_ARGS}}", copilotCmd.ToString());
+        .Replace("{{COPILOT_ARGS}}", toolCmd.ToString());
 
       // Handle multiline placeholders
       var lines = result.Split('\n').ToList();
@@ -353,6 +357,13 @@ public static class AirlockRunner
           else
             lines.RemoveAt(i);
         }
+        else if (lines[i].Contains("{{AUTH_ENV_VARS}}"))
+        {
+          if (authEnvVars.Length > 0)
+            lines[i] = authEnvVars.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
       }
 
       result = string.Join('\n', lines);
@@ -368,23 +379,29 @@ public static class AirlockRunner
     }
   }
 
-  private static bool StartProxy(string composeFile, string projectName, string? token)
+  private static bool StartProxy(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, AppContext ctx)
   {
     try
     {
       var startInfo = new ProcessStartInfo
       {
-        FileName = "docker",
+        FileName = runtimeConfig.Runtime,
         UseShellExecute = false,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
         CreateNoWindow = true
       };
 
-      startInfo.EnvironmentVariables["GITHUB_TOKEN"] = token ?? "";
+      // Get auth environment variables from the active tool's auth provider
+      var authEnvVars = ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars();
+      foreach (var (key, value) in authEnvVars)
+      {
+        startInfo.EnvironmentVariables[key] = value;
+      }
+      
       startInfo.EnvironmentVariables["COMPOSE_MENU"] = "0";
 
-      startInfo.ArgumentList.Add("compose");
+      startInfo.ArgumentList.Add(runtimeConfig.ComposeCommand);
       startInfo.ArgumentList.Add("-f");
       startInfo.ArgumentList.Add(composeFile);
       startInfo.ArgumentList.Add("-p");
@@ -413,14 +430,14 @@ public static class AirlockRunner
     }
   }
 
-  private static int RunApp(string composeFile, string projectName, string? token)
+  private static int RunApp(ContainerRuntimeConfig runtimeConfig, string composeFile, string projectName, AppContext ctx)
   {
-    // Let Docker Compose handle Ctrl+C
+    // Let container runtime handle Ctrl+C
     Console.CancelKeyPress += (_, e) => e.Cancel = true;
 
     var startInfo = new ProcessStartInfo
     {
-      FileName = "docker",
+      FileName = runtimeConfig.Runtime,
       UseShellExecute = false,
       RedirectStandardInput = false,
       RedirectStandardOutput = false,
@@ -428,10 +445,16 @@ public static class AirlockRunner
       CreateNoWindow = false
     };
 
-    startInfo.EnvironmentVariables["GITHUB_TOKEN"] = token ?? "";
+    // Get auth environment variables from the active tool's auth provider
+    var authEnvVars = ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars();
+    foreach (var (key, value) in authEnvVars)
+    {
+      startInfo.EnvironmentVariables[key] = value;
+    }
+    
     startInfo.EnvironmentVariables["COMPOSE_MENU"] = "0";
 
-    startInfo.ArgumentList.Add("compose");
+    startInfo.ArgumentList.Add(runtimeConfig.ComposeCommand);
     startInfo.ArgumentList.Add("-f");
     startInfo.ArgumentList.Add(composeFile);
     startInfo.ArgumentList.Add("-p");
@@ -448,20 +471,20 @@ public static class AirlockRunner
     return process.ExitCode;
   }
 
-  private static void CleanupSession(string projectName, string? composeFile, string? processedConfigPath)
+  private static void CleanupSession(ContainerRuntimeConfig runtimeConfig, string projectName, string? composeFile, string? processedConfigPath)
   {
     try
     {
       // Stop and remove proxy container
-      RunQuietCommand("docker", "stop", $"{projectName}-proxy");
-      RunQuietCommand("docker", "rm", $"{projectName}-proxy");
+      RunQuietCommand(runtimeConfig.Runtime, "stop", $"{projectName}-proxy");
+      RunQuietCommand(runtimeConfig.Runtime, "rm", $"{projectName}-proxy");
 
       // Remove networks
-      RunQuietCommand("docker", "network", "rm", $"{projectName}_airlock");
-      RunQuietCommand("docker", "network", "rm", $"{projectName}_bridge");
+      RunQuietCommand(runtimeConfig.Runtime, "network", "rm", $"{projectName}_airlock");
+      RunQuietCommand(runtimeConfig.Runtime, "network", "rm", $"{projectName}_{runtimeConfig.DefaultNetworkName}");
 
       // Remove volume
-      RunQuietCommand("docker", "volume", "rm", $"{projectName}_proxy-ca");
+      RunQuietCommand(runtimeConfig.Runtime, "volume", "rm", $"{projectName}_proxy-ca");
 
       // Delete temp files
       if (composeFile is not null && File.Exists(composeFile))
@@ -475,17 +498,17 @@ public static class AirlockRunner
     }
   }
 
-  private static void CleanupOrphanedResources()
+  private static void CleanupOrphanedResources(ContainerRuntimeConfig runtimeConfig)
   {
     try
     {
       // Get running containers
-      var runningOutput = RunCommand("docker", "ps", "--format", "{{.Names}}");
+      var runningOutput = RunCommand(runtimeConfig.Runtime, "ps", "--format", "{{.Names}}");
       var runningContainers = new HashSet<string>(
         runningOutput?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? []);
 
       // Get all containers including stopped
-      var allOutput = RunCommand("docker", "ps", "-a", "--format", "{{.Names}}");
+      var allOutput = RunCommand(runtimeConfig.Runtime, "ps", "-a", "--format", "{{.Names}}");
       var allContainers = allOutput?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
       // Find and remove orphaned proxy containers
@@ -498,23 +521,23 @@ public static class AirlockRunner
 
         if (!hasRunningApp)
         {
-          RunQuietCommand("docker", "rm", "-f", container);
+          RunQuietCommand(runtimeConfig.Runtime, "rm", "-f", container);
           Console.WriteLine($"  🗑️  Removed orphaned proxy: {container}");
         }
       }
 
       // Find and remove orphaned networks
-      var networksOutput = RunCommand("docker", "network", "ls", "--format", "{{.Name}}");
+      var networksOutput = RunCommand(runtimeConfig.Runtime, "network", "ls", "--format", "{{.Name}}");
       var networks = networksOutput?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
-      var copilotNetworks = networks.Where(n => n.EndsWith("_airlock") || n.EndsWith("_bridge"));
+      var copilotNetworks = networks.Where(n => n.EndsWith("_airlock") || n.EndsWith($"_{runtimeConfig.DefaultNetworkName}"));
       foreach (var network in copilotNetworks)
       {
         // Check if network has any containers
-        var inspectOutput = RunCommand("docker", "network", "inspect", network, "--format", "{{len .Containers}}");
+        var inspectOutput = RunCommand(runtimeConfig.Runtime, "network", "inspect", network, "--format", "{{len .Containers}}");
         if (inspectOutput?.Trim() == "0")
         {
-          RunQuietCommand("docker", "network", "rm", network);
+          RunQuietCommand(runtimeConfig.Runtime, "network", "rm", network);
           Console.WriteLine($"  🗑️  Removed orphaned network: {network}");
         }
       }

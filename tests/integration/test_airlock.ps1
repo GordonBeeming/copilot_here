@@ -172,17 +172,36 @@ function Initialize-TestEnvironment {
     # Read template and substitute values
     $templateContent = Get-Content -Path $templatePath -Raw
     
-    # Substitute placeholders
+    # Prepare networks section
+    $networksYaml = @"
+networks:
+  airlock:
+    internal: true
+  bridge:
+"@
+    
+    # Prepare auth environment variables for the template
+    $authEnvVars = "      - GITHUB_TOKEN=`${GITHUB_TOKEN}"
+    
+    # Substitute placeholders (template uses {{...}} format)
     $composeContent = $templateContent `
-        -replace '\$\{PROXY_PORT\}', $proxyPort `
-        -replace '\$\{PROJECT_NAME\}', $script:ProjectName `
-        -replace '\$\{APP_IMAGE\}', 'ghcr.io/gordonbeeming/copilot_here:latest' `
-        -replace '\$\{PROXY_IMAGE\}', 'ghcr.io/gordonbeeming/copilot_here:proxy' `
-        -replace '\$\{NETWORK_CONFIG\}', $networkConfigDocker `
-        -replace '\$\{WORK_DIR\}', $testDirDocker `
-        -replace '\$\{LOGS_MOUNT\}', '' `
-        -replace '\$\{USER_ID\}', '1000' `
-        -replace '\$\{GROUP_ID\}', '1000'
+        -replace '\{\{NETWORKS\}\}', $networksYaml `
+        -replace '\{\{AUTH_ENV_VARS\}\}', $authEnvVars `
+        -replace '\{\{SESSION_INFO\}\}', '{}' `
+        -replace '\{\{EXTERNAL_NETWORK\}\}', 'bridge' `
+        -replace '\{\{PROJECT_NAME\}\}', $script:ProjectName `
+        -replace '\{\{APP_IMAGE\}\}', 'ghcr.io/gordonbeeming/copilot_here:latest' `
+        -replace '\{\{PROXY_IMAGE\}\}', 'ghcr.io/gordonbeeming/copilot_here:proxy' `
+        -replace '\{\{NETWORK_CONFIG\}\}', $networkConfigDocker `
+        -replace '\{\{WORK_DIR\}\}', $testDirDocker `
+        -replace '\{\{CONTAINER_WORK_DIR\}\}', '/home/appuser/work' `
+        -replace '\{\{COPILOT_CONFIG\}\}', "$testDirDocker/.copilot_here/copilot-config" `
+        -replace '\{\{LOGS_MOUNT\}\}', '' `
+        -replace '\{\{PUID\}\}', '1000' `
+        -replace '\{\{PGID\}\}', '1000' `
+        -replace '\{\{EXTRA_MOUNTS\}\}', '' `
+        -replace '\{\{EXTRA_SANDBOX_FLAGS\}\}', '' `
+        -replace '\{\{COPILOT_ARGS\}\}', '["sleep", "infinity"]'
     
     # Write compose file
     $script:ComposeFile = Join-Path $script:TestDir "docker-compose.yml"

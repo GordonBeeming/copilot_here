@@ -1,14 +1,11 @@
 namespace CopilotHere.Infrastructure;
 
 /// <summary>
-/// Runtime environment information (auth, user IDs, etc.).
+/// Runtime environment information (user IDs, terminal capabilities, etc.).
 /// Separate from paths and config - this is system state.
 /// </summary>
 public sealed record AppEnvironment
 {
-  /// <summary>GitHub authentication token.</summary>
-  public required string GitHubToken { get; init; }
-
   /// <summary>User ID for container permissions.</summary>
   public required string UserId { get; init; }
 
@@ -26,7 +23,6 @@ public sealed record AppEnvironment
   {
     return new AppEnvironment
     {
-      GitHubToken = GitHubAuth.GetToken(),
       UserId = SystemInfo.GetUserId(),
       GroupId = SystemInfo.GetGroupId(),
       SupportsEmoji = SystemInfo.SupportsEmoji(),

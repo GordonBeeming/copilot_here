@@ -47,8 +47,8 @@ RUN npm install -g @github/copilot@${COPILOT_VERSION}
 WORKDIR /work
 
 # Copy the entrypoint script into the container and make it executable.
-COPY entrypoint.sh /usr/local/bin/
-COPY entrypoint-airlock.sh /usr/local/bin/
+COPY docker/shared/entrypoint.sh /usr/local/bin/
+COPY docker/shared/entrypoint-airlock.sh /usr/local/bin/
 COPY docker/session-info.sh /usr/local/bin/session-info
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh /usr/local/bin/session-info
 

@@ -5,6 +5,8 @@ using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
 using CopilotHere.Commands.Run;
+using CopilotHere.Commands.Runtime;
+using CopilotHere.Commands.Tool;
 using CopilotHere.Infrastructure;
 
 class Program
@@ -72,6 +74,10 @@ class Program
     { "-ShowAirlockRules", "--show-airlock-rules" },
     { "-EditAirlockRules", "--edit-airlock-rules" },
     { "-EditGlobalAirlockRules", "--edit-global-airlock-rules" },
+    { "-ShowRuntime", "--show-runtime" },
+    { "-ListRuntimes", "--list-runtimes" },
+    { "-SetRuntime", "--set-runtime" },
+    { "-SetRuntimeGlobal", "--set-runtime-global" },
     { "-Yolo", "--yolo" },
 
     // Copilot passthrough options (PowerShell-style aliases)
@@ -128,7 +134,9 @@ class Program
       new MountCommands(),     // Mount management
       new ImageCommands(),     // Image management
       new ModelCommands(),     // Model management
+      new ToolCommands(),      // Tool management
       new AirlockCommands(),   // Airlock proxy
+      new RuntimeCommands(),   // Container runtime management
     ];
 
     foreach (var command in commands)
