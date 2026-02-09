@@ -133,7 +133,7 @@ public sealed record MountsConfig
 /// <summary>
 /// A single mount entry with its path, mode, and source.
 /// </summary>
-public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSource Source)
+public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSource Source, string? CustomContainerPath = null)
 {
   /// <summary>
   /// Resolves ~ and relative paths to absolute paths, following symlinks.
@@ -166,6 +166,12 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
   /// <summary>Calculates the container path for this mount.</summary>
   public string GetContainerPath(string userHome)
   {
+    // If custom container path is specified, use it directly
+    if (!string.IsNullOrWhiteSpace(CustomContainerPath))
+    {
+      return CustomContainerPath;
+    }
+
     var hostPath = ResolvePath(userHome);
     if (hostPath.StartsWith(userHome))
     {
