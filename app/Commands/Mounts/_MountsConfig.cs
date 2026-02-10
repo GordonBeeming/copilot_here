@@ -36,19 +36,32 @@ public sealed record MountsConfig
     foreach (var line in ConfigFile.ReadLines(path))
     {
       var isReadWrite = false;
-      var mountPath = line;
+      var workingLine = line;
 
-      if (line.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+      // Check for :rw or :ro suffix
+      if (workingLine.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
       {
         isReadWrite = true;
-        mountPath = line[..^3];
+        workingLine = workingLine[..^3];
       }
-      else if (line.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+      else if (workingLine.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
       {
-        mountPath = line[..^3];
+        workingLine = workingLine[..^3];
       }
 
-      mounts.Add(new MountEntry(mountPath, isReadWrite, source));
+      // Parse hostPath:containerPath format
+      var colonIndex = workingLine.IndexOf(':');
+      if (colonIndex > 0)
+      {
+        var hostPath = workingLine[..colonIndex];
+        var containerPath = workingLine[(colonIndex + 1)..];
+        mounts.Add(new MountEntry(hostPath, containerPath, isReadWrite, source));
+      }
+      else
+      {
+        var hostPath = workingLine;
+        mounts.Add(new MountEntry(hostPath, null, isReadWrite, source));
+      }
     }
 
     return mounts;

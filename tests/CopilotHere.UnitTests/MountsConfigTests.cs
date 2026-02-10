@@ -182,4 +182,99 @@ public class MountsConfigTests
     await Assert.That(config.GlobalMounts[2].HostPath).IsEqualTo("/path3");
     await Assert.That(config.GlobalMounts[2].IsReadWrite).IsFalse();
   }
+
+  [Test]
+  public async Task Load_HostPathContainerPath_ParsesBoth()
+  {
+    // Arrange
+    var configPath = _paths.GetLocalPath("mounts.conf");
+    File.WriteAllText(configPath, "/host/path:/container/path\n");
+
+    // Act
+    var config = MountsConfig.Load(_paths);
+
+    // Assert
+    await Assert.That(config.LocalMounts).HasCount().EqualTo(1);
+    await Assert.That(config.LocalMounts[0].HostPath).IsEqualTo("/host/path");
+    await Assert.That(config.LocalMounts[0].ContainerPath).IsEqualTo("/container/path");
+    await Assert.That(config.LocalMounts[0].IsReadWrite).IsFalse();
+  }
+
+  [Test]
+  public async Task Load_HostPathContainerPathWithRW_ParsesCorrectly()
+  {
+    // Arrange
+    var configPath = _paths.GetLocalPath("mounts.conf");
+    File.WriteAllText(configPath, "/host/data:/app/data:rw\n");
+
+    // Act
+    var config = MountsConfig.Load(_paths);
+
+    // Assert
+    await Assert.That(config.LocalMounts).HasCount().EqualTo(1);
+    await Assert.That(config.LocalMounts[0].HostPath).IsEqualTo("/host/data");
+    await Assert.That(config.LocalMounts[0].ContainerPath).IsEqualTo("/app/data");
+    await Assert.That(config.LocalMounts[0].IsReadWrite).IsTrue();
+  }
+
+  [Test]
+  public async Task Load_HostPathContainerPathWithRO_ParsesCorrectly()
+  {
+    // Arrange
+    var configPath = _paths.GetLocalPath("mounts.conf");
+    File.WriteAllText(configPath, "/host/config:/etc/config:ro\n");
+
+    // Act
+    var config = MountsConfig.Load(_paths);
+
+    // Assert
+    await Assert.That(config.LocalMounts).HasCount().EqualTo(1);
+    await Assert.That(config.LocalMounts[0].HostPath).IsEqualTo("/host/config");
+    await Assert.That(config.LocalMounts[0].ContainerPath).IsEqualTo("/etc/config");
+    await Assert.That(config.LocalMounts[0].IsReadWrite).IsFalse();
+  }
+
+  [Test]
+  public async Task Load_MixedFormats_ParsesAllCorrectly()
+  {
+    // Arrange
+    var configPath = _paths.GetGlobalPath("mounts.conf");
+    File.WriteAllText(configPath, @"/simple/path
+/host/path:/container/path
+/readonly/path:ro
+/readwrite/path:rw
+/custom:/app/custom:rw
+");
+
+    // Act
+    var config = MountsConfig.Load(_paths);
+
+    // Assert
+    await Assert.That(config.GlobalMounts).HasCount().EqualTo(5);
+    
+    // Simple path
+    await Assert.That(config.GlobalMounts[0].HostPath).IsEqualTo("/simple/path");
+    await Assert.That(config.GlobalMounts[0].ContainerPath).IsNull();
+    await Assert.That(config.GlobalMounts[0].IsReadWrite).IsFalse();
+    
+    // Host:Container
+    await Assert.That(config.GlobalMounts[1].HostPath).IsEqualTo("/host/path");
+    await Assert.That(config.GlobalMounts[1].ContainerPath).IsEqualTo("/container/path");
+    await Assert.That(config.GlobalMounts[1].IsReadWrite).IsFalse();
+    
+    // Read-only
+    await Assert.That(config.GlobalMounts[2].HostPath).IsEqualTo("/readonly/path");
+    await Assert.That(config.GlobalMounts[2].ContainerPath).IsNull();
+    await Assert.That(config.GlobalMounts[2].IsReadWrite).IsFalse();
+    
+    // Read-write
+    await Assert.That(config.GlobalMounts[3].HostPath).IsEqualTo("/readwrite/path");
+    await Assert.That(config.GlobalMounts[3].ContainerPath).IsNull();
+    await Assert.That(config.GlobalMounts[3].IsReadWrite).IsTrue();
+    
+    // Custom container path with RW
+    await Assert.That(config.GlobalMounts[4].HostPath).IsEqualTo("/custom");
+    await Assert.That(config.GlobalMounts[4].ContainerPath).IsEqualTo("/app/custom");
+    await Assert.That(config.GlobalMounts[4].IsReadWrite).IsTrue();
+  }
 }
