@@ -161,7 +161,7 @@ public readonly record struct MountEntry
   /// <summary>
   /// A single mount entry with its host/container paths, mode, and source.
   /// </summary>
-  public MountEntry(string HostPath, string? ContainerPath, bool IsReadWrite, MountSource Source)
+  public MountEntry(string HostPath, string ContainerPath, bool IsReadWrite, MountSource Source)
   {
     this.HostPath = HostPath;
     this.ContainerPath = ContainerPath;

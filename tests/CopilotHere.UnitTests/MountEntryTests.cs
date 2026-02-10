@@ -253,4 +253,149 @@ public class MountEntryTests
     await Assert.That(dockerVolume).Contains(":/work/d/Projects/myapp:");
     await Assert.That(dockerVolume).EndsWith(":ro");
   }
+
+  [Test]
+  public async Task HostContainerMount_WithCustomContainerPath_UsesSpecifiedPath()
+  {
+    // Arrange
+    var hostPath = IsWindows ? @"C:\data\logs" : "/data/logs";
+    var containerPath = "/var/log/app";
+    var mount = new MountEntry(hostPath, containerPath, false, MountSource.CommandLine);
+    var userHome = IsWindows ? @"C:\Users\test" : "/home/test";
+
+    // Act
+    var resultContainerPath = mount.GetContainerPath(userHome);
+
+    // Assert
+    await Assert.That(resultContainerPath).IsEqualTo(containerPath);
+    await Assert.That(mount.ContainerPath).IsEqualTo(containerPath);
+  }
+
+  [Test]
+  public async Task HostContainerMount_ToDockerVolume_UsesCustomContainerPath()
+  {
+    // Arrange
+    var hostPath = IsWindows ? @"C:\data\configs" : "/data/configs";
+    var containerPath = "/etc/myapp";
+    var mount = new MountEntry(hostPath, containerPath, true, MountSource.CommandLine);
+    var userHome = IsWindows ? @"C:\Users\test" : "/home/test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert
+    await Assert.That(dockerVolume).Contains($":{containerPath}:");
+    await Assert.That(dockerVolume).EndsWith(":rw");
+  }
+
+  [Test]
+  public async Task HostContainerMount_ReadOnly_FormatsCorrectly()
+  {
+    // Arrange
+    var mount = new MountEntry("/host/data", "/container/data", false, MountSource.Local);
+    var userHome = "/home/user";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert
+    await Assert.That(dockerVolume).Contains("/host/data:/container/data:ro");
+  }
+
+  [Test]
+  public async Task HostContainerMount_ReadWrite_FormatsCorrectly()
+  {
+    // Arrange
+    var mount = new MountEntry("/host/output", "/container/output", true, MountSource.CommandLine);
+    var userHome = "/home/user";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert
+    await Assert.That(dockerVolume).Contains("/host/output:/container/output:rw");
+  }
+
+  [Test]
+  public async Task HostContainerMount_EmptyContainerPath_FallsBackToDefaultBehavior()
+  {
+    // Arrange
+    var userHome = IsWindows ? @"C:\Users\test" : "/home/test";
+    var hostPath = IsWindows ? @"C:\Users\test\data" : "/home/test/data";
+    var mount = new MountEntry(hostPath, "", false, MountSource.Global);
+
+    // Act
+    var containerPath = mount.GetContainerPath(userHome);
+
+    // Assert - Empty string should be treated as no custom path
+    await Assert.That(containerPath).Contains("/home/appuser");
+    await Assert.That(containerPath).Contains("data");
+  }
+
+  [Test]
+  public async Task HostContainerMount_WindowsHost_LinuxContainer_ConvertsCorrectly()
+  {
+    // Only run on Windows
+    if (!OperatingSystem.IsWindows())
+    {
+      return;
+    }
+
+    // Arrange - Windows host path with custom Linux container path
+    var mount = new MountEntry(@"C:\app\config", "/etc/app/config", false, MountSource.CommandLine);
+    var userHome = @"C:\Users\test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert - Host path should be converted to Docker format
+    await Assert.That(dockerVolume).StartsWith("/c/app/config:");
+    await Assert.That(dockerVolume).Contains(":/etc/app/config:");
+    await Assert.That(dockerVolume).EndsWith(":ro");
+  }
+
+  [Test]
+  public async Task HostContainerMount_Equality_ConsidersContainerPath()
+  {
+    // Arrange
+    var mount1 = new MountEntry("/host/path", "/container/path1", false, MountSource.Local);
+    var mount2 = new MountEntry("/host/path", "/container/path1", false, MountSource.Local);
+    var mount3 = new MountEntry("/host/path", "/container/path2", false, MountSource.Local);
+
+    // Assert
+    await Assert.That(mount1).IsEqualTo(mount2);
+    await Assert.That(mount1).IsNotEqualTo(mount3);
+  }
+
+  [Test]
+  public async Task HostContainerMount_AbsoluteContainerPath_PreservesPath()
+  {
+    // Arrange
+    var mount = new MountEntry("/host/libs", "/usr/local/lib", false, MountSource.CommandLine);
+    var userHome = "/home/test";
+
+    // Act
+    var containerPath = mount.GetContainerPath(userHome);
+
+    // Assert - Absolute container paths should be preserved exactly
+    await Assert.That(containerPath).IsEqualTo("/usr/local/lib");
+  }
+
+  [Test]
+  public async Task HostContainerMount_WithTilde_ResolvesHostPathCorrectly()
+  {
+    // Arrange
+    var mount = new MountEntry("~/mydata", "/app/data", true, MountSource.CommandLine);
+    var userHome = IsWindows ? @"C:\Users\test" : "/home/test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+    var containerPath = mount.GetContainerPath(userHome);
+
+    // Assert - Host path should be resolved, container path preserved
+    await Assert.That(dockerVolume).Contains(":/app/data:");
+    await Assert.That(containerPath).IsEqualTo("/app/data");
+    await Assert.That(dockerVolume).Contains("test");
+    await Assert.That(dockerVolume).Contains("mydata");
+  }
 }
