@@ -61,10 +61,10 @@ public class MountsConfigTests
 
     // Assert
     await Assert.That(config.GlobalMounts).HasCount().EqualTo(2);
-    await Assert.That(config.GlobalMounts[0].Path).IsEqualTo("/global/path1");
+    await Assert.That(config.GlobalMounts[0].HostPath).IsEqualTo("/global/path1");
     await Assert.That(config.GlobalMounts[0].IsReadWrite).IsFalse();
     await Assert.That(config.GlobalMounts[0].Source).IsEqualTo(MountSource.Global);
-    await Assert.That(config.GlobalMounts[1].Path).IsEqualTo("/global/path2");
+    await Assert.That(config.GlobalMounts[1].HostPath).IsEqualTo("/global/path2");
     await Assert.That(config.GlobalMounts[1].IsReadWrite).IsTrue();
   }
 
@@ -80,10 +80,10 @@ public class MountsConfigTests
 
     // Assert
     await Assert.That(config.LocalMounts).HasCount().EqualTo(2);
-    await Assert.That(config.LocalMounts[0].Path).IsEqualTo("/local/path1");
+    await Assert.That(config.LocalMounts[0].HostPath).IsEqualTo("/local/path1");
     await Assert.That(config.LocalMounts[0].IsReadWrite).IsFalse();
     await Assert.That(config.LocalMounts[0].Source).IsEqualTo(MountSource.Local);
-    await Assert.That(config.LocalMounts[1].Path).IsEqualTo("/local/path2");
+    await Assert.That(config.LocalMounts[1].HostPath).IsEqualTo("/local/path2");
     await Assert.That(config.LocalMounts[1].IsReadWrite).IsFalse();
   }
 
@@ -100,8 +100,8 @@ public class MountsConfigTests
     // Assert - Both should be loaded separately
     await Assert.That(config.GlobalMounts).HasCount().EqualTo(1);
     await Assert.That(config.LocalMounts).HasCount().EqualTo(1);
-    await Assert.That(config.GlobalMounts[0].Path).IsEqualTo("/global/path");
-    await Assert.That(config.LocalMounts[0].Path).IsEqualTo("/local/path");
+    await Assert.That(config.GlobalMounts[0].HostPath).IsEqualTo("/global/path");
+    await Assert.That(config.LocalMounts[0].HostPath).IsEqualTo("/local/path");
   }
 
   [Test]
@@ -176,10 +176,10 @@ public class MountsConfigTests
 
     // Assert
     await Assert.That(config.GlobalMounts).HasCount().EqualTo(3);
-    await Assert.That(config.GlobalMounts[0].Path).IsEqualTo("/path1");
-    await Assert.That(config.GlobalMounts[1].Path).IsEqualTo("/path2");
+    await Assert.That(config.GlobalMounts[0].HostPath).IsEqualTo("/path1");
+    await Assert.That(config.GlobalMounts[1].HostPath).IsEqualTo("/path2");
     await Assert.That(config.GlobalMounts[1].IsReadWrite).IsTrue();
-    await Assert.That(config.GlobalMounts[2].Path).IsEqualTo("/path3");
+    await Assert.That(config.GlobalMounts[2].HostPath).IsEqualTo("/path3");
     await Assert.That(config.GlobalMounts[2].IsReadWrite).IsFalse();
   }
 }

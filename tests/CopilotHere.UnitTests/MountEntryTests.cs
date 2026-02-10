@@ -15,7 +15,7 @@ public class MountEntryTests
     var mount = new MountEntry(path, IsReadWrite: false, MountSource.Local);
 
     // Assert
-    await Assert.That(mount.Path).IsEqualTo(path);
+    await Assert.That(mount.HostPath).IsEqualTo(path);
     await Assert.That(mount.IsReadWrite).IsFalse();
     await Assert.That(mount.Source).IsEqualTo(MountSource.Local);
   }
@@ -27,7 +27,7 @@ public class MountEntryTests
     var mount = new MountEntry("~/data", IsReadWrite: true, MountSource.Global);
 
     // Assert
-    await Assert.That(mount.Path).IsEqualTo("~/data");
+    await Assert.That(mount.HostPath).IsEqualTo("~/data");
     await Assert.That(mount.IsReadWrite).IsTrue();
     await Assert.That(mount.Source).IsEqualTo(MountSource.Global);
   }
@@ -54,7 +54,7 @@ public class MountEntryTests
     var userHome = IsWindows ? @"C:\Users\testuser" : "/home/testuser";
 
     // Act
-    var resolved = mount.ResolvePath(userHome);
+    var resolved = mount.ResolveHostPath(userHome);
 
     // Assert
     await Assert.That(resolved).Contains("testuser");

@@ -470,7 +470,7 @@ public sealed class RunCommand : ICommand
         else
         {
           // User cancelled due to sensitive path - skip this mount
-          Console.WriteLine($"⏭️  Skipping mount: {mount.Path}");
+          Console.WriteLine($"⏭️  Skipping mount: {mount.HostPath}");
         }
       }
       allMounts = validatedMounts;
@@ -662,7 +662,7 @@ public sealed class RunCommand : ICommand
       containerPath = "/" + containerPath;
     }
 
-    return new MountEntry(hostPath, isReadWrite, MountSource.CommandLine, containerPath);
+    return new MountEntry(hostPath, containerPath, isReadWrite, MountSource.CommandLine);
   }
 
   /// <summary>
