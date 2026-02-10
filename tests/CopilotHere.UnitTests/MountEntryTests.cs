@@ -398,4 +398,53 @@ public class MountEntryTests
     await Assert.That(dockerVolume).Contains("test");
     await Assert.That(dockerVolume).Contains("mydata");
   }
+
+  [Test]
+  public async Task HostContainerMount_ContainerPathWithTilde_ExpandsToContainerHome()
+  {
+    // Arrange - Container path contains tilde, should expand to /home/appuser
+    var mount = new MountEntry("/host/data", "~/mydata", false, MountSource.CommandLine);
+    var userHome = "/home/user";
+
+    // Act
+    var containerPath = mount.GetContainerPath(userHome);
+    var dockerVolume = mount.ToDockerVolume(userHome);
+
+    // Assert - Container path tilde should expand to /home/appuser (container user)
+    await Assert.That(containerPath).IsEqualTo("/home/appuser/mydata");
+    await Assert.That(dockerVolume).Contains(":/home/appuser/mydata:");
+    await Assert.That(dockerVolume).EndsWith(":ro");
+  }
+
+  [Test]
+  public async Task HostContainerMount_ContainerPathWithTildeOnly_ExpandsToContainerHome()
+  {
+    // Arrange - Container path is just tilde
+    var mount = new MountEntry("/host/config", "~", true, MountSource.Local);
+    var userHome = "/home/user";
+
+    // Act
+    var containerPath = mount.GetContainerPath(userHome);
+
+    // Assert - Should expand to /home/appuser
+    await Assert.That(containerPath).IsEqualTo("/home/appuser");
+  }
+
+  [Test]
+  public async Task HostContainerMount_BothPathsWithTilde_ResolvesCorrectly()
+  {
+    // Arrange - Both host and container paths have tildes
+    var mount = new MountEntry("~/hostdata", "~/containerdata", false, MountSource.CommandLine);
+    var userHome = IsWindows ? @"C:\Users\test" : "/home/test";
+
+    // Act
+    var dockerVolume = mount.ToDockerVolume(userHome);
+    var containerPath = mount.GetContainerPath(userHome);
+
+    // Assert - Host ~ resolves to user home, container ~ to /home/appuser
+    await Assert.That(containerPath).IsEqualTo("/home/appuser/containerdata");
+    await Assert.That(dockerVolume).Contains(":/home/appuser/containerdata:");
+    await Assert.That(dockerVolume).Contains("test");
+    await Assert.That(dockerVolume).Contains("hostdata");
+  }
 }

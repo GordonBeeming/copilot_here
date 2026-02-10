@@ -200,10 +200,10 @@ public readonly record struct MountEntry
   /// <summary>Calculates the container path for this mount.</summary>
   public string GetContainerPath(string userHome)
   {
-    // If custom container path is specified, use it directly
+    // If custom container path is specified, expand tilde to container user home
     if (!string.IsNullOrWhiteSpace(ContainerPath))
     {
-      return ContainerPath;
+      return ExpandContainerTilde(ContainerPath);
     }
 
     var hostPath = ResolveHostPath(userHome);
@@ -223,6 +223,24 @@ public readonly record struct MountEntry
     
     // Unix path outside home - use /work prefix
     return $"/work{hostPath}";
+  }
+
+  /// <summary>
+  /// Expands tilde in container paths to /home/appuser (the container user's home).
+  /// </summary>
+  private static string ExpandContainerTilde(string containerPath)
+  {
+    if (containerPath == "~")
+    {
+      return "/home/appuser";
+    }
+    
+    if (containerPath.StartsWith("~/"))
+    {
+      return $"/home/appuser/{containerPath.Substring(2)}";
+    }
+    
+    return containerPath;
   }
 
   /// <summary>Gets the Docker volume mount string.</summary>
