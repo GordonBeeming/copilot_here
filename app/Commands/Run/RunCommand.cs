@@ -626,21 +626,21 @@ public sealed class RunCommand : ICommand
   /// Parses a CLI mount path, handling both simple paths and host:container format.
   /// Format: "path", "path:rw", "path:ro", "host:container", "host:container:rw", "host:container:ro"
   /// </summary>
-  private static MountEntry ParseCliMount(string input, bool defaultReadWrite)
+  internal static MountEntry ParseCliMount(string input, bool defaultReadWrite)
   {
     var isReadWrite = defaultReadWrite;
     var spec = input.Trim('\'', '"'); // Remove any surrounding quotes
 
     // Check for trailing :rw or :ro
-    if (input.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+    if (spec.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
     {
       isReadWrite = true;
-      spec = input[..^3];
+      spec = spec[..^3];
     }
-    else if (input.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+    else if (spec.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
     {
       isReadWrite = false;
-      spec = input[..^3];
+      spec = spec[..^3];
     }
 
     // Check if this is a host:container format
