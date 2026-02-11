@@ -656,12 +656,6 @@ public sealed class RunCommand : ICommand
     var hostPath = spec[..separatorIndex];
     var containerPath = spec[(separatorIndex + 1)..];
 
-    // Ensure container path starts with /
-    if (!containerPath.StartsWith('/'))
-    {
-      containerPath = "/" + containerPath;
-    }
-
     return new MountEntry(hostPath, containerPath, isReadWrite, MountSource.CommandLine);
   }
 
