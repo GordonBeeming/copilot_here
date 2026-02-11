@@ -629,7 +629,7 @@ public sealed class RunCommand : ICommand
   private static MountEntry ParseCliMount(string input, bool defaultReadWrite)
   {
     var isReadWrite = defaultReadWrite;
-    var spec = input;
+    var spec = input.Trim('\'', '"'); // Remove any surrounding quotes
 
     // Check for trailing :rw or :ro
     if (input.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
