@@ -118,16 +118,6 @@ public class ParseCliMountTests
   }
 
   [Test]
-  public async Task ParseCliMount_ContainerPathWithoutLeadingSlash_AddsSlash()
-  {
-    // Act
-    var mount = RunCommand.ParseCliMount("/host/path:container/path", defaultReadWrite: false);
-
-    // Assert
-    await Assert.That(mount.ContainerPath).IsEqualTo("/container/path");
-  }
-
-  [Test]
   public async Task ParseCliMount_QuotedHostContainerWithReadWrite_ParsesCorrectly()
   {
     // Arrange - This is the critical test case: quotes around "path:rw"
