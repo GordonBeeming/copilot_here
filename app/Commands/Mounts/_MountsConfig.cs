@@ -36,19 +36,32 @@ public sealed record MountsConfig
     foreach (var line in ConfigFile.ReadLines(path))
     {
       var isReadWrite = false;
-      var mountPath = line;
+      var workingLine = line;
 
-      if (line.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+      // Check for :rw or :ro suffix
+      if (workingLine.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
       {
         isReadWrite = true;
-        mountPath = line[..^3];
+        workingLine = workingLine[..^3];
       }
-      else if (line.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+      else if (workingLine.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
       {
-        mountPath = line[..^3];
+        workingLine = workingLine[..^3];
       }
 
-      mounts.Add(new MountEntry(mountPath, isReadWrite, source));
+      // Parse hostPath:containerPath format
+      var colonIndex = workingLine.IndexOf(':');
+      if (colonIndex > 0)
+      {
+        var hostPath = workingLine[..colonIndex];
+        var containerPath = workingLine[(colonIndex + 1)..];
+        mounts.Add(new MountEntry(hostPath, containerPath, isReadWrite, source));
+      }
+      else
+      {
+        var hostPath = workingLine;
+        mounts.Add(new MountEntry(hostPath, null, isReadWrite, source));
+      }
     }
 
     return mounts;
@@ -133,14 +146,35 @@ public sealed record MountsConfig
 /// <summary>
 /// A single mount entry with its path, mode, and source.
 /// </summary>
-public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSource Source)
+public readonly record struct MountEntry
 {
+  /// <summary>
+  /// A single mount entry with its path, mode, and source.
+  /// </summary>
+  public MountEntry(string HostPath, bool IsReadWrite, MountSource Source)
+  {
+    this.HostPath = HostPath;
+    this.IsReadWrite = IsReadWrite;
+    this.Source = Source;
+  }
+
+  /// <summary>
+  /// A single mount entry with its host/container paths, mode, and source.
+  /// </summary>
+  public MountEntry(string HostPath, string ContainerPath, bool IsReadWrite, MountSource Source)
+  {
+    this.HostPath = HostPath;
+    this.ContainerPath = ContainerPath;
+    this.IsReadWrite = IsReadWrite;
+    this.Source = Source;
+  }
+
   /// <summary>
   /// Resolves ~ and relative paths to absolute paths, following symlinks.
   /// </summary>
-  public string ResolvePath(string userHome)
+  public string ResolveHostPath(string userHome)
   {
-    return PathValidator.ResolvePath(Path, userHome);
+    return PathValidator.ResolvePath(HostPath, userHome);
   }
 
   /// <summary>
@@ -149,7 +183,7 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
   /// </summary>
   public bool Validate(string userHome)
   {
-    var resolved = ResolvePath(userHome);
+    var resolved = ResolveHostPath(userHome);
 
     // Warn if path doesn't exist
     PathValidator.WarnIfNotExists(resolved);
@@ -166,7 +200,13 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
   /// <summary>Calculates the container path for this mount.</summary>
   public string GetContainerPath(string userHome)
   {
-    var hostPath = ResolvePath(userHome);
+    // If custom container path is specified, expand tilde to container user home
+    if (!string.IsNullOrWhiteSpace(ContainerPath))
+    {
+      return ExpandContainerTilde(ContainerPath);
+    }
+
+    var hostPath = ResolveHostPath(userHome);
     if (hostPath.StartsWith(userHome))
     {
       return $"/home/appuser/{System.IO.Path.GetRelativePath(userHome, hostPath).Replace("\\", "/")}";
@@ -185,10 +225,28 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
     return $"/work{hostPath}";
   }
 
+  /// <summary>
+  /// Expands tilde in container paths to /home/appuser (the container user's home).
+  /// </summary>
+  private static string ExpandContainerTilde(string containerPath)
+  {
+    if (containerPath == "~")
+    {
+      return "/home/appuser";
+    }
+    
+    if (containerPath.StartsWith("~/"))
+    {
+      return $"/home/appuser/{containerPath.Substring(2)}";
+    }
+    
+    return containerPath;
+  }
+
   /// <summary>Gets the Docker volume mount string.</summary>
   public string ToDockerVolume(string userHome)
   {
-    var hostPath = ResolvePath(userHome);
+    var hostPath = ResolveHostPath(userHome);
     var dockerHostPath = ConvertToDockerPath(hostPath);
     var containerPath = GetContainerPath(userHome);
     var mode = IsReadWrite ? "rw" : "ro";
@@ -217,6 +275,11 @@ public readonly record struct MountEntry(string Path, bool IsReadWrite, MountSou
     
     return normalizedPath;
   }
+
+  public string HostPath { get; init; }
+  public bool IsReadWrite { get; init; }
+  public MountSource Source { get; init; }
+  public string? ContainerPath { get; init; }
 }
 
 public enum MountSource
