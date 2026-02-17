@@ -560,7 +560,7 @@ This project provides multiple Docker image variants for different development s
 
 - [Docker Images Documentation](docs/docker-images.md) - Details about available image variants
 - [Known Issues](docs/known-issues.md) - Known issues, limitations, and workarounds
-- [CLI Icon Legend](docs/icon-legend.md) - Meaning of icons in CLI output
+- [Emoji Legend](docs/emoji-legend.md) - Meaning of emojis in CLI output
 - [Migration Guide](docs/migration-to-native-binary.md) - Details about the native binary implementation
 - [Task Documentation](docs/tasks/) - Development task history and changes
 
