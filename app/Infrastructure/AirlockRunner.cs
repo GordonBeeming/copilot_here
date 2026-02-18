@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using CopilotHere.Commands.Airlock;
 using CopilotHere.Commands.Mounts;
 
 namespace CopilotHere.Infrastructure;
@@ -163,27 +164,76 @@ public static class AirlockRunner
     return Convert.ToHexString(hash)[..8].ToLowerInvariant();
   }
 
+  /// <summary>
+  /// Gets the embedded default airlock rules from assembly resources.
+  /// </summary>
+  private static NetworkConfig? GetDefaultRules()
+  {
+    try
+    {
+      var assembly = Assembly.GetExecutingAssembly();
+      var resourceName = "CopilotHere.Resources.default-airlock-rules.json";
+      
+      using var stream = assembly.GetManifestResourceStream(resourceName);
+      if (stream is null) return null;
+      
+      using var reader = new StreamReader(stream);
+      var json = reader.ReadToEnd();
+      return System.Text.Json.JsonSerializer.Deserialize(json, Commands.Airlock.NetworkConfigJsonContext.Default.NetworkConfig);
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
   private static string? ProcessNetworkConfig(string rulesPath, AppPaths paths)
   {
     try
     {
-      var content = File.ReadAllText(rulesPath);
+      // Load user's config
+      var userConfig = Commands.Airlock.AirlockConfig.ReadNetworkConfig(rulesPath);
+      if (userConfig is null)
+        return null;
+
+      // If inherit_default_rules is true, merge with default rules
+      if (userConfig.InheritDefaultRules)
+      {
+        var defaultRules = GetDefaultRules();
+        if (defaultRules is not null)
+        {
+          // Add default rules that don't conflict with user rules
+          // Priority: user rules > default rules (user rules for same host override)
+          var userHosts = new HashSet<string>(userConfig.AllowedRules.Select(r => r.Host), StringComparer.OrdinalIgnoreCase);
+          
+          foreach (var defaultRule in defaultRules.AllowedRules)
+          {
+            if (!userHosts.Contains(defaultRule.Host))
+            {
+              userConfig.AllowedRules.Add(defaultRule);
+            }
+          }
+        }
+      }
 
       // Get GitHub info for placeholder replacement
       var gitInfo = GitInfo.GetGitHubInfo();
       var owner = gitInfo?.Owner ?? "";
       var repo = gitInfo?.Repo ?? "";
 
-      // Replace placeholders
-      content = content.Replace("{{GITHUB_OWNER}}", owner);
-      content = content.Replace("{{GITHUB_REPO}}", repo);
+      // Serialize to JSON
+      var json = System.Text.Json.JsonSerializer.Serialize(userConfig, Commands.Airlock.NetworkConfigJsonContext.Default.NetworkConfig);
+
+      // Replace placeholders in the JSON
+      json = json.Replace("{{GITHUB_OWNER}}", owner);
+      json = json.Replace("{{GITHUB_REPO}}", repo);
 
       // Write to temp file in config directory (Docker needs access)
       var tempDir = Path.Combine(paths.GlobalConfigPath, "tmp");
       Directory.CreateDirectory(tempDir);
 
       var tempFile = Path.Combine(tempDir, $"network-{DateTime.UtcNow.Ticks}.json");
-      File.WriteAllText(tempFile, content);
+      File.WriteAllText(tempFile, json);
 
       return tempFile;
     }
@@ -325,12 +375,13 @@ public static class AirlockRunner
         .Replace("{{PROXY_IMAGE}}", proxyImage)
         .Replace("{{WORK_DIR}}", ConvertToDockerPath(ctx.Paths.CurrentDirectory))
         .Replace("{{CONTAINER_WORK_DIR}}", ctx.Paths.ContainerWorkDir)
-        .Replace("{{COPILOT_CONFIG}}", ConvertToDockerPath(ctx.Paths.CopilotConfigPath))
+        .Replace("{{TOOL_CONFIG}}", ConvertToDockerPath(ctx.ActiveTool.GetHostConfigPath(ctx.Paths)))
+        .Replace("{{TOOL_CONFIG_CONTAINER_PATH}}", ctx.ActiveTool.GetContainerConfigPath())
         .Replace("{{NETWORK_CONFIG}}", ConvertToDockerPath(processedConfigPath))
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
         .Replace("{{SESSION_INFO}}", sessionInfo)
-        .Replace("{{COPILOT_ARGS}}", toolCmd.ToString());
+        .Replace("{{TOOL_ARGS}}", toolCmd.ToString());
 
       // Handle multiline placeholders
       var lines = result.Split('\n').ToList();

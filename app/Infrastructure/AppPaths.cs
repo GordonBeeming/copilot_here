@@ -97,4 +97,29 @@ public sealed record AppPaths
 
   /// <summary>Gets the global config file path for a given filename.</summary>
   public string GetGlobalPath(string filename) => Path.Combine(GlobalConfigPath, filename);
+
+  /// <summary>
+  /// Gets a generic host config path for a tool under ~/.config.
+  /// Tool names may include a leading dot for container conventions; it is stripped on host.
+  /// </summary>
+  public string GetToolHostConfigPath(string toolConfigDirName)
+  {
+    var normalized = (toolConfigDirName ?? string.Empty).Trim();
+    if (string.IsNullOrEmpty(normalized))
+      normalized = "copilot-cli-docker";
+
+    normalized = normalized.TrimStart('.');
+    var path = Path.Combine(UserHome, ".config", normalized);
+
+    try
+    {
+      Directory.CreateDirectory(path);
+    }
+    catch
+    {
+      // Best effort: return path even if creation failed.
+    }
+
+    return path;
+  }
 }

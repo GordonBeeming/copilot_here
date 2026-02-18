@@ -61,6 +61,19 @@ public interface ICliTool
     string? GetSessionDataPath();
 
     /// <summary>
+    /// Gets the host path that should be mounted for this tool's persisted config.
+    /// </summary>
+    /// <param name="paths">Resolved application paths</param>
+    /// <returns>Absolute host path for tool config data</returns>
+    string GetHostConfigPath(AppPaths paths);
+
+    /// <summary>
+    /// Gets the container path where tool config should be mounted.
+    /// </summary>
+    /// <returns>Absolute container path (e.g., "/home/appuser/.copilot")</returns>
+    string GetContainerConfigPath();
+
+    /// <summary>
     /// Gets the authentication provider for this tool
     /// </summary>
     IAuthProvider GetAuthProvider();

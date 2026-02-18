@@ -264,6 +264,32 @@ public class EchoToolTests
   }
 
   [Test]
+  public async Task GetHostConfigPath_UsesCopilotConfigPath()
+  {
+    var paths = new AppPaths
+    {
+      CurrentDirectory = "/tmp/project",
+      UserHome = "/tmp/home",
+      CopilotConfigPath = "/tmp/home/.config/copilot-cli-docker",
+      LocalConfigPath = "/tmp/project/.copilot_here",
+      GlobalConfigPath = "/tmp/home/.config/copilot_here",
+      ContainerWorkDir = "/work/tmp/project"
+    };
+
+    var path = _tool.GetHostConfigPath(paths);
+
+    await Assert.That(path).IsEqualTo(paths.CopilotConfigPath);
+  }
+
+  [Test]
+  public async Task GetContainerConfigPath_ReturnsCopilotDirectory()
+  {
+    var path = _tool.GetContainerConfigPath();
+
+    await Assert.That(path).IsEqualTo("/home/appuser/.copilot");
+  }
+
+  [Test]
   public async Task GetRequiredDependencies_ContainsOnlyDocker()
   {
     // Act

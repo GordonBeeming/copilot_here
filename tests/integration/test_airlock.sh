@@ -318,14 +318,15 @@ EOF
         gsub(/\{\{PROXY_IMAGE\}\}/, proxy_image);
         gsub(/\{\{WORK_DIR\}\}/, work_dir);
         gsub(/\{\{CONTAINER_WORK_DIR\}\}/, container_work_dir);
-        gsub(/\{\{COPILOT_CONFIG\}\}/, copilot_config);
+        gsub(/\{\{TOOL_CONFIG\}\}/, copilot_config);
+        gsub(/\{\{TOOL_CONFIG_CONTAINER_PATH\}\}/, "/home/appuser/.copilot");
         gsub(/\{\{NETWORK_CONFIG\}\}/, network_config);
         gsub(/\{\{LOGS_MOUNT\}\}/, logs_mount);
         gsub(/\{\{PUID\}\}/, puid);
         gsub(/\{\{PGID\}\}/, pgid);
         gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
         gsub(/\{\{EXTRA_SANDBOX_FLAGS\}\}/, extra_sandbox_flags);
-        gsub(/\{\{COPILOT_ARGS\}\}/, copilot_args);
+        gsub(/\{\{TOOL_ARGS\}\}/, copilot_args);
         gsub(/\{\{SESSION_INFO\}\}/, session_info);
         print
       }' "$template_file" > "$COMPOSE_FILE"

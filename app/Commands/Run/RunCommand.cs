@@ -13,6 +13,7 @@ namespace CopilotHere.Commands.Run;
 /// </summary>
 public sealed class RunCommand : ICommand
 {
+  private const string GitHubCopilotToolName = "github-copilot";
   private readonly bool _isYolo;
 
   // === TOOL SELECTION ===
@@ -235,6 +236,7 @@ public sealed class RunCommand : ICommand
       var noCustomInstructions = parseResult.GetValue(_noCustomInstructionsOption);
       var additionalMcpConfigs = parseResult.GetValue(_additionalMcpConfigOption) ?? [];
       var passthroughArgs = parseResult.GetValue(_passthroughArgs) ?? [];
+      var isGitHubCopilotTool = string.Equals(ctx.ActiveTool.Name, GitHubCopilotToolName, StringComparison.Ordinal);
 
       // Handle --install-shells
       if (installShells)
@@ -254,6 +256,34 @@ public sealed class RunCommand : ICommand
         Console.WriteLine("");
         Console.WriteLine("   Or manually re-source the script to get updates.");
         return 0;
+      }
+
+      // Validate capabilities before executing
+      if (_isYolo && !ctx.ActiveTool.SupportsYoloMode)
+      {
+        Console.WriteLine($"❌ {ctx.ActiveTool.DisplayName} does not support YOLO mode");
+        return 1;
+      }
+
+      var hasCopilotSpecificFlags = !string.IsNullOrEmpty(prompt)
+        || continueSession
+        || parseResult.GetResult(_resumeOption) is not null
+        || silent
+        || !string.IsNullOrEmpty(agent)
+        || noColor
+        || allowTools.Length > 0
+        || denyTools.Length > 0
+        || !string.IsNullOrEmpty(stream)
+        || !string.IsNullOrEmpty(logLevel)
+        || screenReader
+        || noCustomInstructions
+        || additionalMcpConfigs.Length > 0;
+
+      if (!isGitHubCopilotTool && hasCopilotSpecificFlags)
+      {
+        Console.WriteLine($"❌ Copilot-specific passthrough flags are not supported for tool '{ctx.ActiveTool.Name}'");
+        Console.WriteLine("   Use --tool github-copilot, or pass tool-native args after --");
+        return 1;
       }
 
       DebugLogger.Log("Checking dependencies...");
@@ -300,6 +330,12 @@ public sealed class RunCommand : ICommand
       var effectiveModel = model ?? ctx.ModelConfig.Model;
       if (!string.IsNullOrEmpty(effectiveModel))
       {
+        if (!ctx.ActiveTool.SupportsModels)
+        {
+          Console.WriteLine($"❌ {ctx.ActiveTool.DisplayName} does not support model selection");
+          return 1;
+        }
+
         DebugLogger.Log($"Using model: {effectiveModel} (source: {(model != null ? "CLI" : ctx.ModelConfig.Source.ToString())})");
       }
 
@@ -313,70 +349,74 @@ public sealed class RunCommand : ICommand
       }
       else
       {
-        // Add passthrough options
-        if (!string.IsNullOrEmpty(prompt))
+        if (isGitHubCopilotTool)
         {
-          userArgs.Add("--prompt");
-          userArgs.Add(prompt);
+          // Add Copilot passthrough options
+          if (!string.IsNullOrEmpty(prompt))
+          {
+            userArgs.Add("--prompt");
+            userArgs.Add(prompt);
+          }
+          if (continueSession)
+          {
+            userArgs.Add("--continue");
+          }
+          // Check if --resume was actually passed (even without a value)
+          var resumeOptionResult = parseResult.GetResult(_resumeOption);
+          if (resumeOptionResult != null)
+          {
+            userArgs.Add("--resume");
+            if (!string.IsNullOrEmpty(resumeSession))
+              userArgs.Add(resumeSession);
+          }
+          if (silent)
+          {
+            userArgs.Add("--silent");
+          }
+          if (!string.IsNullOrEmpty(agent))
+          {
+            userArgs.Add("--agent");
+            userArgs.Add(agent);
+          }
+          if (noColor)
+          {
+            userArgs.Add("--no-color");
+          }
+          foreach (var tool in allowTools)
+          {
+            userArgs.Add("--allow-tool");
+            userArgs.Add(tool);
+          }
+          foreach (var tool in denyTools)
+          {
+            userArgs.Add("--deny-tool");
+            userArgs.Add(tool);
+          }
+          if (!string.IsNullOrEmpty(stream))
+          {
+            userArgs.Add("--stream");
+            userArgs.Add(stream);
+          }
+          if (!string.IsNullOrEmpty(logLevel))
+          {
+            userArgs.Add("--log-level");
+            userArgs.Add(logLevel);
+          }
+          if (screenReader)
+          {
+            userArgs.Add("--screen-reader");
+          }
+          if (noCustomInstructions)
+          {
+            userArgs.Add("--no-custom-instructions");
+          }
+          foreach (var mcpConfig in additionalMcpConfigs)
+          {
+            userArgs.Add("--additional-mcp-config");
+            userArgs.Add(mcpConfig);
+          }
         }
-        if (continueSession)
-        {
-          userArgs.Add("--continue");
-        }
-        // Check if --resume was actually passed (even without a value)
-        var resumeOptionResult = parseResult.GetResult(_resumeOption);
-        if (resumeOptionResult != null)
-        {
-          userArgs.Add("--resume");
-          if (!string.IsNullOrEmpty(resumeSession))
-            userArgs.Add(resumeSession);
-        }
-        if (silent)
-        {
-          userArgs.Add("--silent");
-        }
-        if (!string.IsNullOrEmpty(agent))
-        {
-          userArgs.Add("--agent");
-          userArgs.Add(agent);
-        }
-        if (noColor)
-        {
-          userArgs.Add("--no-color");
-        }
-        foreach (var tool in allowTools)
-        {
-          userArgs.Add("--allow-tool");
-          userArgs.Add(tool);
-        }
-        foreach (var tool in denyTools)
-        {
-          userArgs.Add("--deny-tool");
-          userArgs.Add(tool);
-        }
-        if (!string.IsNullOrEmpty(stream))
-        {
-          userArgs.Add("--stream");
-          userArgs.Add(stream);
-        }
-        if (!string.IsNullOrEmpty(logLevel))
-        {
-          userArgs.Add("--log-level");
-          userArgs.Add(logLevel);
-        }
-        if (screenReader)
-        {
-          userArgs.Add("--screen-reader");
-        }
-        if (noCustomInstructions)
-        {
-          userArgs.Add("--no-custom-instructions");
-        }
-        foreach (var mcpConfig in additionalMcpConfigs)
-        {
-          userArgs.Add("--additional-mcp-config");
-          userArgs.Add(mcpConfig);
-        }
+
         userArgs.AddRange(passthroughArgs);
       }
 
@@ -391,6 +431,12 @@ public sealed class RunCommand : ICommand
         Mounts = [], // Will be populated later
         Environment = new Dictionary<string, string>()
       };
+
+      if (commandContext.IsInteractive && !ctx.ActiveTool.SupportsInteractiveMode)
+      {
+        Console.WriteLine($"❌ {ctx.ActiveTool.DisplayName} does not support interactive mode");
+        return 1;
+      }
 
       // Use the tool to build the final command
       var toolCommand = ctx.ActiveTool.BuildCommand(commandContext);
@@ -564,6 +610,8 @@ public sealed class RunCommand : ICommand
   {
     // Generate session info JSON
     var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
+    var hostToolConfigPath = ctx.ActiveTool.GetHostConfigPath(ctx.Paths);
+    var containerToolConfigPath = ctx.ActiveTool.GetContainerConfigPath();
     
     var args = new List<string>
     {
@@ -574,8 +622,8 @@ public sealed class RunCommand : ICommand
       // Mount current directory
       "-v", $"{ConvertToDockerPath(ctx.Paths.CurrentDirectory)}:{ctx.Paths.ContainerWorkDir}",
       "-w", ctx.Paths.ContainerWorkDir,
-      // Mount copilot config
-      "-v", $"{ConvertToDockerPath(ctx.Paths.CopilotConfigPath)}:/home/appuser/.copilot",
+      // Mount active tool config
+      "-v", $"{ConvertToDockerPath(hostToolConfigPath)}:{containerToolConfigPath}",
       // Environment variables
       "-e", $"PUID={ctx.Environment.UserId}",
       "-e", $"PGID={ctx.Environment.GroupId}",

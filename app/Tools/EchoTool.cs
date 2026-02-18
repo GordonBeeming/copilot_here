@@ -157,6 +157,16 @@ public class EchoTool : Infrastructure.ICliTool
         return null; // Echo doesn't persist session data
     }
 
+    public string GetHostConfigPath(Infrastructure.AppPaths paths)
+    {
+        return paths.CopilotConfigPath;
+    }
+
+    public string GetContainerConfigPath()
+    {
+        return "/home/appuser/.copilot";
+    }
+
     public Infrastructure.IAuthProvider GetAuthProvider()
     {
         return new EchoAuthProvider();

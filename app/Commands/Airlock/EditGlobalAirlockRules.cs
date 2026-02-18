@@ -1,5 +1,6 @@
 using System.CommandLine;
 using CopilotHere.Infrastructure;
+using AppCtx = CopilotHere.Infrastructure.AppContext;
 
 namespace CopilotHere.Commands.Airlock;
 
@@ -12,7 +13,8 @@ public sealed partial class AirlockCommands
     {
       var paths = AppPaths.Resolve();
       var rulesPath = AirlockConfig.GetGlobalRulesPath(paths);
-      OpenInEditor(rulesPath);
+      var ctx = AppCtx.Create();
+      OpenInEditor(rulesPath, ctx.ActiveTool);
       return 0;
     });
     return command;

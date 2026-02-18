@@ -195,13 +195,14 @@ networks:
         -replace '\{\{NETWORK_CONFIG\}\}', $networkConfigDocker `
         -replace '\{\{WORK_DIR\}\}', $testDirDocker `
         -replace '\{\{CONTAINER_WORK_DIR\}\}', '/home/appuser/work' `
-        -replace '\{\{COPILOT_CONFIG\}\}', "$testDirDocker/.copilot_here/copilot-config" `
+        -replace '\{\{TOOL_CONFIG\}\}', "$testDirDocker/.copilot_here/copilot-config" `
+        -replace '\{\{TOOL_CONFIG_CONTAINER_PATH\}\}', "/home/appuser/.copilot" `
         -replace '\{\{LOGS_MOUNT\}\}', '' `
         -replace '\{\{PUID\}\}', '1000' `
         -replace '\{\{PGID\}\}', '1000' `
         -replace '\{\{EXTRA_MOUNTS\}\}', '' `
         -replace '\{\{EXTRA_SANDBOX_FLAGS\}\}', '' `
-        -replace '\{\{COPILOT_ARGS\}\}', '["sleep", "infinity"]'
+        -replace '\{\{TOOL_ARGS\}\}', '["sleep", "infinity"]'
     
     # Write compose file
     $script:ComposeFile = Join-Path $script:TestDir "docker-compose.yml"

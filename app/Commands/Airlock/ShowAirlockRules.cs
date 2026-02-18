@@ -1,5 +1,6 @@
 using System.CommandLine;
 using CopilotHere.Infrastructure;
+using AppCtx = CopilotHere.Infrastructure.AppContext;
 
 namespace CopilotHere.Commands.Airlock;
 
@@ -11,12 +12,14 @@ public sealed partial class AirlockCommands
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();
+      var ctx = AppCtx.Create();
 
       Console.WriteLine("📋 Airlock Proxy Rules");
       Console.WriteLine("======================");
       Console.WriteLine();
 
-      var defaultRulesPath = paths.GetGlobalPath("default-airlock-rules.json");
+      var defaultRulesPath = ResolveToolRulesPathForDisplay(ctx.ActiveTool.GetDefaultNetworkRulesPath())
+                             ?? paths.GetGlobalPath("default-airlock-rules.json");
       if (File.Exists(defaultRulesPath))
       {
         Console.WriteLine("📦 Default Rules:");
@@ -70,5 +73,24 @@ public sealed partial class AirlockCommands
       return 0;
     });
     return command;
+  }
+
+  private static string? ResolveToolRulesPathForDisplay(string configuredPath)
+  {
+    if (string.IsNullOrWhiteSpace(configuredPath))
+      return null;
+
+    if (Path.IsPathRooted(configuredPath))
+      return configuredPath;
+
+    var cwdPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), configuredPath));
+    if (File.Exists(cwdPath))
+      return cwdPath;
+
+    var appBasePath = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, configuredPath));
+    if (File.Exists(appBasePath))
+      return appBasePath;
+
+    return null;
   }
 }

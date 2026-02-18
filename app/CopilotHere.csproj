@@ -39,6 +39,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\docker-compose.airlock.yml.template" />
+    <EmbeddedResource Include="..\default-airlock-rules.json" Link="Resources\default-airlock-rules.json" />
   </ItemGroup>
 
 </Project>

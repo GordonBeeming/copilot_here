@@ -48,13 +48,13 @@ services:
       - COPILOT_HERE_SESSION_INFO={{SESSION_INFO}}
     volumes:
       - proxy-ca:/ca:ro
-      - {{COPILOT_CONFIG}}:/home/appuser/.copilot
+      - {{TOOL_CONFIG}}:{{TOOL_CONFIG_CONTAINER_PATH}}
       - {{WORK_DIR}}:{{CONTAINER_WORK_DIR}}
 {{EXTRA_MOUNTS}}
 {{EXTRA_SANDBOX_FLAGS}}
     working_dir: {{CONTAINER_WORK_DIR}}
     entrypoint: ["/usr/local/bin/entrypoint-airlock.sh"]
-    command: {{COPILOT_ARGS}}
+    command: {{TOOL_ARGS}}
     depends_on:
       proxy:
         condition: service_healthy

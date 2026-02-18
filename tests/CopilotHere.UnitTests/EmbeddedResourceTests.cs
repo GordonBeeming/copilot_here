@@ -41,11 +41,12 @@ public class EmbeddedResourceTests
     await Assert.That(content).Contains("{{PROXY_IMAGE}}");
     await Assert.That(content).Contains("{{WORK_DIR}}");
     await Assert.That(content).Contains("{{CONTAINER_WORK_DIR}}");
-    await Assert.That(content).Contains("{{COPILOT_CONFIG}}");
+    await Assert.That(content).Contains("{{TOOL_CONFIG}}");
+    await Assert.That(content).Contains("{{TOOL_CONFIG_CONTAINER_PATH}}");
     await Assert.That(content).Contains("{{NETWORK_CONFIG}}");
     await Assert.That(content).Contains("{{PUID}}");
     await Assert.That(content).Contains("{{PGID}}");
-    await Assert.That(content).Contains("{{COPILOT_ARGS}}");
+    await Assert.That(content).Contains("{{TOOL_ARGS}}");
     await Assert.That(content).Contains("{{EXTRA_MOUNTS}}");
     await Assert.That(content).Contains("{{LOGS_MOUNT}}");
   }
