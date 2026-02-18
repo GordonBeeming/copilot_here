@@ -100,9 +100,9 @@ public sealed class RunCommand : ICommand
 
     _golangOption = new Option<bool>("--golang") { Description = "[-go] Use Golang image variant" };
 
-    _mountOption = new Option<string[]>("--mount") { Description = "Mount additional directory (read-only)" };
+    _mountOption = new Option<string[]>("--mount") { Description = "Mount directory (read-only). Format: path or host:container" };
 
-    _mountRwOption = new Option<string[]>("--mount-rw") { Description = "Mount additional directory (read-write)" };
+    _mountRwOption = new Option<string[]>("--mount-rw") { Description = "Mount directory (read-write). Format: path or host:container" };
 
     _noCleanupOption = new Option<bool>("--no-cleanup") { Description = "Skip cleanup of unused Docker images" };
 
@@ -493,6 +493,7 @@ public sealed class RunCommand : ICommand
       var allMounts = new List<MountEntry>();
       
       // Parse CLI mounts first (highest priority)
+      // Supports both simple paths and host:container format
       foreach (var path in cliMountsRo)
         allMounts.Add(ParseCliMount(path, defaultReadWrite: false));
       foreach (var path in cliMountsRw)
@@ -515,7 +516,7 @@ public sealed class RunCommand : ICommand
         else
         {
           // User cancelled due to sensitive path - skip this mount
-          Console.WriteLine($"⏭️  Skipping mount: {mount.Path}");
+          Console.WriteLine($"⏭️  Skipping mount: {mount.HostPath}");
         }
       }
       allMounts = validatedMounts;
@@ -670,26 +671,60 @@ public sealed class RunCommand : ICommand
   }
 
   /// <summary>
-  /// Parses a CLI mount path, handling :rw/:ro suffix.
-  /// Format: "path" or "path:rw" or "path:ro"
+  /// Parses a CLI mount path, handling both simple paths and host:container format.
+  /// Format: "path", "path:rw", "path:ro", "host:container", "host:container:rw", "host:container:ro"
   /// </summary>
-  private static MountEntry ParseCliMount(string input, bool defaultReadWrite)
+  internal static MountEntry ParseCliMount(string input, bool defaultReadWrite)
   {
     var isReadWrite = defaultReadWrite;
-    var mountPath = input;
+    var spec = input.Trim('\'', '"'); // Remove any surrounding quotes
 
-    if (input.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
+    // Check for trailing :rw or :ro
+    if (spec.EndsWith(":rw", StringComparison.OrdinalIgnoreCase))
     {
       isReadWrite = true;
-      mountPath = input[..^3];
+      spec = spec[..^3];
     }
-    else if (input.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
+    else if (spec.EndsWith(":ro", StringComparison.OrdinalIgnoreCase))
     {
       isReadWrite = false;
-      mountPath = input[..^3];
+      spec = spec[..^3];
     }
 
-    return new MountEntry(mountPath, isReadWrite, MountSource.CommandLine);
+    // Check if this is a host:container format
+    var separatorIndex = FindBindSeparator(spec);
+    
+    if (separatorIndex == -1)
+    {
+      // Simple path format - auto-compute container path
+      return new MountEntry(spec, isReadWrite, MountSource.CommandLine);
+    }
+
+    // host:container format
+    var hostPath = spec[..separatorIndex];
+    var containerPath = spec[(separatorIndex + 1)..];
+
+    return new MountEntry(hostPath, containerPath, isReadWrite, MountSource.CommandLine);
+  }
+
+  /// <summary>
+  /// Finds the separator between host and container paths in a bind spec.
+  /// On Windows, skips the colon after drive letter (e.g., C:\path).
+  /// </summary>
+  private static int FindBindSeparator(string bindSpec)
+  {
+    var startIndex = 0;
+    
+    // On Windows, skip past drive letter colon (e.g., C:)
+    if (OperatingSystem.IsWindows() && 
+        bindSpec.Length >= 2 && 
+        char.IsLetter(bindSpec[0]) && 
+        bindSpec[1] == ':')
+    {
+      startIndex = 2;
+    }
+
+    return bindSpec.IndexOf(':', startIndex);
   }
 
   /// <summary>

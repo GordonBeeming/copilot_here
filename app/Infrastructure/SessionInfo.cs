@@ -34,7 +34,7 @@ public static class SessionInfo
       var m = mounts[i];
       if (i > 0) json.Append(',');
       json.Append('{');
-      json.Append($"\"host_path\":\"{JsonEncode(m.ResolvePath(ctx.Paths.UserHome))}\",");
+      json.Append($"\"host_path\":\"{JsonEncode(m.ResolveHostPath(ctx.Paths.UserHome))}\",");
       json.Append($"\"container_path\":\"{JsonEncode(m.GetContainerPath(ctx.Paths.UserHome))}\",");
       json.Append($"\"mode\":\"{(m.IsReadWrite ? "rw" : "ro")}\",");
       json.Append($"\"source\":\"{m.Source.ToString().ToLowerInvariant()}\"");

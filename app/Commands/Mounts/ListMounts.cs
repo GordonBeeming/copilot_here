@@ -28,13 +28,13 @@ public sealed partial class MountCommands
       foreach (var mount in config.GlobalMounts)
       {
         var mode = mount.IsReadWrite ? "rw" : "ro";
-        Console.WriteLine($"  🌍 {mount.Path} ({mode})");
+        Console.WriteLine($"  🌍 {mount.HostPath} ({mode})");
       }
 
       foreach (var mount in config.LocalMounts)
       {
         var mode = mount.IsReadWrite ? "rw" : "ro";
-        Console.WriteLine($"  📍 {mount.Path} ({mode})");
+        Console.WriteLine($"  📍 {mount.HostPath} ({mode})");
       }
 
       Console.WriteLine();

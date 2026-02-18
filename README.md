@@ -54,8 +54,8 @@ All functions support switching between Docker image variants using flags:
 - **`-h` or `--help`** - Show usage help and examples
 - **`--no-cleanup`** - Skip cleanup of unused Docker images
 - **`--no-pull`** - Skip pulling the latest image
-- **`--mount <path>`** - Mount a directory as read-only
-- **`--mount-rw <path>`** - Mount a directory as read-write
+- **`--mount <path>`** - Mount a directory as read-only (supports `path` or `host:container` format)
+- **`--mount-rw <path>`** - Mount a directory as read-write (supports `path` or `host:container` format)
 - **`--save-mount <path>`** - Save a mount to local config
 - **`--save-mount-global <path>`** - Save a mount to global config
 - **`--remove-mount <path>`** - Remove a saved mount
@@ -78,8 +78,10 @@ These options are passed directly to the GitHub Copilot CLI:
 By default, `copilot_here` only mounts the current working directory. You can mount additional directories using flags or configuration files.
 
 **CLI Flags:**
-- `--mount ./path/to/dir` (Read-only)
-- `--mount-rw ./path/to/dir` (Read-write)
+- `--mount ./path/to/dir` (Read-only, auto-computed container path)
+- `--mount-rw ./path/to/dir` (Read-write, auto-computed container path)
+- `--mount /host/path:/container/path` (Read-only, custom container path)
+- `--mount-rw /host/path:/container/path` (Read-write, custom container path)
 
 **Configuration Files:**
 - Global: `~/.config/copilot_here/mounts.conf`

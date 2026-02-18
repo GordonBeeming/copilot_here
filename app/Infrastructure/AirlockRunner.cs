@@ -294,7 +294,7 @@ public static class AirlockRunner
       {
         var mode = mount.IsReadWrite ? "rw" : "ro";
         var containerPath = mount.GetContainerPath(ctx.Paths.UserHome);
-        var resolvedPath = mount.ResolvePath(ctx.Paths.UserHome);
+        var resolvedPath = mount.ResolveHostPath(ctx.Paths.UserHome);
         var dockerPath = ConvertToDockerPath(resolvedPath);
         extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
       }
