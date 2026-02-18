@@ -4,12 +4,14 @@ FROM node:20-slim
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, zsh, and PowerShell for the entrypoint script and testing.
+# Install core tools plus editor/open helpers used by Copilot plan editing.
 RUN apt-get update && apt-get install -y \
   curl \
   gpg \
   git \
   gosu \
+  nano \
+  xdg-utils \
   zsh \
   wget \
   apt-transport-https \
@@ -49,8 +51,9 @@ WORKDIR /work
 # Copy the entrypoint script into the container and make it executable.
 COPY docker/shared/entrypoint.sh /usr/local/bin/
 COPY docker/shared/entrypoint-airlock.sh /usr/local/bin/
+COPY docker/shared/xdg-open /usr/local/bin/xdg-open
 COPY docker/session-info.sh /usr/local/bin/session-info
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh /usr/local/bin/session-info
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh /usr/local/bin/xdg-open /usr/local/bin/session-info
 
 # The entrypoint script will handle user creation and command execution.
 ENTRYPOINT [ "entrypoint.sh" ]

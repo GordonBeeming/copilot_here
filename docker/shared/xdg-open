@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -lt 1 ]; then
+  echo "xdg-open: missing operand" >&2
+  exit 1
+fi
+
+target="$1"
+
+# Prefer real xdg-open when a GUI session is available.
+if [ -x /usr/bin/xdg-open ] && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
+  exec /usr/bin/xdg-open "$@"
+fi
+
+case "$target" in
+  http://*|https://*)
+    echo "xdg-open: no GUI session available. Open this URL from host: $target" >&2
+    exit 3
+    ;;
+  file://*)
+    target="${target#file://}"
+    ;;
+esac
+
+editor="${VISUAL:-${EDITOR:-nano}}"
+if command -v "$editor" >/dev/null 2>&1; then
+  exec "$editor" "$target"
+fi
+
+if command -v nano >/dev/null 2>&1; then
+  exec nano "$target"
+fi
+
+if command -v vi >/dev/null 2>&1; then
+  exec vi "$target"
+fi
+
+echo "xdg-open: no suitable editor found for '$target'" >&2
+exit 4

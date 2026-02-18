@@ -67,6 +67,8 @@ chown -R "$USER_ID:$GROUP_ID" /home/appuser/.config
 chown -R "$USER_ID:$GROUP_ID" /home/appuser/.npm
 
 export HOME=/home/appuser
+export EDITOR=${EDITOR:-nano}
+export VISUAL=${VISUAL:-$EDITOR}
 
 # Switch to the user matching the host UID and execute the command passed to the script.
 exec gosu appuser "$@"
