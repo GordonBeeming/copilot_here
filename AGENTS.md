@@ -1,20 +1,14 @@
-# GitHub Copilot Instructions
+# Instructions
 
 ## Project Overview
 
 This is a secure, portable container environment for running the GitHub Copilot CLI. It provides sandboxed execution with automatic authentication, token validation, and multiple specialized image variants for different development scenarios. Supports Docker, OrbStack, and Podman container runtimes with automatic detection.
 
-## Code Repos/Name locations part of this "platform"
-
-- website or copilot here website: `../copilot_here-site/`
-- blog or blog content - `../xylem/data/blog/`
-- docs or our docs - content from this working directory
-
-You can also use the command `session-info` for more info on mounts for this project
-
 ## Script Versioning
 
 **CRITICAL RULE**: ALL VERSION NUMBERS MUST BE IDENTICAL ACROSS ALL FILES. No exceptions.
+
+Before starting any changes bump the version number if the current git changes show no version update. This ensures users get the latest version when you push changes.
 
 ### Version Format
 

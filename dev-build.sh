@@ -2,7 +2,7 @@
 # Build all Docker images locally and tag them as if from GitHub Container Registry
 # This allows local testing before pushing to GHCR
 #
-# Usage: ./dev-build.sh [--no-cache] [--include-all] [--include-dotnet] [--include-<variant>...]
+# Usage: ./dev-build.sh [--no-cache] [--copilot-version <version>] [--include-all] [--include-dotnet] [--include-<variant>...]
 
 set -e
 
@@ -10,6 +10,7 @@ REGISTRY="ghcr.io/gordonbeeming/copilot_here"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NO_CACHE=""
 INCLUDE_ALL=false
+COPILOT_VERSION=""
 declare -a INCLUDE_VARIANTS=()
 
 # Detect container runtime from local config or auto-detect
@@ -64,6 +65,14 @@ detect_rid() {
   echo "${os}-${arch}"
 }
 
+detect_copilot_pkg_arch() {
+  case "$(uname -m)" in
+    aarch64|arm64) echo "linux-arm64" ;;
+    x86_64) echo "linux-x64" ;;
+    *) echo "linux-arm64" ;;
+  esac
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +84,14 @@ while [[ $# -gt 0 ]]; do
       INCLUDE_ALL=true
       shift
       ;;
+    --copilot-version)
+      if [[ -z "${2:-}" ]]; then
+        echo "Error: --copilot-version requires a value (for example: 0.0.410)"
+        exit 1
+      fi
+      COPILOT_VERSION="$2"
+      shift 2
+      ;;
     --include-*)
       variant="${1#--include-}"
       INCLUDE_VARIANTS+=("$variant")
@@ -82,7 +99,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: ./dev-build.sh [--no-cache] [--include-all] [--include-dotnet] [--include-<variant>...]"
+      echo "Usage: ./dev-build.sh [--no-cache] [--copilot-version <version>] [--include-all] [--include-dotnet] [--include-<variant>...]"
       exit 1
       ;;
   esac
@@ -130,6 +147,11 @@ echo "========================================"
 echo ""
 echo "Registry: $REGISTRY"
 echo "Runtime:  $CONTAINER_RUNTIME"
+if [[ -n "$COPILOT_VERSION" ]]; then
+  echo "Copilot CLI version: $COPILOT_VERSION (pinned)"
+else
+  echo "Copilot CLI version: latest (default)"
+fi
 echo ""
 
 # Build native binary
@@ -207,7 +229,12 @@ echo ""
 
 # Build base image
 echo "🔧 Building base image (GitHub Copilot)..."
+BASE_BUILD_ARGS=()
+if [[ -n "$COPILOT_VERSION" ]]; then
+  BASE_BUILD_ARGS+=(--build-arg "COPILOT_VERSION=$COPILOT_VERSION")
+fi
 $CONTAINER_RUNTIME build $NO_CACHE \
+  "${BASE_BUILD_ARGS[@]}" \
   -t "${REGISTRY}:latest" \
   -t "${REGISTRY}:copilot-latest" \
   -f "${SCRIPT_DIR}/docker/tools/github-copilot/Dockerfile" \
@@ -215,6 +242,27 @@ $CONTAINER_RUNTIME build $NO_CACHE \
 echo "   ✓ Tagged as ${REGISTRY}:latest"
 echo "   ✓ Tagged as ${REGISTRY}:copilot-latest"
 echo ""
+
+if [[ -n "$COPILOT_VERSION" ]]; then
+  echo "🧹 Pruning cached Copilot pkg versions to ${COPILOT_VERSION}..."
+  COPILOT_CACHE_ROOT="$HOME/.config/copilot-cli-docker/pkg"
+  COPILOT_ARCH_DIR="$(detect_copilot_pkg_arch)"
+
+  for pkg_family in "universal" "$COPILOT_ARCH_DIR"; do
+    pkg_dir="${COPILOT_CACHE_ROOT}/${pkg_family}"
+    if [[ -d "$pkg_dir" ]]; then
+      for version_dir in "$pkg_dir"/*; do
+        [[ -d "$version_dir" ]] || continue
+        version_name="$(basename "$version_dir")"
+        if [[ "$version_name" != "$COPILOT_VERSION" ]]; then
+          rm -rf "$version_dir"
+          echo "   ✓ Removed cached ${pkg_family}/${version_name}"
+        fi
+      done
+    fi
+  done
+  echo ""
+fi
 
 # Build variant images (only if explicitly requested)
 build_variant() {
