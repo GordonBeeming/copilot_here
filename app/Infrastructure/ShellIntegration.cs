@@ -331,18 +331,19 @@ public static class ShellIntegration
     File.WriteAllText(yoloCmd, BuildCmdWrapper("copilot_yolo", psPath));
   }
 
-  private static string BuildCmdWrapper(string functionName, string psPath)
+  internal static string BuildCmdWrapper(string functionName, string psPath)
   {
     // Prefer pwsh, fall back to powershell.
-    // Keep wrapper simple and rely on PowerShell script for all logic.
+    // Pass arguments after `--` and forward via PowerShell `@args` so quoted
+    // values (for example --prompt "What is 1 + 1 ?") stay as a single arg.
     return "@echo off\r\n" +
            "setlocal\r\n" +
            "set \"SCRIPT=%USERPROFILE%\\.copilot_here.ps1\"\r\n" +
            "where pwsh >nul 2>nul\r\n" +
            "if %ERRORLEVEL%==0 (\r\n" +
-           $"  pwsh -NoProfile -ExecutionPolicy Bypass -Command \". '%USERPROFILE%\\.copilot_here.ps1'; {functionName} %*\"\r\n" +
+           $"  pwsh -NoProfile -ExecutionPolicy Bypass -Command \"& {{ . '%USERPROFILE%\\.copilot_here.ps1'; {functionName} @args }}\" -- %*\r\n" +
            ") else (\r\n" +
-           $"  powershell -NoProfile -ExecutionPolicy Bypass -Command \". '%USERPROFILE%\\.copilot_here.ps1'; {functionName} %*\"\r\n" +
+           $"  powershell -NoProfile -ExecutionPolicy Bypass -Command \"& {{ . '%USERPROFILE%\\.copilot_here.ps1'; {functionName} @args }}\" -- %*\r\n" +
            ")\r\n" +
            "endlocal\r\n";
   }
