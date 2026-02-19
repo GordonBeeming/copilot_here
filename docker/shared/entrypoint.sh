@@ -51,6 +51,7 @@ fi
 # Set up directories with correct ownership (avoid chowning /home/appuser wholesale,
 # because /home/appuser/** can include bind mounts to the host).
 mkdir -p /home/appuser
+chown "$USER_ID:$GROUP_ID" /home/appuser >/dev/null 2>&1 || true
 mkdir -p /home/appuser/.copilot
 mkdir -p /home/appuser/.dotnet
 mkdir -p /home/appuser/.nuget
