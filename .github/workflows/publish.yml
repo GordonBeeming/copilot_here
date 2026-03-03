@@ -565,7 +565,7 @@ jobs:
     name: Publish NuGet
     needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ubuntu-24.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -598,6 +598,7 @@ jobs:
         build-compound-variants,
         release-cli,
         publish-nuget,
+        update-winget,
       ]
     if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-24.04
@@ -656,7 +657,7 @@ jobs:
     name: Build CLI ${{ matrix.rid }}
     needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ${{ matrix.os }}
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -719,7 +720,7 @@ jobs:
     name: Release CLI
     needs: [build-cli]
     runs-on: ubuntu-24.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -925,26 +926,40 @@ jobs:
           # Clean up
           rm -f ~/.ssh/homebrew_tap_key
 
-      # --- WinGet manifest update ---
-      - name: Compute SHA256 for WinGet
-        id: winget_sha256
+  # Update WinGet manifest (requires Windows for wingetcreate)
+  update-winget:
+    name: Update WinGet
+    needs: [release-cli]
+    runs-on: windows-latest
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Get version from shell script
+        id: version
+        shell: bash
         run: |
-          echo "win_x64=$(sha256sum release/copilot_here-win-x64.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
-          echo "win_arm64=$(sha256sum release/copilot_here-win-arm64.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Install wingetcreate
+        shell: pwsh
+        run: Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest/self-contained -OutFile wingetcreate.exe
 
       - name: Update WinGet manifest
+        shell: pwsh
         env:
           WINGET_PAT: ${{ secrets.WINGET_PAT }}
         run: |
-          TAG="cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          URL_X64="https://github.com/${{ github.repository }}/releases/download/$TAG/copilot_here-win-x64.zip"
-          URL_ARM64="https://github.com/${{ github.repository }}/releases/download/$TAG/copilot_here-win-arm64.zip"
+          $tag = "cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
+          $version = "${{ steps.version.outputs.version }}"
+          $urlX64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-x64.zip"
+          $urlArm64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-arm64.zip"
 
-          # Install wingetcreate as .NET tool
-          dotnet tool install --global wingetcreate
-
-          wingetcreate update GordonBeeming.CopilotHere \
-            --version "$VERSION" \
-            --urls "$URL_X64" "$URL_ARM64" \
-            --submit --token "$WINGET_PAT"
+          .\wingetcreate.exe update GordonBeeming.CopilotHere `
+            --version $version `
+            --urls $urlX64 $urlArm64 `
+            --submit --token $env:WINGET_PAT
