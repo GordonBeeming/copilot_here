@@ -585,7 +585,6 @@ jobs:
         run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ steps.version.outputs.version }} --nologo
 
       - name: Push to NuGet
-        if: ${{ secrets.NUGET_API_KEY != '' }}
         run: dotnet nuget push "app/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   # Summary job
@@ -843,7 +842,6 @@ jobs:
           echo "linux_x64=$(sha256sum release/copilot_here-linux-x64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
-        if: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
         env:
           HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
         run: |
@@ -935,7 +933,6 @@ jobs:
           echo "win_arm64=$(sha256sum release/copilot_here-win-arm64.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Update WinGet manifest
-        if: ${{ secrets.WINGET_PAT != '' }}
         env:
           WINGET_PAT: ${{ secrets.WINGET_PAT }}
         run: |
