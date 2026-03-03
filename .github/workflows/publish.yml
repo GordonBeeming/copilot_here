@@ -560,6 +560,34 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
           cache-to: type=inline
 
+  # Publish .NET Tool to NuGet
+  publish-nuget:
+    name: Publish NuGet
+    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Extract version from shell script
+        id: version
+        run: |
+          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Pack as .NET tool
+        run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ steps.version.outputs.version }} --nologo
+
+      - name: Push to NuGet
+        if: ${{ secrets.NUGET_API_KEY != '' }}
+        run: dotnet nuget push "app/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
   # Summary job
   publish-summary:
     name: Publish Summary
@@ -570,6 +598,7 @@ jobs:
         build-variants,
         build-compound-variants,
         release-cli,
+        publish-nuget,
       ]
     if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-24.04
@@ -612,6 +641,15 @@ jobs:
             echo "- linux-x64, linux-arm64" >> $GITHUB_STEP_SUMMARY
             echo "- osx-x64, osx-arm64" >> $GITHUB_STEP_SUMMARY
             echo "- win-x64, win-arm64" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Package Managers:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Homebrew tap updated" >> $GITHUB_STEP_SUMMARY
+            echo "- WinGet manifest submitted" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.publish-nuget.result }}" == "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**.NET Tool:** Published to nuget.org" >> $GITHUB_STEP_SUMMARY
           fi
 
   # Build native CLI binaries for all platforms
@@ -686,6 +724,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
 
       - name: Download all artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -789,3 +832,122 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+
+      # --- Homebrew tap update ---
+      - name: Compute SHA256 for Homebrew
+        id: sha256
+        run: |
+          echo "osx_arm64=$(sha256sum release/copilot_here-osx-arm64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "osx_x64=$(sha256sum release/copilot_here-osx-x64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "linux_arm64=$(sha256sum release/copilot_here-linux-arm64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "linux_x64=$(sha256sum release/copilot_here-linux-x64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        if: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
+        env:
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          TAG="cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Configure SSH for deploy key
+          mkdir -p ~/.ssh
+          echo "$HOMEBREW_TAP_DEPLOY_KEY" > ~/.ssh/homebrew_tap_key
+          chmod 600 ~/.ssh/homebrew_tap_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew_tap_key -o StrictHostKeyChecking=no"
+
+          # Clone the tap repo
+          git clone git@github.com:GordonBeeming/homebrew-tap.git /tmp/homebrew-tap
+
+          # Generate the formula
+          cat > /tmp/homebrew-tap/Formula/copilot_here.rb << FORMULA_EOF
+          # typed: false
+          # frozen_string_literal: true
+
+          class CopilotHere < Formula
+            desc "Run GitHub Copilot CLI in a sandboxed Docker container"
+            homepage "https://github.com/GordonBeeming/copilot_here"
+            version "$VERSION"
+            license "FSL-1.1-MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-osx-arm64.tar.gz"
+                sha256 "${{ steps.sha256.outputs.osx_arm64 }}"
+              else
+                url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-osx-x64.tar.gz"
+                sha256 "${{ steps.sha256.outputs.osx_x64 }}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-linux-arm64.tar.gz"
+                sha256 "${{ steps.sha256.outputs.linux_arm64 }}"
+              else
+                url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-linux-x64.tar.gz"
+                sha256 "${{ steps.sha256.outputs.linux_x64 }}"
+              end
+            end
+
+            depends_on "docker" => :recommended
+
+            def install
+              bin.install "copilot_here"
+            end
+
+            def caveats
+              <<~EOS
+                To enable the shell function wrapper, run:
+                  copilot_here --install-shells
+
+                Or manually source the shell script in your profile:
+                  Bash/Zsh: source "\$(brew --prefix)/share/copilot_here/copilot_here.sh"
+              EOS
+            end
+
+            test do
+              assert_match version.to_s, shell_output("\#{bin}/copilot_here --version")
+            end
+          end
+          FORMULA_EOF
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' /tmp/homebrew-tap/Formula/copilot_here.rb
+
+          # Commit and push
+          cd /tmp/homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/copilot_here.rb
+          git commit -m "Update copilot_here to $VERSION"
+          git push
+
+          # Clean up
+          rm -f ~/.ssh/homebrew_tap_key
+
+      # --- WinGet manifest update ---
+      - name: Compute SHA256 for WinGet
+        id: winget_sha256
+        run: |
+          echo "win_x64=$(sha256sum release/copilot_here-win-x64.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "win_arm64=$(sha256sum release/copilot_here-win-arm64.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Update WinGet manifest
+        if: ${{ secrets.WINGET_PAT != '' }}
+        env:
+          WINGET_PAT: ${{ secrets.WINGET_PAT }}
+        run: |
+          TAG="cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          URL_X64="https://github.com/${{ github.repository }}/releases/download/$TAG/copilot_here-win-x64.zip"
+          URL_ARM64="https://github.com/${{ github.repository }}/releases/download/$TAG/copilot_here-win-arm64.zip"
+
+          # Install wingetcreate as .NET tool
+          dotnet tool install --global wingetcreate
+
+          wingetcreate update GordonBeeming.CopilotHere \
+            --version "$VERSION" \
+            --urls "$URL_X64" "$URL_ARM64" \
+            --submit --token "$WINGET_PAT"

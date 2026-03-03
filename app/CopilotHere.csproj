@@ -11,12 +11,24 @@
     <!-- Disable automatic +sha suffix, we add it with . instead -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
-    <PublishAot>true</PublishAot>
+    <!-- .NET Tool packaging (enabled via -p:PackAsTool=true during dotnet pack) -->
+    <ToolCommandName>copilot_here</ToolCommandName>
+    <PackageId>copilot_here</PackageId>
+    <Authors>Gordon Beeming</Authors>
+    <Description>Run GitHub Copilot CLI in a sandboxed Docker container</Description>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageProjectUrl>https://github.com/GordonBeeming/copilot_here</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/GordonBeeming/copilot_here</RepositoryUrl>
+    <PackageTags>copilot;docker;cli;github</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- AOT properties are incompatible with PackAsTool; disable when packing as .NET tool -->
+    <PublishAot Condition="'$(PackAsTool)' != 'true'">true</PublishAot>
 
     <InvariantGlobalization>true</InvariantGlobalization>
-    <TrimMode>full</TrimMode>
-    <StackTraceSupport>false</StackTraceSupport>
-    <OptimizationPreference>Size</OptimizationPreference>
+    <TrimMode Condition="'$(PackAsTool)' != 'true'">full</TrimMode>
+    <StackTraceSupport Condition="'$(PackAsTool)' != 'true'">false</StackTraceSupport>
+    <OptimizationPreference Condition="'$(PackAsTool)' != 'true'">Size</OptimizationPreference>
   </PropertyGroup>
 
   <!-- Add git SHA with . separator -->
@@ -35,6 +47,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CopilotHere.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
