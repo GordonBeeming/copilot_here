@@ -43,6 +43,26 @@ public class EchoToolTests
   }
 
   [Test]
+  public async Task GetImageName_WithAbsoluteImage_ReturnsAsIs()
+  {
+    // Act
+    var imageName = _tool.GetImageName("myregistry.io/custom-image:v1");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("myregistry.io/custom-image:v1");
+  }
+
+  [Test]
+  public async Task GetImageName_WithDockerHubAbsoluteImage_ReturnsAsIs()
+  {
+    // Act
+    var imageName = _tool.GetImageName("myuser/custom-image:latest");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("myuser/custom-image:latest");
+  }
+
+  [Test]
   public async Task GetDockerfile_ReturnsCorrectPath()
   {
     // Act

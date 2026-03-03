@@ -13,6 +13,10 @@ public class EchoTool : Infrastructure.ICliTool
 
     public string GetImageName(string tag)
     {
+        // If the tag is an absolute image reference (contains '/'), use it as-is
+        if (Infrastructure.ContainerRunner.IsAbsoluteImageReference(tag))
+            return tag;
+
         // Echo uses the same images as GitHub Copilot (copilot-* tags)
         // It doesn't need separate images - it just echoes config instead of running the tool
         const string imagePrefix = "ghcr.io/gordonbeeming/copilot_here";

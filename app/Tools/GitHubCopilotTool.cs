@@ -16,6 +16,10 @@ public sealed class GitHubCopilotTool : ICliTool
 
   public string GetImageName(string tag)
   {
+    // If the tag is an absolute image reference (contains '/'), use it as-is
+    if (ContainerRunner.IsAbsoluteImageReference(tag))
+      return tag;
+
     // Image name format: ghcr.io/gordonbeeming/copilot_here:copilot-{variant}
     // Tag matches what users invoke: "copilot" (not "github-copilot")
     const string imagePrefix = "ghcr.io/gordonbeeming/copilot_here";
