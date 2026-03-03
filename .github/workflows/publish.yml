@@ -949,7 +949,7 @@ jobs:
         shell: pwsh
         run: Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest/self-contained -OutFile wingetcreate.exe
 
-      - name: Update WinGet manifest
+      - name: Submit WinGet manifest
         shell: pwsh
         env:
           WINGET_PAT: ${{ secrets.WINGET_PAT }}
@@ -959,7 +959,27 @@ jobs:
           $urlX64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-x64.zip"
           $urlArm64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-arm64.zip"
 
-          .\wingetcreate.exe update GordonBeeming.CopilotHere `
-            --version $version `
-            --urls $urlX64 $urlArm64 `
-            --submit --token $env:WINGET_PAT
+          # Check if manifest already exists in winget-pkgs
+          $exists = $false
+          try {
+            $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/g/GordonBeeming/CopilotHere" -ErrorAction Stop
+            $exists = $true
+          } catch {}
+
+          if ($exists) {
+            .\wingetcreate.exe update GordonBeeming.CopilotHere `
+              --version $version `
+              --urls $urlX64 $urlArm64 `
+              --submit --token $env:WINGET_PAT
+          } else {
+            .\wingetcreate.exe new $urlX64 $urlArm64 `
+              --package-identifier GordonBeeming.CopilotHere `
+              --package-version $version `
+              --package-locale en-US `
+              --publisher "Gordon Beeming" `
+              --package-name copilot_here `
+              --license "FSL-1.1-MIT" `
+              --short-description "Run GitHub Copilot CLI in a sandboxed Docker container" `
+              --package-url "https://github.com/GordonBeeming/copilot_here" `
+              --submit --token $env:WINGET_PAT
+          }
