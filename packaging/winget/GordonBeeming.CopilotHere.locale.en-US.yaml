@@ -1,0 +1,10 @@
+PackageIdentifier: GordonBeeming.CopilotHere
+PackageVersion: 2026.02.19
+PackageLocale: en-US
+Publisher: Gordon Beeming
+PackageName: copilot_here
+License: FSL-1.1-MIT
+ShortDescription: Run GitHub Copilot CLI in a sandboxed Docker container
+PackageUrl: https://github.com/GordonBeeming/copilot_here
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
