@@ -69,7 +69,7 @@ public static class AirlockRunner
         DebugLogger.Log($"Using external network: {externalNetwork}");
     }
 
-    var appImage = $"{ImagePrefix}:{imageTag}";
+    var appImage = ContainerRunner.IsAbsoluteImageReference(imageTag) ? imageTag : $"{ImagePrefix}:{imageTag}";
     var proxyImage = $"{ImagePrefix}:proxy";
 
     Console.WriteLine("🛡️  Starting in Airlock mode...");

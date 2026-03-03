@@ -11,8 +11,16 @@ public static class ContainerRunner
 
   /// <summary>
   /// Gets the full image name for a given tag.
+  /// If the tag contains a '/', it is treated as an absolute image reference and used as-is.
   /// </summary>
-  public static string GetImageName(string tag) => $"{ImagePrefix}:{tag}";
+  public static string GetImageName(string tag) =>
+    IsAbsoluteImageReference(tag) ? tag : $"{ImagePrefix}:{tag}";
+
+  /// <summary>
+  /// Determines whether a value is an absolute image reference (e.g., "myregistry.io/myimage:v1")
+  /// rather than a simple tag (e.g., "dotnet-rust").
+  /// </summary>
+  public static bool IsAbsoluteImageReference(string value) => value.Contains('/');
 
   /// <summary>
   /// Runs a container command with the given arguments.

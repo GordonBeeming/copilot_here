@@ -53,6 +53,26 @@ public class GitHubCopilotToolTests
   }
 
   [Test]
+  public async Task GetImageName_WithAbsoluteImage_ReturnsAsIs()
+  {
+    // Act
+    var imageName = _tool.GetImageName("myregistry.io/custom-copilot:v1");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("myregistry.io/custom-copilot:v1");
+  }
+
+  [Test]
+  public async Task GetImageName_WithDockerHubAbsoluteImage_ReturnsAsIs()
+  {
+    // Act
+    var imageName = _tool.GetImageName("myuser/copilot-custom:latest");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("myuser/copilot-custom:latest");
+  }
+
+  [Test]
   public async Task GetDockerfile_ReturnsCorrectPath()
   {
     // Act
