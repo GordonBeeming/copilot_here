@@ -947,7 +947,11 @@ jobs:
 
       - name: Install wingetcreate
         shell: pwsh
-        run: Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest/self-contained -OutFile wingetcreate.exe
+        run: |
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -like "*self-contained.exe" } | Select-Object -First 1
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile wingetcreate.exe
+          .\wingetcreate.exe --version
 
       - name: Submit WinGet manifest
         shell: pwsh
