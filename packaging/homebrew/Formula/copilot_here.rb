@@ -33,7 +33,7 @@ class CopilotHere < Formula
 
   def caveats
     <<~EOS
-      copilot_here requires Docker to be installed and running.
+      copilot_here requires Docker, Podman, or OrbStack to be installed and running.
 
       To enable the shell function wrapper, run:
         copilot_here --install-shells
