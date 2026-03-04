@@ -318,7 +318,13 @@ graph LR
 
 ### Package Managers
 
-**Homebrew (macOS/Linux):**
+**Homebrew (macOS):**
+```bash
+brew tap gordonbeeming/tap
+brew install --cask copilot-here
+```
+
+**Homebrew (Linux):**
 ```bash
 brew tap gordonbeeming/tap
 brew install copilot_here

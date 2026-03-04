@@ -50,6 +50,9 @@ The CI workflow updates a Homebrew formula in a separate tap repository after ea
 
 ```bash
 brew tap gordonbeeming/tap
+# macOS
+brew install --cask copilot-here
+# Linux
 brew install copilot_here
 copilot_here --version
 ```

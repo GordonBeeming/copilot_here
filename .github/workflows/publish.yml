@@ -985,19 +985,13 @@ jobs:
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-      - name: Install wingetcreate
-        shell: pwsh
-        run: |
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile wingetcreate.exe
-          .\wingetcreate.exe version; $true  # version command returns exit code 1 even on success
-
       - name: Update WinGet manifest
         shell: pwsh
         env:
           WINGET_PAT: ${{ secrets.WINGET_PAT }}
         run: |
+          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
           $tag = "cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
           $version = "${{ steps.version.outputs.version }}"
           $urlX64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-x64.zip"
