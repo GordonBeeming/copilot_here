@@ -329,7 +329,7 @@ brew install copilot_here
 winget install GordonBeeming.CopilotHere
 ```
 
-**NuGet (.NET Global Tool):**
+**.NET Global Tool:**
 ```bash
 dotnet tool install -g copilot_here
 ```
