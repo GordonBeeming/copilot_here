@@ -952,7 +952,7 @@ jobs:
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
           $asset = $release.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile wingetcreate.exe
-          .\wingetcreate.exe version
+          .\wingetcreate.exe version; $true  # version command returns exit code 1 even on success
 
       - name: Update WinGet manifest
         shell: pwsh
