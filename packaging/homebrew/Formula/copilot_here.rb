@@ -6,6 +6,7 @@ class CopilotHere < Formula
   homepage "https://github.com/GordonBeeming/copilot_here"
   version "VERSION_PLACEHOLDER"
   license "FSL-1.1-MIT"
+  bottle :unneeded
 
   on_macos do
     if Hardware::CPU.arm?
