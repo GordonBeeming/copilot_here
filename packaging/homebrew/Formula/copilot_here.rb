@@ -6,7 +6,6 @@ class CopilotHere < Formula
   homepage "https://github.com/GordonBeeming/copilot_here"
   version "VERSION_PLACEHOLDER"
   license "FSL-1.1-MIT"
-  bottle :unneeded
 
   on_macos do
     if Hardware::CPU.arm?
@@ -28,14 +27,14 @@ class CopilotHere < Formula
     end
   end
 
-  depends_on "docker" => :recommended
-
   def install
     bin.install "copilot_here"
   end
 
   def caveats
     <<~EOS
+      copilot_here requires Docker to be installed and running.
+
       To enable the shell function wrapper, run:
         copilot_here --install-shells
 
