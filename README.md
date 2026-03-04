@@ -316,6 +316,24 @@ graph LR
     Traffic can only leave the Airlock if it explicitly asks the Proxy to carry it. The Proxy inspects the destination against your allow-list and decides whether to let the request pass or block it.
 
 
+### Package Managers
+
+**Homebrew (macOS/Linux):**
+```bash
+brew tap gordonbeeming/tap
+brew install copilot_here
+```
+
+**WinGet (Windows):**
+```powershell
+winget install GordonBeeming.CopilotHere
+```
+
+**NuGet (.NET Global Tool):**
+```bash
+dotnet tool install -g copilot_here
+```
+
 ### For Linux/macOS (Bash/Zsh)
 
 **Quick Install (Recommended):**
