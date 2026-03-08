@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-08  
 **Issue:** #65  
-**Status:** ✅ Complete
+**Status:** 🔄 In Progress (nano alone was insufficient)
 
 ## Problem
 
@@ -89,6 +89,10 @@ commit 11d97b1a57e3df46f793509efb5e2286b15866f2
 fix: Add nano editor to enable Ctrl+Y file opening (#65)
 ```
 
-## Follow-up
+## Follow-up (2026-03-08)
 
-None required - fix is complete and self-contained.
+The nano-only approach was insufficient - the Copilot CLI specifically requires `xdg-open` and does not fall back to text editors. Added `xdg-utils` package to the Dockerfile to provide the actual `xdg-open` binary.
+
+### Additional Change
+
+Added `xdg-utils` to `docker/tools/github-copilot/Dockerfile` apt-get install list. This provides the `xdg-open` command that Copilot CLI calls directly.
