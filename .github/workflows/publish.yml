@@ -1,6 +1,7 @@
 # This workflow builds and publishes Docker images and native CLI binaries.
 # Tests run first on all triggers. Publishing only happens on main branch.
 name: Build and Publish
+run-name: "Build #${{ github.run_number }} (${{ github.event_name }})"
 
 on:
   push:
@@ -560,34 +561,26 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
           cache-to: type=inline
 
-  # Compute version from VERSION file + git tag revision
+  # Compute version from VERSION file + run number as revision
   compute-version:
     name: Compute Version
     runs-on: ubuntu-24.04
-    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     outputs:
       version: ${{ steps.compute.outputs.version }}
       short_sha: ${{ steps.compute.outputs.short_sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
 
       - name: Compute version with revision
         id: compute
         run: |
           BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
-          REVISION=$(git tag --list "cli-v${BASE_VERSION}*" | wc -l | tr -d ' ')
-          if [ "$REVISION" -eq "0" ]; then
-            VERSION="$BASE_VERSION"
-          else
-            VERSION="${BASE_VERSION}.${REVISION}"
-          fi
+          VERSION="${BASE_VERSION}.${{ github.run_number }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "Computed version: $VERSION (base=$BASE_VERSION, revision=$REVISION)"
+          echo "Computed version: $VERSION (run_number=${{ github.run_number }})"
 
   # Publish .NET Tool to NuGet
   publish-nuget:
