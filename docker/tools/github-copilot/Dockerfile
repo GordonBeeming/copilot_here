@@ -4,16 +4,17 @@ FROM node:20-slim
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, zsh, and PowerShell for the entrypoint script and testing.
+# Install git, curl, gpg, gosu, nano, zsh, and PowerShell for the entrypoint script and testing.
 RUN apt-get update && apt-get install -y \
+  apt-transport-https \
   curl \
-  gpg \
   git \
   gosu \
-  zsh \
-  wget \
-  apt-transport-https \
+  gpg \
+  nano \
   software-properties-common \
+  wget \
+  zsh \
   && rm -rf /var/lib/apt/lists/*
 
 # Install PowerShell - architecture-specific approach
