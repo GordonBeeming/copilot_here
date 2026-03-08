@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <!-- Central version for all projects - use date format YYYY.MM.DD or YYYY.MM.DD.N for same-day updates -->
-    <CopilotHereVersion>2026.02.19</CopilotHereVersion>
+    <!-- Central version: read from VERSION file. Override via -p:CopilotHereVersion=X.Y.Z -->
+    <CopilotHereVersion Condition="'$(CopilotHereVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</CopilotHereVersion>
   </PropertyGroup>
 </Project>

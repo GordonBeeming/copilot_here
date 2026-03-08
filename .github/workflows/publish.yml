@@ -560,10 +560,39 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
           cache-to: type=inline
 
+  # Compute version from VERSION file + git tag revision
+  compute-version:
+    name: Compute Version
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      short_sha: ${{ steps.compute.outputs.short_sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version with revision
+        id: compute
+        run: |
+          BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
+          REVISION=$(git tag --list "cli-v${BASE_VERSION}*" | wc -l | tr -d ' ')
+          if [ "$REVISION" -eq "0" ]; then
+            VERSION="$BASE_VERSION"
+          else
+            VERSION="${BASE_VERSION}.${REVISION}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION (base=$BASE_VERSION, revision=$REVISION)"
+
   # Publish .NET Tool to NuGet
   publish-nuget:
     name: Publish NuGet
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
@@ -575,14 +604,8 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Extract version from shell script
-        id: version
-        run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Pack as .NET tool
-        run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ steps.version.outputs.version }} --nologo
+        run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ needs.compute-version.outputs.version }} --nologo
 
       - name: Push to NuGet
         run: dotnet nuget push "app/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
@@ -655,7 +678,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     strategy:
@@ -690,23 +713,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Extract version from shell script
-        id: version
+      - name: Stamp version into source files
         shell: bash
         run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION"
-
-      - name: Update BuildInfo with version
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i.bak "s/BuildDate = \".*\"/BuildDate = \"$VERSION\"/" app/Infrastructure/BuildInfo.cs
-          cat app/Infrastructure/BuildInfo.cs
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
 
       - name: Publish AOT binary
-        run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
+        run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -p:CopilotHereVersion=${{ needs.compute-version.outputs.version }} -o publish/${{ matrix.rid }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -718,7 +732,7 @@ jobs:
   # Create release with CLI binaries
   release-cli:
     name: Release CLI
-    needs: [build-cli]
+    needs: [build-cli, compute-version]
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
@@ -764,22 +778,16 @@ jobs:
 
           ls -la release/
 
-      - name: Get version from shell script
-        id: version
+      - name: Stamp version into release shell scripts
         run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          if [ -z "$VERSION" ]; then
-            VERSION="0.1.0"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
 
       - name: Create versioned release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
-          tag_name: cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}
-          name: CLI v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})
+          tag_name: cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}
+          name: CLI v${{ needs.compute-version.outputs.version }} (${{ needs.compute-version.outputs.short_sha }})
           body: |
             ## Native AOT CLI Binary
 
@@ -789,12 +797,12 @@ jobs:
 
             | Platform | Architecture | Download |
             |----------|--------------|----------|
-            | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
-            | Linux | ARM64 | [copilot_here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-arm64.tar.gz) |
-            | macOS | x64 | [copilot_here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-x64.tar.gz) |
-            | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
-            | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-x64.zip) |
-            | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
+            | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
+            | Linux | ARM64 | [copilot_here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-linux-arm64.tar.gz) |
+            | macOS | x64 | [copilot_here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-osx-x64.tar.gz) |
+            | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
+            | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-win-x64.zip) |
+            | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
 
             ### Installation
 
@@ -815,11 +823,11 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: cli-latest
-          name: CLI v${{ steps.version.outputs.version }}
+          name: CLI v${{ needs.compute-version.outputs.version }}
           body: |
             ## Latest Native AOT CLI Binary
 
-            **Version:** ${{ steps.version.outputs.version }}
+            **Version:** ${{ needs.compute-version.outputs.version }}
             **Commit:** ${{ github.sha }}
 
             This release is automatically updated with the latest CLI build.
@@ -846,8 +854,8 @@ jobs:
         env:
           HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
         run: |
-          TAG="cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
-          VERSION="${{ steps.version.outputs.version }}"
+          TAG="cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
 
           # Configure SSH for deploy key
           mkdir -p ~/.ssh
@@ -969,21 +977,12 @@ jobs:
   # Update WinGet manifest (requires Windows for wingetcreate)
   update-winget:
     name: Update WinGet
-    needs: [release-cli]
+    needs: [release-cli, compute-version]
     runs-on: windows-latest
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Get version from shell script
-        id: version
-        shell: bash
-        run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
       - name: Update WinGet manifest
         shell: pwsh
@@ -992,8 +991,8 @@ jobs:
         run: |
           iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
 
-          $tag = "cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
-          $version = "${{ steps.version.outputs.version }}"
+          $tag = "cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}"
+          $version = "${{ needs.compute-version.outputs.version }}"
           $urlX64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-x64.zip"
           $urlArm64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-arm64.zip"
 
