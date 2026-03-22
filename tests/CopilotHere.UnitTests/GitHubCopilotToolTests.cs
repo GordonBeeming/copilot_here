@@ -134,8 +134,7 @@ public class GitHubCopilotToolTests
     var command = _tool.BuildCommand(context);
 
     // Assert
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
   }
 
   [Test]
@@ -226,8 +225,7 @@ public class GitHubCopilotToolTests
     var command = _tool.BuildCommand(context);
 
     // Assert
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
     await Assert.That(command).Contains("--model");
     await Assert.That(command).Contains("claude-sonnet-4.5");
   }
@@ -240,8 +238,7 @@ public class GitHubCopilotToolTests
 
     // Assert
     await Assert.That(flags).IsNotEmpty();
-    await Assert.That(flags).Contains("--allow-all-tools");
-    await Assert.That(flags).Contains("--allow-all-paths");
+    await Assert.That(flags).Contains("--yolo");
   }
 
   [Test]
@@ -373,8 +370,7 @@ public class GitHubCopilotToolTests
 
     // Assert
     await Assert.That(command[0]).IsEqualTo("copilot");
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
     await Assert.That(command).Contains("--model");
     await Assert.That(command).Contains("gpt-4.5");
     await Assert.That(command).Contains("--prompt");
