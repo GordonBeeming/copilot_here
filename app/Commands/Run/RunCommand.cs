@@ -116,9 +116,9 @@ public sealed class RunCommand : ICommand
 
     _installShellsOption = new Option<bool>("--install-shells") { Description = "Install shell integrations (bash/zsh/fish + PowerShell/cmd)" };
 
-    // Yolo mode - adds --allow-all-tools and --allow-all-paths to Copilot
+    // Yolo mode - passes --yolo to Copilot (equivalent to --allow-all-tools --allow-all-paths --allow-all-urls)
     // Note: This is handled in Program.cs for app name, but we add it here so it shows in --help
-    _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools and paths)" };
+    _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools, paths, and URLs)" };
 
     // Copilot passthrough options
     _promptOption = new Option<string?>("--prompt") { Description = "[Copilot] Execute a prompt directly" };

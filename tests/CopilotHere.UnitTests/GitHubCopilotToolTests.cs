@@ -134,8 +134,54 @@ public class GitHubCopilotToolTests
     var command = _tool.BuildCommand(context);
 
     // Assert
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
+    await Assert.That(command).Contains("--banner");
+  }
+
+  [Test]
+  public async Task BuildCommand_YoloModeWithModel_AddsBannerFlag()
+  {
+    // Arrange
+    var context = new CommandContext
+    {
+      UserArgs = new List<string>(),
+      IsYolo = true,
+      IsInteractive = true,
+      Model = "gpt-4",
+      ImageTag = "latest",
+      Mounts = new List<string>(),
+      Environment = new Dictionary<string, string>()
+    };
+
+    // Act
+    var command = _tool.BuildCommand(context);
+
+    // Assert
+    await Assert.That(command).Contains("--yolo");
+    await Assert.That(command).Contains("--banner");
+  }
+
+  [Test]
+  public async Task BuildCommand_YoloModeWithUserArgs_DoesNotAddBannerFlag()
+  {
+    // Arrange
+    var context = new CommandContext
+    {
+      UserArgs = new List<string> { "--prompt", "hello" },
+      IsYolo = true,
+      IsInteractive = false,
+      Model = null,
+      ImageTag = "latest",
+      Mounts = new List<string>(),
+      Environment = new Dictionary<string, string>()
+    };
+
+    // Act
+    var command = _tool.BuildCommand(context);
+
+    // Assert
+    await Assert.That(command).Contains("--yolo");
+    await Assert.That(command).DoesNotContain("--banner");
   }
 
   [Test]
@@ -226,8 +272,7 @@ public class GitHubCopilotToolTests
     var command = _tool.BuildCommand(context);
 
     // Assert
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
     await Assert.That(command).Contains("--model");
     await Assert.That(command).Contains("claude-sonnet-4.5");
   }
@@ -240,8 +285,7 @@ public class GitHubCopilotToolTests
 
     // Assert
     await Assert.That(flags).IsNotEmpty();
-    await Assert.That(flags).Contains("--allow-all-tools");
-    await Assert.That(flags).Contains("--allow-all-paths");
+    await Assert.That(flags).Contains("--yolo");
   }
 
   [Test]
@@ -373,8 +417,7 @@ public class GitHubCopilotToolTests
 
     // Assert
     await Assert.That(command[0]).IsEqualTo("copilot");
-    await Assert.That(command).Contains("--allow-all-tools");
-    await Assert.That(command).Contains("--allow-all-paths");
+    await Assert.That(command).Contains("--yolo");
     await Assert.That(command).Contains("--model");
     await Assert.That(command).Contains("gpt-4.5");
     await Assert.That(command).Contains("--prompt");
