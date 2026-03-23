@@ -16,7 +16,10 @@ if (-not (Test-Path $configPath)) {
 
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
-if (-not (Test-Path $generatedDir)) {
+# Clean generated directory to remove stale Dockerfiles from renamed/removed images
+if (Test-Path $generatedDir) {
+    Get-ChildItem -Path $generatedDir -Filter 'Dockerfile.*' | Remove-Item -Force
+} else {
     New-Item -ItemType Directory -Path $generatedDir | Out-Null
 }
 

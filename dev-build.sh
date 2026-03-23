@@ -88,7 +88,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Generate Dockerfiles from snippets
+# Generate Dockerfiles from snippets (requires PowerShell)
+if ! command -v pwsh &> /dev/null; then
+  echo "Error: PowerShell (pwsh) is required to generate Dockerfiles."
+  echo "Install it via: brew install powershell (macOS) or see https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+  exit 1
+fi
 echo "🔧 Generating Dockerfiles from snippets..."
 pwsh -File "${SCRIPT_DIR}/docker/generate-dockerfiles.ps1"
 echo ""

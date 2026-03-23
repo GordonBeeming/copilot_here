@@ -372,7 +372,7 @@ jobs:
   # Build all container images in parallel (each builds independently from node:20-slim)
   build-images:
     name: Build ${{ matrix.image }}
-    needs: [prepare-versions]
+    needs: [prepare-versions, verify-generated-dockerfiles]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
