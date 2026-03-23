@@ -1,11 +1,3 @@
-# Build on top of any tool's dotnet variant to add Rust
-# DOTNET_IMAGE_TAG should be the dotnet variant (copilot-dotnet, echo-dotnet, etc.)
-ARG DOTNET_IMAGE_TAG=copilot-dotnet
-FROM ghcr.io/gordonbeeming/copilot_here:${DOTNET_IMAGE_TAG}
-
-# Switch to root to install packages
-USER root
-
 # Install Rust dependencies
 RUN apt-get update && apt-get install -y \
   build-essential \
@@ -23,8 +15,5 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
 # Make cargo registry writable by all users (for downloading crates)
 RUN chmod -R a+rwX /usr/local/cargo
 
-# Verify installations
-RUN dotnet --list-sdks && rustc --version && cargo --version
-
-# The entrypoint and CMD remain the same as the base image
-# They are inherited automatically
+# Verify installation
+RUN rustc --version && cargo --version

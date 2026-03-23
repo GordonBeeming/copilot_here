@@ -1,6 +1,11 @@
+# Auto-generated from docker/images.json - DO NOT EDIT MANUALLY
+# To modify, edit docker/snippets/*.Dockerfile or docker/images.json
+# then run: pwsh docker/generate-dockerfiles.ps1
+
 # Use a slim Node.js base image, which gives us `npm`.
 FROM node:20-slim
 
+# --- snippet: system-packages ---
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,6 +23,7 @@ RUN apt-get update && apt-get install -y \
   zsh \
   && rm -rf /var/lib/apt/lists/*
 
+# --- snippet: powershell ---
 # Install PowerShell - architecture-specific approach
 RUN ARCH=$(dpkg --print-architecture) \
   && if [ "$ARCH" = "amd64" ]; then \
@@ -38,6 +44,26 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/powershell.tar.gz; \
   fi
 
+# --- snippet: golang ---
+# Install Go
+# Using official Go installation method
+ENV GOLANG_VERSION=1.25.5
+ENV GOPATH=/usr/local/go-workspace
+ENV PATH="/usr/local/go/bin:${GOPATH}/bin:${PATH}"
+
+# Install Go from official tarball
+RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-$(dpkg --print-architecture).tar.gz" -o go.tar.gz \
+  && tar -C /usr/local -xzf go.tar.gz \
+  && rm go.tar.gz
+
+# Create GOPATH and make it writable by all users
+RUN mkdir -p ${GOPATH} \
+  && chmod -R a+rwX ${GOPATH}
+
+# Verify installation
+RUN go version
+
+# --- snippet: copilot-cli ---
 # ARG for the Copilot CLI version - passed from build process
 # This ensures cache invalidation when a new version is available
 ARG COPILOT_VERSION=latest
@@ -45,6 +71,7 @@ ARG COPILOT_VERSION=latest
 # Install the standalone GitHub Copilot CLI via npm.
 RUN npm install -g @github/copilot@${COPILOT_VERSION}
 
+# --- snippet: entrypoint ---
 # Set the working directory for the container.
 WORKDIR /work
 

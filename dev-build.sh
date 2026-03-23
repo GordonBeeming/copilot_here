@@ -15,17 +15,17 @@ declare -a INCLUDE_VARIANTS=()
 # Detect container runtime from local config or auto-detect
 detect_runtime() {
   local runtime=""
-  
+
   # Check local .copilot_here/runtime.conf
   if [[ -f "${SCRIPT_DIR}/.copilot_here/runtime.conf" ]]; then
     runtime=$(cat "${SCRIPT_DIR}/.copilot_here/runtime.conf" | tr -d '[:space:]')
   fi
-  
+
   # Check global config if not set locally
   if [[ -z "$runtime" ]] && [[ -f "$HOME/.config/copilot_here/runtime.conf" ]]; then
     runtime=$(cat "$HOME/.config/copilot_here/runtime.conf" | tr -d '[:space:]')
   fi
-  
+
   # Auto-detect if not configured
   if [[ -z "$runtime" ]] || [[ "$runtime" == "auto" ]]; then
     if command -v docker &> /dev/null; then
@@ -37,7 +37,7 @@ detect_runtime() {
       exit 1
     fi
   fi
-  
+
   echo "$runtime"
 }
 
@@ -47,20 +47,20 @@ CONTAINER_RUNTIME=$(detect_runtime)
 detect_rid() {
   local os=""
   local arch=""
-  
+
   case "$(uname -s)" in
     Linux*)  os="linux" ;;
     Darwin*) os="osx" ;;
     MINGW*|MSYS*|CYGWIN*) os="win" ;;
     *)       echo "Unknown OS"; return 1 ;;
   esac
-  
+
   case "$(uname -m)" in
     x86_64)  arch="x64" ;;
     aarch64|arm64) arch="arm64" ;;
     *)       arch="x64" ;;
   esac
-  
+
   echo "${os}-${arch}"
 }
 
@@ -88,41 +88,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# If --include-all, discover all variants from both folders
+# Generate Dockerfiles from snippets
+echo "🔧 Generating Dockerfiles from snippets..."
+pwsh -File "${SCRIPT_DIR}/docker/generate-dockerfiles.ps1"
+echo ""
+
+# If --include-all, discover all variants from generated Dockerfiles
 if $INCLUDE_ALL; then
-  for variant_file in "${SCRIPT_DIR}/docker/variants/Dockerfile."*; do
+  for variant_file in "${SCRIPT_DIR}/docker/generated/Dockerfile."*; do
     if [[ -f "$variant_file" ]]; then
       variant_name=$(basename "$variant_file" | sed 's/Dockerfile\.//')
-      INCLUDE_VARIANTS+=("$variant_name")
-    fi
-  done
-  for variant_file in "${SCRIPT_DIR}/docker/compound-variants/Dockerfile."*; do
-    if [[ -f "$variant_file" ]]; then
-      variant_name=$(basename "$variant_file" | sed 's/Dockerfile\.//')
-      INCLUDE_VARIANTS+=("$variant_name")
+      if [[ "$variant_name" != "default" ]]; then
+        INCLUDE_VARIANTS+=("$variant_name")
+      fi
     fi
   done
 fi
-
-# Define compound variants that depend on other variants (not base)
-# These will be built after all regular variants
-is_compound_variant() {
-  case "$1" in
-    dotnet-playwright|dotnet-rust) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Separate variants into regular and compound
-declare -a REGULAR_VARIANTS=()
-declare -a COMPOUND_VARIANTS=()
-for variant in "${INCLUDE_VARIANTS[@]}"; do
-  if is_compound_variant "$variant"; then
-    COMPOUND_VARIANTS+=("$variant")
-  else
-    REGULAR_VARIANTS+=("$variant")
-  fi
-done
 
 echo "========================================"
 echo "   Building Container Images Locally"
@@ -205,12 +186,12 @@ $CONTAINER_RUNTIME build $NO_CACHE \
 echo "   ✓ Tagged as ${REGISTRY}:proxy"
 echo ""
 
-# Build base image
+# Build base image (default)
 echo "🔧 Building base image (GitHub Copilot)..."
 $CONTAINER_RUNTIME build $NO_CACHE \
   -t "${REGISTRY}:latest" \
   -t "${REGISTRY}:copilot-latest" \
-  -f "${SCRIPT_DIR}/docker/tools/github-copilot/Dockerfile" \
+  -f "${SCRIPT_DIR}/docker/generated/Dockerfile.default" \
   "${SCRIPT_DIR}"
 echo "   ✓ Tagged as ${REGISTRY}:latest"
 echo "   ✓ Tagged as ${REGISTRY}:copilot-latest"
@@ -219,18 +200,11 @@ echo ""
 # Build variant images (only if explicitly requested)
 build_variant() {
   local variant_name="$1"
-  local build_args="$2"
-  
-  # Check variants folder first, then compound-variants
-  local variant_file="${SCRIPT_DIR}/docker/variants/Dockerfile.${variant_name}"
-  if [[ ! -f "$variant_file" ]]; then
-    variant_file="${SCRIPT_DIR}/docker/compound-variants/Dockerfile.${variant_name}"
-  fi
-  
+  local variant_file="${SCRIPT_DIR}/docker/generated/Dockerfile.${variant_name}"
+
   if [[ -f "$variant_file" ]]; then
     echo "🔧 Building variant: $variant_name (GitHub Copilot)..."
     $CONTAINER_RUNTIME build $NO_CACHE \
-      $build_args \
       -t "${REGISTRY}:${variant_name}" \
       -t "${REGISTRY}:copilot-${variant_name}" \
       -f "$variant_file" \
@@ -244,21 +218,11 @@ build_variant() {
   fi
 }
 
-# Build regular variants first (depend on base)
-if [[ ${#REGULAR_VARIANTS[@]} -gt 0 ]]; then
-  for variant_name in "${REGULAR_VARIANTS[@]}"; do
-    build_variant "$variant_name" "--build-arg BASE_IMAGE_TAG=copilot-latest"
+if [[ ${#INCLUDE_VARIANTS[@]} -gt 0 ]]; then
+  for variant_name in "${INCLUDE_VARIANTS[@]}"; do
+    build_variant "$variant_name"
   done
-fi
-
-# Build compound variants (depend on other variants like dotnet)
-if [[ ${#COMPOUND_VARIANTS[@]} -gt 0 ]]; then
-  for variant_name in "${COMPOUND_VARIANTS[@]}"; do
-    build_variant "$variant_name" "--build-arg DOTNET_IMAGE_TAG=copilot-dotnet"
-  done
-fi
-
-if [[ ${#INCLUDE_VARIANTS[@]} -eq 0 ]]; then
+else
   echo "ℹ️  Skipping variants (use --include-<variant> to build, e.g., --include-dotnet)"
   echo ""
 fi
