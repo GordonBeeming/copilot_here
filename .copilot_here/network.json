@@ -1,44 +1,9 @@
 {
-  "enabled": false,
+  "enabled": true,
   "enable_logging": true,
   "inherit_default_rules": true,
   "mode": "enforce",
   "allowed_rules": [
-    {
-      "host": "api.github.com",
-      "allowed_paths": [
-        "/user",
-        "/graphql",
-        "/repos/github/copilot-cli/releases/latest"
-      ]
-    },
-    {
-      "host": "api.githubcopilot.com",
-      "allowed_paths": [
-        "/models",
-        "/mcp/readonly",
-        "/chat/completions",
-        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
-      ]
-    },
-    {
-      "host": "api.individual.githubcopilot.com",
-      "allowed_paths": [
-        "/models",
-        "/mcp/readonly",
-        "/chat/completions",
-        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
-      ]
-    },
-    {
-      "host": "api.enterprise.githubcopilot.com",
-      "allowed_paths": [
-        "/models",
-        "/mcp/readonly",
-        "/chat/completions",
-        "/agents/swe/custom-agents/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
-      ]
-    },
     {
       "host": "api.nuget.org",
       "allowed_paths": [
