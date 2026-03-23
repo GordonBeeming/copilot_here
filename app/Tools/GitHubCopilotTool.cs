@@ -39,8 +39,7 @@ public sealed class GitHubCopilotTool : ICliTool
     // Add YOLO mode flags
     if (context.IsYolo)
     {
-      args.Add("--allow-all-tools");
-      args.Add("--allow-all-paths");
+      args.Add("--yolo");
     }
 
     // Add model if specified
@@ -59,7 +58,7 @@ public sealed class GitHubCopilotTool : ICliTool
     if (!string.IsNullOrEmpty(context.Model))
       argsWithoutModel -= 2; // Subtract --model and its value
     
-    if (argsWithoutModel == 1 || (argsWithoutModel <= 3 && context.IsYolo))
+    if (argsWithoutModel == 1 || (argsWithoutModel <= 2 && context.IsYolo))
     {
       args.Add("--banner");
     }
@@ -69,7 +68,7 @@ public sealed class GitHubCopilotTool : ICliTool
 
   public List<string> GetYoloModeFlags()
   {
-    return ["--allow-all-tools", "--allow-all-paths"];
+    return ["--yolo"];
   }
 
   public string GetInteractiveFlag()

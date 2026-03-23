@@ -7,7 +7,9 @@
       "allowed_paths": [
         "/user",
         "/graphql",
-        "/repos/github/copilot-cli/releases/latest"
+        "/repos/github/copilot-cli/releases/latest",
+        "/copilot_internal/user",
+        "/repos/{{GITHUB_OWNER}}/{{GITHUB_REPO}}*"
       ]
     },
     {

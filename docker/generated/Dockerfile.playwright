@@ -1,21 +1,29 @@
+# Auto-generated from docker/images.json - DO NOT EDIT MANUALLY
+# To modify, edit docker/snippets/*.Dockerfile or docker/images.json
+# then run: pwsh docker/generate-dockerfiles.ps1
+
 # Use a slim Node.js base image, which gives us `npm`.
 FROM node:20-slim
 
+# --- snippet: system-packages ---
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, zsh, and PowerShell for the entrypoint script and testing.
+# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and related utilities for the entrypoint script and testing.
 RUN apt-get update && apt-get install -y \
+  apt-transport-https \
   curl \
-  gpg \
   git \
   gosu \
-  zsh \
-  wget \
-  apt-transport-https \
+  gpg \
+  nano \
   software-properties-common \
+  wget \
+  xdg-utils \
+  zsh \
   && rm -rf /var/lib/apt/lists/*
 
+# --- snippet: powershell ---
 # Install PowerShell - architecture-specific approach
 RUN ARCH=$(dpkg --print-architecture) \
   && if [ "$ARCH" = "amd64" ]; then \
@@ -36,6 +44,48 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/powershell.tar.gz; \
   fi
 
+# --- snippet: playwright ---
+ARG PLAYWRIGHT_VERSION=latest
+
+# Install Playwright dependencies
+# Using Playwright's system dependencies approach
+RUN apt-get update && apt-get install -y \
+  # Playwright system dependencies for Chromium
+  libnss3 \
+  libnspr4 \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libdrm2 \
+  libdbus-1-3 \
+  libxkbcommon0 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libpango-1.0-0 \
+  libcairo2 \
+  libasound2 \
+  libatspi2.0-0 \
+  libxshmfence1 \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright globally via npm
+RUN npm install -g playwright@${PLAYWRIGHT_VERSION}
+
+# Set NODE_PATH so Node.js can find globally installed packages
+ENV NODE_PATH=/usr/local/lib/node_modules
+
+# Install all browsers (Chromium, Firefox, WebKit) in a system-wide location
+# This avoids UID mismatch issues when container runs with different user IDs
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright install --with-deps
+
+# Make playwright browsers directory world-writable so any UID can access/update them
+RUN chmod -R 777 /ms-playwright
+
+# --- snippet: copilot-cli ---
 # ARG for the Copilot CLI version - passed from build process
 # This ensures cache invalidation when a new version is available
 ARG COPILOT_VERSION=latest
@@ -43,6 +93,7 @@ ARG COPILOT_VERSION=latest
 # Install the standalone GitHub Copilot CLI via npm.
 RUN npm install -g @github/copilot@${COPILOT_VERSION}
 
+# --- snippet: entrypoint ---
 # Set the working directory for the container.
 WORKDIR /work
 

@@ -1,6 +1,7 @@
 # This workflow builds and publishes Docker images and native CLI binaries.
 # Tests run first on all triggers. Publishing only happens on main branch.
 name: Build and Publish
+run-name: "Build #${{ github.run_number }} (${{ github.event_name }})"
 
 on:
   push:
@@ -321,13 +322,24 @@ jobs:
             ghcr.io/${{ steps.repo.outputs.name }}:proxy-arm64
           docker manifest push ghcr.io/${{ steps.repo.outputs.name }}:proxy-sha-${{ github.sha }}
 
-  build-base:
-    name: Build Base Image
+  # Verify generated Dockerfiles are up to date
+  verify-generated-dockerfiles:
+    name: Verify Generated Dockerfiles
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Verify generated Dockerfiles match config
+        run: pwsh docker/verify-generated.ps1
+
+  # Fetch latest dependency versions for image builds
+  prepare-versions:
+    name: Prepare Versions
     needs: [test-cli-integration, test-shell-functions, test-airlock]
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     outputs:
-      push_needed: ${{ steps.push_decision.outputs.push_needed }}
       repo_name: ${{ steps.repo.outputs.name }}
       copilot_version: ${{ steps.versions.outputs.copilot_version }}
       playwright_version: ${{ steps.versions.outputs.playwright_version }}
@@ -335,25 +347,9 @@ jobs:
       dotnet_9_version: ${{ steps.versions.outputs.dotnet_9_version }}
       dotnet_10_version: ${{ steps.versions.outputs.dotnet_10_version }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
       - name: Set lowercase repository name
         id: repo
         run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get latest dependency versions
         id: versions
@@ -373,197 +369,143 @@ jobs:
           DOTNET_10_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
           echo "dotnet_10_version=$DOTNET_10_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Get digest of the remote 'latest' image
-        if: github.event_name != 'push'
-        id: remote_digest
-        run: |
-          DIGEST=$(docker manifest inspect ghcr.io/${{ steps.repo.outputs.name }}:latest 2>/dev/null | jq -r '.config.digest' || echo "")
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+  # Build all container images in parallel (each builds independently from node:20-slim)
+  build-images:
+    name: Build ${{ matrix.image }}
+    needs: [prepare-versions, verify-generated-dockerfiles]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: default
+            dockerfile: ./docker/generated/Dockerfile.default
+            tags_extra: |
+              ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:latest
+              ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-latest
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+          - image: rust
+            dockerfile: ./docker/generated/Dockerfile.rust
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+          - image: golang
+            dockerfile: ./docker/generated/Dockerfile.golang
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+          - image: playwright
+            dockerfile: ./docker/generated/Dockerfile.playwright
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+          - image: dotnet-8
+            dockerfile: ./docker/generated/Dockerfile.dotnet-8
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
+          - image: dotnet-9
+            dockerfile: ./docker/generated/Dockerfile.dotnet-9
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
+          - image: dotnet-10
+            dockerfile: ./docker/generated/Dockerfile.dotnet-10
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+          - image: dotnet
+            dockerfile: ./docker/generated/Dockerfile.dotnet
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+          - image: dotnet-playwright
+            dockerfile: ./docker/generated/Dockerfile.dotnet-playwright
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+          - image: dotnet-rust
+            dockerfile: ./docker/generated/Dockerfile.dotnet-rust
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Build image and get its new digest
-        id: build
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
         with:
-          context: .
-          file: ./docker/tools/github-copilot/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: false
-          load: false
-          tags: ghcr.io/${{ steps.repo.outputs.name }}:latest
-          build-args: |
-            COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
-          cache-to: type=inline
-          outputs: type=image,push=false
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine if a push is required
-        id: push_decision
+      - name: Prepare build args
+        id: args
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "push_needed=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ steps.build.outputs.digest }}" != "${{ steps.remote_digest.outputs.digest }}" ]]; then
-            echo "push_needed=true" >> $GITHUB_OUTPUT
-          else
-            echo "push_needed=false" >> $GITHUB_OUTPUT
+          ARGS="${{ matrix.build_args }}"
+          ARGS="${ARGS//\$COPILOT_VERSION/${{ needs.prepare-versions.outputs.copilot_version }}}"
+          ARGS="${ARGS//\$PLAYWRIGHT_VERSION/${{ needs.prepare-versions.outputs.playwright_version }}}"
+          ARGS="${ARGS//\$DOTNET_8_VERSION/${{ needs.prepare-versions.outputs.dotnet_8_version }}}"
+          ARGS="${ARGS//\$DOTNET_9_VERSION/${{ needs.prepare-versions.outputs.dotnet_9_version }}}"
+          ARGS="${ARGS//\$DOTNET_10_VERSION/${{ needs.prepare-versions.outputs.dotnet_10_version }}}"
+          echo "build_args<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$ARGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Prepare tags
+        id: tags
+        run: |
+          REPO="${{ needs.prepare-versions.outputs.repo_name }}"
+          IMAGE="${{ matrix.image }}"
+          SHA="${{ github.sha }}"
+
+          TAGS="ghcr.io/${REPO}:copilot-${IMAGE}
+          ghcr.io/${REPO}:copilot-${IMAGE}-sha-${SHA}"
+
+          # Add variant shorthand tag (e.g., :rust, :dotnet)
+          if [[ "$IMAGE" != "default" ]]; then
+            TAGS="${TAGS}
+          ghcr.io/${REPO}:${IMAGE}"
           fi
 
-      - name: Push base image to registry
-        if: steps.push_decision.outputs.push_needed == 'true'
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./docker/tools/github-copilot/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:latest
-            ghcr.io/${{ steps.repo.outputs.name }}:copilot-latest
-            ghcr.io/${{ steps.repo.outputs.name }}:copilot-sha-${{ github.sha }}
-          labels: project=copilot_here
-          build-args: |
-            COPILOT_VERSION=${{ steps.versions.outputs.copilot_version }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:latest,mode=max
-          cache-to: type=inline
+          # Add extra tags (e.g., :latest for the default image)
+          EXTRA_TAGS="${{ matrix.tags_extra }}"
+          if [[ -n "$EXTRA_TAGS" ]]; then
+            TAGS="${TAGS}
+          ${EXTRA_TAGS}"
+          fi
 
-  # Build variants that depend only on the base image
-  build-variants:
-    name: Build ${{ matrix.variant }}
-    needs: [build-base]
-    if: needs.build-base.outputs.push_needed == 'true'
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: rust
-            dockerfile: ./docker/variants/Dockerfile.rust
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}"
-          - variant: golang
-            dockerfile: ./docker/variants/Dockerfile.golang
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}"
-          - variant: playwright
-            dockerfile: ./docker/variants/Dockerfile.playwright
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
-          - variant: dotnet-8
-            dockerfile: ./docker/variants/Dockerfile.dotnet8
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
-          - variant: dotnet-9
-            dockerfile: ./docker/variants/Dockerfile.dotnet9
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
-          - variant: dotnet-10
-            dockerfile: ./docker/variants/Dockerfile.dotnet10
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
-          - variant: dotnet
-            dockerfile: ./docker/variants/Dockerfile.dotnet
-            build_args: "BASE_IMAGE_TAG=copilot-sha-${{ github.sha }}\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare build args
-        id: args
-        run: |
-          # Replace placeholder variables with actual values
-          ARGS="${{ matrix.build_args }}"
-          ARGS="${ARGS//\$PLAYWRIGHT_VERSION/${{ needs.build-base.outputs.playwright_version }}}"
-          ARGS="${ARGS//\$DOTNET_8_VERSION/${{ needs.build-base.outputs.dotnet_8_version }}}"
-          ARGS="${ARGS//\$DOTNET_9_VERSION/${{ needs.build-base.outputs.dotnet_9_version }}}"
-          ARGS="${ARGS//\$DOTNET_10_VERSION/${{ needs.build-base.outputs.dotnet_10_version }}}"
-          echo "build_args<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$ARGS" >> $GITHUB_OUTPUT
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Build and push ${{ matrix.variant }} image
+      - name: Build and push ${{ matrix.image }} image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}-sha-${{ github.sha }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: project=copilot_here
           build-args: ${{ steps.args.outputs.build_args }}
-          cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-${{ matrix.image }},mode=max
           cache-to: type=inline
 
-  # Build compound variants that depend on the dotnet image
-  build-compound-variants:
-    name: Build ${{ matrix.variant }}
-    needs: [build-base, build-variants]
-    if: needs.build-base.outputs.push_needed == 'true'
+  # Compute version from VERSION file + run number as revision
+  compute-version:
+    name: Compute Version
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: dotnet-playwright
-            dockerfile: ./docker/compound-variants/Dockerfile.dotnet-playwright
-            build_args: "DOTNET_IMAGE_TAG=copilot-dotnet-sha-${{ github.sha }}\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
-          - variant: dotnet-rust
-            dockerfile: ./docker/compound-variants/Dockerfile.dotnet-rust
-            build_args: "DOTNET_IMAGE_TAG=copilot-dotnet-sha-${{ github.sha }}"
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      short_sha: ${{ steps.compute.outputs.short_sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare build args
-        id: args
+      - name: Compute version with revision
+        id: compute
         run: |
-          ARGS="${{ matrix.build_args }}"
-          ARGS="${ARGS//\$PLAYWRIGHT_VERSION/${{ needs.build-base.outputs.playwright_version }}}"
-          echo "build_args<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$ARGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Build and push ${{ matrix.variant }} image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}
-            ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-${{ matrix.variant }}-sha-${{ github.sha }}
-          labels: project=copilot_here
-          build-args: ${{ steps.args.outputs.build_args }}
-          cache-from: type=registry,ref=ghcr.io/${{ needs.build-base.outputs.repo_name }}:${{ matrix.variant }},mode=max
-          cache-to: type=inline
+          BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
+          VERSION="${BASE_VERSION}.${{ github.run_number }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION (run_number=${{ github.run_number }})"
 
   # Publish .NET Tool to NuGet
   publish-nuget:
     name: Publish NuGet
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
@@ -575,14 +517,8 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Extract version from shell script
-        id: version
-        run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Pack as .NET tool
-        run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ steps.version.outputs.version }} --nologo
+        run: dotnet pack app/CopilotHere.csproj -c Release -p:PackAsTool=true -p:CopilotHereVersion=${{ needs.compute-version.outputs.version }} --nologo
 
       - name: Push to NuGet
         run: dotnet nuget push "app/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
@@ -592,34 +528,27 @@ jobs:
     name: Publish Summary
     needs:
       [
-        build-base,
+        build-images,
         build-proxy,
-        build-variants,
-        build-compound-variants,
         release-cli,
         publish-nuget,
         update-winget,
       ]
-    if: always() && (needs.build-base.result != 'skipped' || needs.release-cli.result != 'skipped')
+    if: always() && (needs.build-images.result != 'skipped' || needs.release-cli.result != 'skipped')
     runs-on: ubuntu-24.04
     steps:
-      - name: Print summary for scheduled run
-        if: github.event_name == 'schedule' && needs.build-base.outputs.push_needed == 'false'
-        run: echo "☑️ No new version of the npm package found. The published image is already up-to-date."
-
       - name: Workflow Summary
         run: |
           echo "## Workflow Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Tests:** ✅ Passed (required before build)" >> $GITHUB_STEP_SUMMARY
+          echo "**Tests:** Passed (required before build)" >> $GITHUB_STEP_SUMMARY
 
-          if [[ "${{ needs.build-base.outputs.push_needed }}" == "true" ]]; then
+          if [[ "${{ needs.build-images.result }}" == "success" ]]; then
             echo "**Images Published:**" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:latest\` (legacy)" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:copilot-latest\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ needs.build-base.outputs.repo_name }}:proxy\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`latest\`, \`copilot-latest\` (default)" >> $GITHUB_STEP_SUMMARY
+            echo "- \`proxy\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Variants (with copilot- prefix):**" >> $GITHUB_STEP_SUMMARY
             echo "- \`rust\`, \`copilot-rust\`" >> $GITHUB_STEP_SUMMARY
@@ -632,7 +561,7 @@ jobs:
             echo "- \`dotnet-playwright\`, \`copilot-dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet-rust\`, \`copilot-dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Images:** No changes, skipped publishing" >> $GITHUB_STEP_SUMMARY
+            echo "**Images:** No changes or skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [[ "${{ needs.release-cli.result }}" == "success" ]]; then
@@ -655,7 +584,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     strategy:
@@ -690,23 +619,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Extract version from shell script
-        id: version
+      - name: Stamp version into source files
         shell: bash
         run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION"
-
-      - name: Update BuildInfo with version
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i.bak "s/BuildDate = \".*\"/BuildDate = \"$VERSION\"/" app/Infrastructure/BuildInfo.cs
-          cat app/Infrastructure/BuildInfo.cs
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
 
       - name: Publish AOT binary
-        run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
+        run: dotnet publish app/CopilotHere.csproj -c Release -r ${{ matrix.rid }} -p:CopilotHereVersion=${{ needs.compute-version.outputs.version }} -o publish/${{ matrix.rid }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -718,7 +638,7 @@ jobs:
   # Create release with CLI binaries
   release-cli:
     name: Release CLI
-    needs: [build-cli]
+    needs: [build-cli, compute-version]
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
@@ -764,22 +684,16 @@ jobs:
 
           ls -la release/
 
-      - name: Get version from shell script
-        id: version
+      - name: Stamp version into release shell scripts
         run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          if [ -z "$VERSION" ]; then
-            VERSION="0.1.0"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
 
       - name: Create versioned release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
-          tag_name: cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}
-          name: CLI v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})
+          tag_name: cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}
+          name: CLI v${{ needs.compute-version.outputs.version }} (${{ needs.compute-version.outputs.short_sha }})
           body: |
             ## Native AOT CLI Binary
 
@@ -789,12 +703,12 @@ jobs:
 
             | Platform | Architecture | Download |
             |----------|--------------|----------|
-            | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
-            | Linux | ARM64 | [copilot_here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-linux-arm64.tar.gz) |
-            | macOS | x64 | [copilot_here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-x64.tar.gz) |
-            | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
-            | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-x64.zip) |
-            | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
+            | Linux | x64 | [copilot_here-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-linux-x64.tar.gz) |
+            | Linux | ARM64 | [copilot_here-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-linux-arm64.tar.gz) |
+            | macOS | x64 | [copilot_here-osx-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-osx-x64.tar.gz) |
+            | macOS | ARM64 | [copilot_here-osx-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-osx-arm64.tar.gz) |
+            | Windows | x64 | [copilot_here-win-x64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-win-x64.zip) |
+            | Windows | ARM64 | [copilot_here-win-arm64.zip](https://github.com/${{ github.repository }}/releases/download/cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}/copilot_here-win-arm64.zip) |
 
             ### Installation
 
@@ -815,11 +729,11 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: cli-latest
-          name: CLI v${{ steps.version.outputs.version }}
+          name: CLI v${{ needs.compute-version.outputs.version }}
           body: |
             ## Latest Native AOT CLI Binary
 
-            **Version:** ${{ steps.version.outputs.version }}
+            **Version:** ${{ needs.compute-version.outputs.version }}
             **Commit:** ${{ github.sha }}
 
             This release is automatically updated with the latest CLI build.
@@ -846,8 +760,8 @@ jobs:
         env:
           HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
         run: |
-          TAG="cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
-          VERSION="${{ steps.version.outputs.version }}"
+          TAG="cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
 
           # Configure SSH for deploy key
           mkdir -p ~/.ssh
@@ -890,14 +804,14 @@ jobs:
               end
             end
 
-            depends_on "docker" => :recommended
-
             def install
               bin.install "copilot_here"
             end
 
             def caveats
               <<~EOS
+                copilot_here requires Docker, Podman, or OrbStack to be installed and running.
+
                 To enable the shell function wrapper, run:
                   copilot_here --install-shells
 
@@ -915,11 +829,51 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' /tmp/homebrew-tap/Formula/copilot_here.rb
 
+          # Generate the cask (macOS only, bypasses CLT check)
+          mkdir -p /tmp/homebrew-tap/Casks
+          cat > /tmp/homebrew-tap/Casks/copilot-here.rb << CASK_EOF
+          # typed: false
+          # frozen_string_literal: true
+
+          cask "copilot-here" do
+            version "$VERSION"
+
+            on_arm do
+              url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-osx-arm64.tar.gz"
+              sha256 "${{ steps.sha256.outputs.osx_arm64 }}"
+            end
+
+            on_intel do
+              url "https://github.com/GordonBeeming/copilot_here/releases/download/$TAG/copilot_here-osx-x64.tar.gz"
+              sha256 "${{ steps.sha256.outputs.osx_x64 }}"
+            end
+
+            name "copilot_here"
+            desc "Run GitHub Copilot CLI in a sandboxed Docker container"
+            homepage "https://github.com/GordonBeeming/copilot_here"
+
+            binary "copilot_here"
+
+            caveats <<~EOS
+              copilot_here requires Docker, Podman, or OrbStack to be installed and running.
+
+              To enable the shell function wrapper, run:
+                copilot_here --install-shells
+
+              Or manually source the shell script in your profile:
+                Bash/Zsh: source "\$(brew --prefix)/share/copilot_here/copilot_here.sh"
+            EOS
+          end
+          CASK_EOF
+
+          # Remove leading whitespace from cask heredoc
+          sed -i 's/^          //' /tmp/homebrew-tap/Casks/copilot-here.rb
+
           # Commit and push
           cd /tmp/homebrew-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/copilot_here.rb
+          git add Formula/copilot_here.rb Casks/copilot-here.rb
           git commit -m "Update copilot_here to $VERSION"
           git push
 
@@ -929,61 +883,28 @@ jobs:
   # Update WinGet manifest (requires Windows for wingetcreate)
   update-winget:
     name: Update WinGet
-    needs: [release-cli]
+    needs: [release-cli, compute-version]
     runs-on: windows-latest
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Get version from shell script
-        id: version
-        shell: bash
-        run: |
-          VERSION=$(grep -m1 "^# Version:" copilot_here.sh | sed 's/# Version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-      - name: Install wingetcreate
-        shell: pwsh
-        run: |
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile wingetcreate.exe
-          .\wingetcreate.exe --version
-
-      - name: Submit WinGet manifest
+      - name: Update WinGet manifest
         shell: pwsh
         env:
           WINGET_PAT: ${{ secrets.WINGET_PAT }}
         run: |
-          $tag = "cli-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.short_sha }}"
-          $version = "${{ steps.version.outputs.version }}"
+          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+          $tag = "cli-v${{ needs.compute-version.outputs.version }}-${{ needs.compute-version.outputs.short_sha }}"
+          $version = "${{ needs.compute-version.outputs.version }}"
           $urlX64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-x64.zip"
           $urlArm64 = "https://github.com/${{ github.repository }}/releases/download/$tag/copilot_here-win-arm64.zip"
 
-          # Check if manifest already exists in winget-pkgs
-          $exists = $false
-          try {
-            $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/g/GordonBeeming/CopilotHere" -ErrorAction Stop
-            $exists = $true
-          } catch {}
-
-          if ($exists) {
-            .\wingetcreate.exe update GordonBeeming.CopilotHere `
-              --version $version `
-              --urls $urlX64 $urlArm64 `
-              --submit --token $env:WINGET_PAT
-          } else {
-            .\wingetcreate.exe new $urlX64 $urlArm64 `
-              --package-identifier GordonBeeming.CopilotHere `
-              --package-version $version `
-              --package-locale en-US `
-              --publisher "Gordon Beeming" `
-              --package-name copilot_here `
-              --license "FSL-1.1-MIT" `
-              --short-description "Run GitHub Copilot CLI in a sandboxed Docker container" `
-              --package-url "https://github.com/GordonBeeming/copilot_here" `
-              --submit --token $env:WINGET_PAT
-          }
+          # wingetcreate update requires the manifest to already exist in microsoft/winget-pkgs.
+          # The first submission must be done manually (see packaging/SETUP.md).
+          .\wingetcreate.exe update GordonBeeming.CopilotHere `
+            --version $version `
+            --urls $urlX64 $urlArm64 `
+            --submit --token $env:WINGET_PAT

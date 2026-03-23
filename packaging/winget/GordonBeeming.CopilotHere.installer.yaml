@@ -1,14 +1,18 @@
 PackageIdentifier: GordonBeeming.CopilotHere
-PackageVersion: 2026.02.19
-InstallerType: zip
-NestedInstallerType: portable
-NestedInstallerFiles:
-  - RelativeFilePath: copilot_here.exe
+PackageVersion: 2026.03.22
 Installers:
   - Architecture: x64
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: copilot_here.exe
     InstallerUrl: https://github.com/GordonBeeming/copilot_here/releases/download/TAG_PLACEHOLDER/copilot_here-win-x64.zip
     InstallerSha256: SHA256_WIN_X64_PLACEHOLDER
   - Architecture: arm64
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: copilot_here.exe
     InstallerUrl: https://github.com/GordonBeeming/copilot_here/releases/download/TAG_PLACEHOLDER/copilot_here-win-arm64.zip
     InstallerSha256: SHA256_WIN_ARM64_PLACEHOLDER
 ManifestType: installer

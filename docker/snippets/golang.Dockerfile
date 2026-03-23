@@ -1,11 +1,3 @@
-# Build on top of the base copilot_here image
-# ARG will be provided by the build process with the commit hash
-ARG BASE_IMAGE_TAG=latest
-FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
-
-# Switch to root to install packages
-USER root
-
 # Install Go
 # Using official Go installation method
 ENV GOLANG_VERSION=1.25.5
@@ -23,6 +15,3 @@ RUN mkdir -p ${GOPATH} \
 
 # Verify installation
 RUN go version
-
-# The entrypoint and CMD remain the same as the base image
-# They are inherited automatically

@@ -50,6 +50,9 @@ The CI workflow updates a Homebrew formula in a separate tap repository after ea
 
 ```bash
 brew tap gordonbeeming/tap
+# macOS
+brew install --cask copilot-here
+# Linux
 brew install copilot_here
 copilot_here --version
 ```
@@ -67,7 +70,11 @@ The CI workflow auto-submits manifest updates to the `microsoft/winget-pkgs` rep
 - [ ] Add GitHub Actions secret on the `copilot_here` repo:
   - Name: `WINGET_PAT`
   - Value: the PAT
-- [ ] **First submission note:** After code changes are merged and a release is created, the CI will auto-submit the first PR to `microsoft/winget-pkgs`. This initial PR requires manual review/approval by Microsoft maintainers (typically takes 1-3 days). Subsequent version updates are auto-approved.
+- [ ] **First submission (manual):** The `wingetcreate new` command cannot run non-interactively, so the initial manifest must be submitted manually:
+  1. Download `wingetcreate.exe` from https://github.com/microsoft/winget-create/releases
+  2. Run `wingetcreate.exe new <installer-url-x64> <installer-url-arm64>` and follow the prompts
+  3. This creates a PR to `microsoft/winget-pkgs` — initial review by Microsoft takes 1-3 days
+  4. Once the first manifest is merged, the CI `wingetcreate update` step will handle all future versions automatically
 
 ### Usage
 
