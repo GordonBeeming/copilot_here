@@ -79,8 +79,6 @@ grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 - Ensure both scripts are kept in sync regarding functionality and version numbers.
 - Both scripts MUST have identical version numbers at all times.
 
-**Current version**: 2026.03.22
-
 ## Technology Stack
 
 - **CLI Binary**: .NET 10 Native AOT (self-contained, cross-platform)
