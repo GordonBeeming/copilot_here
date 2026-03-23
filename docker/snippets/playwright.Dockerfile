@@ -1,13 +1,6 @@
-# Build on top of any tool's base image to add Playwright capabilities
-# BASE_IMAGE_TAG can be copilot-latest, echo-latest, claude-latest, etc.
-ARG BASE_IMAGE_TAG=copilot-latest
 ARG PLAYWRIGHT_VERSION=latest
-FROM ghcr.io/gordonbeeming/copilot_here:${BASE_IMAGE_TAG}
 
-# Switch to root to install packages
-USER root
-
-# Install Playwright dependencies and Chromium
+# Install Playwright dependencies
 # Using Playwright's system dependencies approach
 RUN apt-get update && apt-get install -y \
   # Playwright system dependencies for Chromium
@@ -44,6 +37,3 @@ RUN npx playwright install --with-deps
 
 # Make playwright browsers directory world-writable so any UID can access/update them
 RUN chmod -R 777 /ms-playwright
-
-# The entrypoint and CMD remain the same as the base image
-# They are inherited automatically

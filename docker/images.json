@@ -1,0 +1,44 @@
+{
+  "images": {
+    "default": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "copilot-cli", "entrypoint"]
+    },
+    "dotnet": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "copilot-cli", "entrypoint"]
+    },
+    "dotnet-8": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "copilot-cli", "entrypoint"]
+    },
+    "dotnet-9": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet9", "copilot-cli", "entrypoint"]
+    },
+    "dotnet-10": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet10", "copilot-cli", "entrypoint"]
+    },
+    "playwright": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "playwright", "copilot-cli", "entrypoint"]
+    },
+    "rust": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "rust", "copilot-cli", "entrypoint"]
+    },
+    "golang": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "golang", "copilot-cli", "entrypoint"]
+    },
+    "dotnet-playwright": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "playwright", "copilot-cli", "entrypoint"]
+    },
+    "dotnet-rust": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "rust", "copilot-cli", "entrypoint"]
+    }
+  }
+}

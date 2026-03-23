@@ -1,10 +1,15 @@
+# Auto-generated from docker/images.json - DO NOT EDIT MANUALLY
+# To modify, edit docker/snippets/*.Dockerfile or docker/images.json
+# then run: pwsh docker/generate-dockerfiles.ps1
+
 # Use a slim Node.js base image, which gives us `npm`.
 FROM node:20-slim
 
+# --- snippet: system-packages ---
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and PowerShell for the entrypoint script and testing.
+# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and related utilities for the entrypoint script and testing.
 RUN apt-get update && apt-get install -y \
   apt-transport-https \
   curl \
@@ -18,6 +23,7 @@ RUN apt-get update && apt-get install -y \
   zsh \
   && rm -rf /var/lib/apt/lists/*
 
+# --- snippet: powershell ---
 # Install PowerShell - architecture-specific approach
 RUN ARCH=$(dpkg --print-architecture) \
   && if [ "$ARCH" = "amd64" ]; then \
@@ -38,6 +44,58 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/powershell.tar.gz; \
   fi
 
+# --- snippet: dotnet-prereqs ---
+# Install .NET SDK prerequisites and ICU libraries
+RUN apt-get update && apt-get install -y \
+  wget \
+  ca-certificates \
+  libicu-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add .NET to PATH
+ENV PATH="/usr/share/dotnet:${PATH}"
+ENV DOTNET_ROOT="/usr/share/dotnet"
+
+# --- snippet: dotnet8 ---
+ARG DOTNET_SDK_8_VERSION
+
+# Install .NET 8 SDK (latest)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && if [ -z "$DOTNET_SDK_8_VERSION" ]; then \
+       ./dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet; \
+     else \
+       ./dotnet-install.sh --version $DOTNET_SDK_8_VERSION --install-dir /usr/share/dotnet; \
+     fi \
+  && rm dotnet-install.sh
+
+# --- snippet: dotnet9 ---
+ARG DOTNET_SDK_9_VERSION
+
+# Install .NET 9 SDK (latest)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && if [ -z "$DOTNET_SDK_9_VERSION" ]; then \
+       ./dotnet-install.sh --channel 9.0 --install-dir /usr/share/dotnet; \
+     else \
+       ./dotnet-install.sh --version $DOTNET_SDK_9_VERSION --install-dir /usr/share/dotnet; \
+     fi \
+  && rm dotnet-install.sh
+
+# --- snippet: dotnet10 ---
+ARG DOTNET_SDK_10_VERSION
+
+# Install .NET 10 SDK (latest)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && if [ -z "$DOTNET_SDK_10_VERSION" ]; then \
+       ./dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet; \
+     else \
+       ./dotnet-install.sh --version $DOTNET_SDK_10_VERSION --install-dir /usr/share/dotnet; \
+     fi \
+  && rm dotnet-install.sh
+
+# --- snippet: copilot-cli ---
 # ARG for the Copilot CLI version - passed from build process
 # This ensures cache invalidation when a new version is available
 ARG COPILOT_VERSION=latest
@@ -45,6 +103,7 @@ ARG COPILOT_VERSION=latest
 # Install the standalone GitHub Copilot CLI via npm.
 RUN npm install -g @github/copilot@${COPILOT_VERSION}
 
+# --- snippet: entrypoint ---
 # Set the working directory for the container.
 WORKDIR /work
 

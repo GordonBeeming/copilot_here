@@ -1,0 +1,94 @@
+# Auto-generated from docker/images.json - DO NOT EDIT MANUALLY
+# To modify, edit docker/snippets/*.Dockerfile or docker/images.json
+# then run: pwsh docker/generate-dockerfiles.ps1
+
+# Use a slim Node.js base image, which gives us `npm`.
+FROM node:20-slim
+
+# --- snippet: system-packages ---
+# Set non-interactive frontend to avoid prompts during package installation.
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and related utilities for the entrypoint script and testing.
+RUN apt-get update && apt-get install -y \
+  apt-transport-https \
+  curl \
+  git \
+  gosu \
+  gpg \
+  nano \
+  software-properties-common \
+  wget \
+  xdg-utils \
+  zsh \
+  && rm -rf /var/lib/apt/lists/*
+
+# --- snippet: powershell ---
+# Install PowerShell - architecture-specific approach
+RUN ARCH=$(dpkg --print-architecture) \
+  && if [ "$ARCH" = "amd64" ]; then \
+    # AMD64: Use Microsoft's APT repository
+    wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y powershell \
+    && rm -rf /var/lib/apt/lists/*; \
+  elif [ "$ARCH" = "arm64" ]; then \
+    # ARM64: Download and install from GitHub releases
+    wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm64.tar.gz -O /tmp/powershell.tar.gz \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh \
+    && rm /tmp/powershell.tar.gz; \
+  fi
+
+# --- snippet: dotnet-prereqs ---
+# Install .NET SDK prerequisites and ICU libraries
+RUN apt-get update && apt-get install -y \
+  wget \
+  ca-certificates \
+  libicu-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Add .NET to PATH
+ENV PATH="/usr/share/dotnet:${PATH}"
+ENV DOTNET_ROOT="/usr/share/dotnet"
+
+# --- snippet: dotnet10 ---
+ARG DOTNET_SDK_10_VERSION
+
+# Install .NET 10 SDK (latest)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+  && chmod +x dotnet-install.sh \
+  && if [ -z "$DOTNET_SDK_10_VERSION" ]; then \
+       ./dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet; \
+     else \
+       ./dotnet-install.sh --version $DOTNET_SDK_10_VERSION --install-dir /usr/share/dotnet; \
+     fi \
+  && rm dotnet-install.sh
+
+# --- snippet: copilot-cli ---
+# ARG for the Copilot CLI version - passed from build process
+# This ensures cache invalidation when a new version is available
+ARG COPILOT_VERSION=latest
+
+# Install the standalone GitHub Copilot CLI via npm.
+RUN npm install -g @github/copilot@${COPILOT_VERSION}
+
+# --- snippet: entrypoint ---
+# Set the working directory for the container.
+WORKDIR /work
+
+# Copy the entrypoint script into the container and make it executable.
+COPY docker/shared/entrypoint.sh /usr/local/bin/
+COPY docker/shared/entrypoint-airlock.sh /usr/local/bin/
+COPY docker/session-info.sh /usr/local/bin/session-info
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh /usr/local/bin/session-info
+
+# The entrypoint script will handle user creation and command execution.
+ENTRYPOINT [ "entrypoint.sh" ]
+
+# The default command to run if none is provided.
+CMD [ "copilot", "--banner" ]
