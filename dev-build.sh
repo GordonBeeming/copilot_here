@@ -179,8 +179,8 @@ echo "📋 Copying config files to ~/.config/copilot_here..."
 CONFIG_DIR="$HOME/.config/copilot_here"
 mkdir -p "$CONFIG_DIR"
 
-if [ -f "${SCRIPT_DIR}/default-airlock-rules.json" ]; then
-  cp "${SCRIPT_DIR}/default-airlock-rules.json" "$CONFIG_DIR/"
+if [ -f "${SCRIPT_DIR}/docker/tools/github-copilot/default-airlock-rules.json" ]; then
+  cp "${SCRIPT_DIR}/docker/tools/github-copilot/default-airlock-rules.json" "$CONFIG_DIR/default-airlock-rules.json"
   echo "   ✓ Copied default-airlock-rules.json"
 fi
 echo ""

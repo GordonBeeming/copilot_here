@@ -172,7 +172,7 @@ public static class AirlockRunner
     try
     {
       var assembly = Assembly.GetExecutingAssembly();
-      var resourceName = "CopilotHere.Resources.default-airlock-rules.json";
+      var resourceName = "CopilotHere.Resources.github-copilot-default-airlock-rules.json";
       
       using var stream = assembly.GetManifestResourceStream(resourceName);
       if (stream is null) return null;
