@@ -39,14 +39,11 @@ You can also use the command `session-info` for more info on mounts for this pro
 
 3. **Build properties**: `Directory.Build.props`
 
-   - Line 4: `<CopilotHereVersion>YYYY.MM.DD</CopilotHereVersion>`
+   - Reads `CopilotHereVersion` from the `VERSION` file automatically (no manual edit needed)
 
 4. **Build info**: `app/Infrastructure/BuildInfo.cs`
 
    - Line 13: `public const string BuildDate = "YYYY.MM.DD";`
-
-5. **This file**: `.github/copilot-instructions.md`
-   - Update "Current version" below
 
 ### Verification Checklist
 
@@ -54,13 +51,15 @@ Before committing, verify all 5 locations have the EXACT SAME version:
 
 ```bash
 # Quick check - all should show the same version
+cat VERSION
 grep "Version: " copilot_here.sh
 grep "Version: " copilot_here.ps1
 grep "COPILOT_HERE_VERSION=" copilot_here.sh
 grep "CopilotHereVersion =" copilot_here.ps1
-grep "CopilotHereVersion>" Directory.Build.props
 grep "BuildDate = " app/Infrastructure/BuildInfo.cs
 ```
+
+Use `scripts/bump-version.sh YYYY.MM.DD` to update all locations at once.
 
 ### When to Update Version
 

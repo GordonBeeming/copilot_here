@@ -116,6 +116,37 @@ RUN chmod -R a+rwX /usr/local/cargo
 # Verify installation
 RUN rustc --version && cargo --version
 
+# --- snippet: lsp-typescript ---
+# Install TypeScript Language Server for code intelligence
+ARG TYPESCRIPT_VERSION=latest
+ARG TYPESCRIPT_LANGUAGE_SERVER_VERSION=latest
+RUN npm install -g typescript@${TYPESCRIPT_VERSION} typescript-language-server@${TYPESCRIPT_LANGUAGE_SERVER_VERSION}
+
+# Write LSP config fragment for TypeScript
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "typescript": { "command": "typescript-language-server", "args": ["--stdio"], "fileExtensions": { ".ts": "typescript", ".tsx": "typescriptreact", ".js": "javascript", ".jsx": "javascriptreact" } } } }' \
+    > /etc/copilot/lsp-config.d/typescript.json
+
+# --- snippet: lsp-csharp ---
+# Install C# Language Server for code intelligence
+# Install directly to a shared location so appuser can access it
+ARG CSHARP_LS_VERSION=latest
+RUN dotnet tool install csharp-ls --tool-path /usr/local/bin --version ${CSHARP_LS_VERSION}
+
+# Write LSP config fragment for C#
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "csharp": { "command": "csharp-ls", "args": [], "fileExtensions": { ".cs": "csharp", ".csx": "csharp" } } } }' \
+    > /etc/copilot/lsp-config.d/csharp.json
+
+# --- snippet: lsp-rust ---
+# Install Rust Analyzer for code intelligence
+RUN rustup component add rust-analyzer
+
+# Write LSP config fragment for Rust
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "rust": { "command": "rust-analyzer", "args": [], "fileExtensions": { ".rs": "rust" } } } }' \
+    > /etc/copilot/lsp-config.d/rust.json
+
 # --- snippet: copilot-cli ---
 # ARG for the Copilot CLI version - passed from build process
 # This ensures cache invalidation when a new version is available
