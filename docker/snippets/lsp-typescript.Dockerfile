@@ -1,5 +1,7 @@
 # Install TypeScript Language Server for code intelligence
-RUN npm install -g typescript typescript-language-server
+ARG TYPESCRIPT_VERSION=latest
+ARG TYPESCRIPT_LANGUAGE_SERVER_VERSION=latest
+RUN npm install -g typescript@${TYPESCRIPT_VERSION} typescript-language-server@${TYPESCRIPT_LANGUAGE_SERVER_VERSION}
 
 # Write LSP config fragment for TypeScript
 RUN mkdir -p /etc/copilot/lsp-config.d && \

@@ -1,5 +1,6 @@
 # Install gopls (Go Language Server) for code intelligence
-RUN go install golang.org/x/tools/gopls@latest
+ARG GOPLS_VERSION=latest
+RUN go install golang.org/x/tools/gopls@${GOPLS_VERSION}
 
 # Write LSP config fragment for Go
 RUN mkdir -p /etc/copilot/lsp-config.d && \

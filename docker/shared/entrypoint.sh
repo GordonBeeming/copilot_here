@@ -76,8 +76,14 @@ if [ -d /etc/copilot/lsp-config.d ] && [ ! -f /home/appuser/.copilot/lsp-config.
     const dir = '/etc/copilot/lsp-config.d';
     const servers = {};
     fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().forEach(f => {
-      const cfg = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-      Object.assign(servers, cfg.lspServers || {});
+      const fullPath = path.join(dir, f);
+      try {
+        const contents = fs.readFileSync(fullPath, 'utf8');
+        const cfg = JSON.parse(contents);
+        Object.assign(servers, cfg.lspServers || {});
+      } catch (err) {
+        console.error('Warning: failed to load LSP config fragment ' + fullPath + ': ' + err.message);
+      }
     });
     fs.writeFileSync('/home/appuser/.copilot/lsp-config.json', JSON.stringify({ lspServers: servers }, null, 2));
   "

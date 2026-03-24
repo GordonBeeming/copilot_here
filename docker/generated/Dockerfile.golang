@@ -65,7 +65,9 @@ RUN go version
 
 # --- snippet: lsp-typescript ---
 # Install TypeScript Language Server for code intelligence
-RUN npm install -g typescript typescript-language-server
+ARG TYPESCRIPT_VERSION=latest
+ARG TYPESCRIPT_LANGUAGE_SERVER_VERSION=latest
+RUN npm install -g typescript@${TYPESCRIPT_VERSION} typescript-language-server@${TYPESCRIPT_LANGUAGE_SERVER_VERSION}
 
 # Write LSP config fragment for TypeScript
 RUN mkdir -p /etc/copilot/lsp-config.d && \
@@ -74,7 +76,8 @@ RUN mkdir -p /etc/copilot/lsp-config.d && \
 
 # --- snippet: lsp-golang ---
 # Install gopls (Go Language Server) for code intelligence
-RUN go install golang.org/x/tools/gopls@latest
+ARG GOPLS_VERSION=latest
+RUN go install golang.org/x/tools/gopls@${GOPLS_VERSION}
 
 # Write LSP config fragment for Go
 RUN mkdir -p /etc/copilot/lsp-config.d && \
