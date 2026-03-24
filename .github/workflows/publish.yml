@@ -343,6 +343,7 @@ jobs:
       repo_name: ${{ steps.repo.outputs.name }}
       copilot_version: ${{ steps.versions.outputs.copilot_version }}
       playwright_version: ${{ steps.versions.outputs.playwright_version }}
+      csharp_ls_version: ${{ steps.versions.outputs.csharp_ls_version }}
       dotnet_8_version: ${{ steps.versions.outputs.dotnet_8_version }}
       dotnet_9_version: ${{ steps.versions.outputs.dotnet_9_version }}
       dotnet_10_version: ${{ steps.versions.outputs.dotnet_10_version }}
@@ -368,6 +369,9 @@ jobs:
 
           DOTNET_10_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
           echo "dotnet_10_version=$DOTNET_10_VERSION" >> $GITHUB_OUTPUT
+
+          CSHARP_LS_VERSION=$(curl -s https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json | jq -r '.versions[-1]')
+          echo "csharp_ls_version=$CSHARP_LS_VERSION" >> $GITHUB_OUTPUT
 
   # Build all container images in parallel (each builds independently from node:20-slim)
   build-images:
@@ -401,16 +405,16 @@ jobs:
             build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
           - image: dotnet-10
             dockerfile: ./docker/generated/Dockerfile.dotnet-10
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
           - image: dotnet
             dockerfile: ./docker/generated/Dockerfile.dotnet
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
           - image: dotnet-playwright
             dockerfile: ./docker/generated/Dockerfile.dotnet-playwright
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
           - image: dotnet-rust
             dockerfile: ./docker/generated/Dockerfile.dotnet-rust
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION"
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -437,6 +441,7 @@ jobs:
           ARGS="${ARGS//\$DOTNET_8_VERSION/${{ needs.prepare-versions.outputs.dotnet_8_version }}}"
           ARGS="${ARGS//\$DOTNET_9_VERSION/${{ needs.prepare-versions.outputs.dotnet_9_version }}}"
           ARGS="${ARGS//\$DOTNET_10_VERSION/${{ needs.prepare-versions.outputs.dotnet_10_version }}}"
+          ARGS="${ARGS//\$CSHARP_LS_VERSION/${{ needs.prepare-versions.outputs.csharp_ls_version }}}"
           echo "build_args<<EOF" >> $GITHUB_OUTPUT
           echo -e "$ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
