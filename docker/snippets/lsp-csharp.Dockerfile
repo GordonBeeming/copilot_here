@@ -1,6 +1,6 @@
 # Install C# Language Server for code intelligence
 # Install directly to a shared location so appuser can access it
-ARG CSHARP_LS_VERSION=latest
+ARG CSHARP_LS_VERSION=0.22.0
 RUN dotnet tool install csharp-ls --tool-path /usr/local/bin --version ${CSHARP_LS_VERSION}
 
 # Write LSP config fragment for C#
