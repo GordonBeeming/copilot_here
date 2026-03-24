@@ -69,5 +69,20 @@ chown -R "$USER_ID:$GROUP_ID" /home/appuser/.npm
 
 export HOME=/home/appuser
 
+# Merge LSP config fragments into ~/.copilot/lsp-config.json (if not already provided by user)
+if [ -d /etc/copilot/lsp-config.d ] && [ ! -f /home/appuser/.copilot/lsp-config.json ]; then
+  node -e "
+    const fs = require('fs'), path = require('path');
+    const dir = '/etc/copilot/lsp-config.d';
+    const servers = {};
+    fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().forEach(f => {
+      const cfg = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      Object.assign(servers, cfg.lspServers || {});
+    });
+    fs.writeFileSync('/home/appuser/.copilot/lsp-config.json', JSON.stringify({ lspServers: servers }, null, 2));
+  "
+  chown "$USER_ID:$GROUP_ID" /home/appuser/.copilot/lsp-config.json
+fi
+
 # Switch to the user matching the host UID and execute the command passed to the script.
 exec gosu appuser "$@"

@@ -63,6 +63,24 @@ RUN mkdir -p ${GOPATH} \
 # Verify installation
 RUN go version
 
+# --- snippet: lsp-typescript ---
+# Install TypeScript Language Server for code intelligence
+RUN npm install -g typescript typescript-language-server
+
+# Write LSP config fragment for TypeScript
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "typescript": { "command": "typescript-language-server", "args": ["--stdio"], "fileExtensions": { ".ts": "typescript", ".tsx": "typescriptreact", ".js": "javascript", ".jsx": "javascriptreact" } } } }' \
+    > /etc/copilot/lsp-config.d/typescript.json
+
+# --- snippet: lsp-golang ---
+# Install gopls (Go Language Server) for code intelligence
+RUN go install golang.org/x/tools/gopls@latest
+
+# Write LSP config fragment for Go
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "go": { "command": "gopls", "args": ["serve"], "fileExtensions": { ".go": "go" } } } }' \
+    > /etc/copilot/lsp-config.d/golang.json
+
 # --- snippet: copilot-cli ---
 # ARG for the Copilot CLI version - passed from build process
 # This ensures cache invalidation when a new version is available
