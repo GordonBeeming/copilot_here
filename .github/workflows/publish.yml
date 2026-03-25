@@ -435,7 +435,7 @@ jobs:
       - name: Prepare build args
         id: args
         run: |
-          ARGS="${{ matrix.build_args }}"
+          ARGS='${{ matrix.build_args }}'
           ARGS="${ARGS//\$COPILOT_VERSION/${{ needs.prepare-versions.outputs.copilot_version }}}"
           ARGS="${ARGS//\$PLAYWRIGHT_VERSION/${{ needs.prepare-versions.outputs.playwright_version }}}"
           ARGS="${ARGS//\$DOTNET_8_VERSION/${{ needs.prepare-versions.outputs.dotnet_8_version }}}"
