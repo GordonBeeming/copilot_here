@@ -415,6 +415,9 @@ jobs:
           - image: dotnet-rust
             dockerfile: ./docker/generated/Dockerfile.dotnet-rust
             build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+          - image: java
+            dockerfile: ./docker/generated/Dockerfile.java
+            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -565,6 +568,7 @@ jobs:
             echo "- \`dotnet-10\`, \`copilot-dotnet-10\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet-playwright\`, \`copilot-dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet-rust\`, \`copilot-dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`java\`, \`copilot-java\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Images:** No changes or skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi

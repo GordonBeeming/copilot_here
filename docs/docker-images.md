@@ -58,6 +58,17 @@ Extends the base image with:
 
 **Use Case:** Go development and projects
 
+## Java Image: `java`
+**Tag:** `ghcr.io/gordonbeeming/copilot_here:java`
+
+Extends the base image with:
+- Java JDK 21 (Eclipse Temurin)
+- Maven
+- Gradle
+- Eclipse JDT Language Server (jdtls)
+
+**Use Case:** Java development, Maven/Gradle builds, Spring Boot applications
+
 ## Playwright Image: `dotnet-playwright`
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright`
 
@@ -88,6 +99,7 @@ graph TD
     Base --> Dotnet10[.NET 10 Image]
     Base --> Rust[Rust Image]
     Base --> Golang[Golang Image]
+    Base --> Java[Java Image]
     Dotnet --> Playwright[Playwright Image]
     Dotnet --> DotnetRust[.NET + Rust Image]
 ```
@@ -102,6 +114,7 @@ Each image variant is also tagged with the commit SHA for reproducibility:
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-10-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:rust-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:golang-sha-<commit>`
+- `ghcr.io/gordonbeeming/copilot_here:java-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright-sha-<commit>`
 - `ghcr.io/gordonbeeming/copilot_here:dotnet-rust-sha-<commit>`
 
@@ -118,3 +131,20 @@ IMAGE MANAGEMENT:
   --clear-image     Clear default image from local config
   --clear-image-global Clear default image from global config
 ```
+
+## Custom Images
+
+You can use any custom Docker image with the `--image` flag:
+
+```bash
+# Use a custom image from a registry
+copilot_here --image my-registry.io/my-image:v1
+
+# Use a locally built image (skip pulling)
+copilot_here --image my-local-image:dev --no-pull
+
+# Save a custom image as your default
+copilot_here --set-image my-registry.io/my-image:v1
+```
+
+The `--image` flag takes the highest priority, overriding all variant flags and configuration.

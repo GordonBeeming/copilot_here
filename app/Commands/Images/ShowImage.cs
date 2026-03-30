@@ -28,6 +28,8 @@ public sealed partial class ImageCommands
 
       Console.WriteLine();
       Console.WriteLine("  🏭 Application default: latest");
+      Console.WriteLine();
+      Console.WriteLine("  💡 Tip: Use --image <name> to run with any custom Docker image");
       return 0;
     });
     return command;

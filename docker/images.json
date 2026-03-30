@@ -39,6 +39,10 @@
     "dotnet-rust": {
       "base": "node:20-slim",
       "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "rust", "lsp-typescript", "lsp-csharp", "lsp-rust", "copilot-cli", "entrypoint"]
+    },
+    "java": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "powershell", "java", "lsp-typescript", "lsp-java", "copilot-cli", "entrypoint"]
     }
   }
 }

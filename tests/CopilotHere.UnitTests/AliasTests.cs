@@ -20,6 +20,9 @@ public class AliasTests
   [Arguments("-dp", "--dotnet-playwright")]
   [Arguments("-rs", "--rust")]
   [Arguments("-dr", "--dotnet-rust")]
+  [Arguments("-go", "--golang")]
+  [Arguments("-j", "--java")]
+  [Arguments("-i", "--image")]
   // PowerShell aliases
   [Arguments("-Dotnet", "--dotnet")]
   [Arguments("-Dotnet8", "--dotnet8")]
@@ -352,6 +355,9 @@ public class AliasTests
     { "-pw", "--playwright" },
     { "-rs", "--rust" },
     { "-dr", "--dotnet-rust" },
+    { "-go", "--golang" },
+    { "-j", "--java" },
+    { "-i", "--image" },
 
     // PowerShell-style aliases (hidden from help, for backwards compatibility)
     { "-Dotnet", "--dotnet" },

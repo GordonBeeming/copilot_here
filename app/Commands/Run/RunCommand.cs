@@ -20,6 +20,7 @@ public sealed class RunCommand : ICommand
   private readonly Option<string?> _toolOption;
 
   // === IMAGE SELECTION OPTIONS ===
+  private readonly Option<string?> _imageOption;
   private readonly Option<bool> _dotnetOption;
   private readonly Option<bool> _dotnet8Option;
   private readonly Option<bool> _dotnet9Option;
@@ -29,6 +30,7 @@ public sealed class RunCommand : ICommand
   private readonly Option<bool> _rustOption;
   private readonly Option<bool> _dotnetRustOption;
   private readonly Option<bool> _golangOption;
+  private readonly Option<bool> _javaOption;
 
   // === MOUNT OPTIONS ===
   private readonly Option<string[]> _mountOption;
@@ -82,6 +84,8 @@ public sealed class RunCommand : ICommand
 
     _toolOption = new Option<string?>("--tool") { Description = "Override CLI tool (github-copilot, echo, etc.)" };
 
+    _imageOption = new Option<string?>("--image") { Description = "[-i] Use a custom Docker image (e.g., my-image:tag, registry.io/org/image:v1)" };
+
     _dotnetOption = new Option<bool>("--dotnet") { Description = "[-d] Use .NET image variant (all versions)" };
 
     _dotnet8Option = new Option<bool>("--dotnet8") { Description = "[-d8] Use .NET 8 image variant" };
@@ -99,6 +103,8 @@ public sealed class RunCommand : ICommand
     _dotnetRustOption = new Option<bool>("--dotnet-rust") { Description = "[-dr] Use .NET + Rust image variant" };
 
     _golangOption = new Option<bool>("--golang") { Description = "[-go] Use Golang image variant" };
+
+    _javaOption = new Option<bool>("--java") { Description = "[-j] Use Java image variant (JDK 21 + Maven + Gradle)" };
 
     _mountOption = new Option<string[]>("--mount") { Description = "Mount directory (read-only). Format: path or host:container" };
 
@@ -149,6 +155,7 @@ public sealed class RunCommand : ICommand
   public void Configure(RootCommand root)
   {
     root.Add(_toolOption);
+    root.Add(_imageOption);
     root.Add(_dotnetOption);
     root.Add(_dotnet8Option);
     root.Add(_dotnet9Option);
@@ -158,6 +165,7 @@ public sealed class RunCommand : ICommand
     root.Add(_rustOption);
     root.Add(_dotnetRustOption);
     root.Add(_golangOption);
+    root.Add(_javaOption);
     root.Add(_mountOption);
     root.Add(_mountRwOption);
     root.Add(_noCleanupOption);
@@ -203,6 +211,7 @@ public sealed class RunCommand : ICommand
       
       var ctx = Infrastructure.AppContext.Create(toolOverride);
 
+      var customImage = parseResult.GetValue(_imageOption);
       var dotnet = parseResult.GetValue(_dotnetOption);
       var dotnet8 = parseResult.GetValue(_dotnet8Option);
       var dotnet9 = parseResult.GetValue(_dotnet9Option);
@@ -212,6 +221,7 @@ public sealed class RunCommand : ICommand
       var rust = parseResult.GetValue(_rustOption);
       var dotnetRust = parseResult.GetValue(_dotnetRustOption);
       var golang = parseResult.GetValue(_golangOption);
+      var java = parseResult.GetValue(_javaOption);
       var cliMountsRo = parseResult.GetValue(_mountOption) ?? [];
       var cliMountsRw = parseResult.GetValue(_mountRwOption) ?? [];
       var noCleanup = parseResult.GetValue(_noCleanupOption);
@@ -311,9 +321,11 @@ public sealed class RunCommand : ICommand
       DebugLogger.Log("Auth validation passed");
 
       // Determine image tag (CLI overrides config)
+      // Priority: --image > variant flags > config > default
       var imageTag = ctx.ImageConfig.Tag;
 
-      if (dotnet) imageTag = "dotnet";
+      if (!string.IsNullOrEmpty(customImage)) imageTag = customImage;
+      else if (dotnet) imageTag = "dotnet";
       else if (dotnet8) imageTag = "dotnet-8";
       else if (dotnet9) imageTag = "dotnet-9";
       else if (dotnet10) imageTag = "dotnet-10";
@@ -322,6 +334,7 @@ public sealed class RunCommand : ICommand
       else if (rust) imageTag = "rust";
       else if (dotnetRust) imageTag = "dotnet-rust";
       else if (golang) imageTag = "golang";
+      else if (java) imageTag = "java";
 
       var imageName = ctx.ActiveTool.GetImageName(imageTag);
       DebugLogger.Log($"Selected image: {imageName}");

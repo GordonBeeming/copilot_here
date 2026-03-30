@@ -1,0 +1,133 @@
+# Auto-generated from docker/images.json - DO NOT EDIT MANUALLY
+# To modify, edit docker/snippets/*.Dockerfile or docker/images.json
+# then run: pwsh docker/generate-dockerfiles.ps1
+
+# Use a slim Node.js base image, which gives us `npm`.
+FROM node:20-slim
+
+# --- snippet: system-packages ---
+# Set non-interactive frontend to avoid prompts during package installation.
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and related utilities for the entrypoint script and testing.
+RUN apt-get update && apt-get install -y \
+  apt-transport-https \
+  curl \
+  git \
+  gosu \
+  gpg \
+  nano \
+  software-properties-common \
+  wget \
+  xdg-utils \
+  zsh \
+  && rm -rf /var/lib/apt/lists/*
+
+# --- snippet: powershell ---
+# Install PowerShell - architecture-specific approach
+RUN ARCH=$(dpkg --print-architecture) \
+  && if [ "$ARCH" = "amd64" ]; then \
+    # AMD64: Use Microsoft's APT repository
+    wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y powershell \
+    && rm -rf /var/lib/apt/lists/*; \
+  elif [ "$ARCH" = "arm64" ]; then \
+    # ARM64: Download and install from GitHub releases
+    wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm64.tar.gz -O /tmp/powershell.tar.gz \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh \
+    && rm /tmp/powershell.tar.gz; \
+  fi
+
+# --- snippet: java ---
+# Install Java (Eclipse Temurin JDK 21), Maven, and Gradle
+# Using Eclipse Temurin - widely used, well-maintained OpenJDK distribution
+
+# Add Eclipse Temurin repository
+RUN apt-get update && apt-get install -y gnupg \
+  && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list \
+  && apt-get update && apt-get install -y temurin-21-jdk \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-$(dpkg --print-architecture)
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# Install Maven
+ARG MAVEN_VERSION=3.9.9
+RUN curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" -o maven.tar.gz \
+  && tar -C /usr/local -xzf maven.tar.gz \
+  && ln -s /usr/local/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn \
+  && rm maven.tar.gz
+
+# Install Gradle
+ARG GRADLE_VERSION=8.12
+RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip \
+  && unzip -d /usr/local gradle.zip \
+  && ln -s /usr/local/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle \
+  && rm gradle.zip
+
+# Make Maven and Gradle caches writable by all users
+RUN mkdir -p /home/appuser/.m2 /home/appuser/.gradle \
+  && chmod -R a+rwX /home/appuser/.m2 /home/appuser/.gradle
+
+# Verify installations
+RUN java --version && mvn --version && gradle --version
+
+# --- snippet: lsp-typescript ---
+# Install TypeScript Language Server for code intelligence
+ARG TYPESCRIPT_VERSION=latest
+ARG TYPESCRIPT_LANGUAGE_SERVER_VERSION=latest
+RUN npm install -g typescript@${TYPESCRIPT_VERSION} typescript-language-server@${TYPESCRIPT_LANGUAGE_SERVER_VERSION}
+
+# Write LSP config fragment for TypeScript
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "typescript": { "command": "typescript-language-server", "args": ["--stdio"], "fileExtensions": { ".ts": "typescript", ".tsx": "typescriptreact", ".js": "javascript", ".jsx": "javascriptreact" } } } }' \
+    > /etc/copilot/lsp-config.d/typescript.json
+
+# --- snippet: lsp-java ---
+# Install Eclipse JDT Language Server for Java code intelligence
+ARG JDTLS_VERSION=1.43.0
+ARG JDTLS_TIMESTAMP=202501232208
+RUN mkdir -p /usr/local/share/jdtls \
+  && curl -fsSL "https://download.eclipse.org/jdtls/milestones/${JDTLS_VERSION}/jdt-language-server-${JDTLS_VERSION}-${JDTLS_TIMESTAMP}.tar.gz" -o jdtls.tar.gz \
+  && tar -C /usr/local/share/jdtls -xzf jdtls.tar.gz \
+  && rm jdtls.tar.gz
+
+# Create launcher script
+RUN echo '#!/bin/sh\nexec java \\\n  -Declipse.application=org.eclipse.jdt.ls.core.id1 \\\n  -Dosgi.bundles.defaultStartLevel=4 \\\n  -Declipse.product=org.eclipse.jdt.ls.core.product \\\n  -Dlog.level=ALL \\\n  -noverify \\\n  --add-modules=ALL-SYSTEM \\\n  --add-opens java.base/java.util=ALL-UNNAMED \\\n  --add-opens java.base/java.lang=ALL-UNNAMED \\\n  -jar /usr/local/share/jdtls/plugins/org.eclipse.equinox.launcher_*.jar \\\n  -configuration /usr/local/share/jdtls/config_linux \\\n  -data /tmp/jdtls-workspace \\\n  "$@"' > /usr/local/bin/jdtls \
+  && chmod +x /usr/local/bin/jdtls
+
+# Write LSP config fragment for Java
+RUN mkdir -p /etc/copilot/lsp-config.d && \
+    echo '{ "lspServers": { "java": { "command": "jdtls", "args": [], "fileExtensions": { ".java": "java" } } } }' \
+    > /etc/copilot/lsp-config.d/java.json
+
+# --- snippet: copilot-cli ---
+# ARG for the Copilot CLI version - passed from build process
+# This ensures cache invalidation when a new version is available
+ARG COPILOT_VERSION=latest
+
+# Install the standalone GitHub Copilot CLI via npm.
+RUN npm install -g @github/copilot@${COPILOT_VERSION}
+
+# --- snippet: entrypoint ---
+# Set the working directory for the container.
+WORKDIR /work
+
+# Copy the entrypoint script into the container and make it executable.
+COPY docker/shared/entrypoint.sh /usr/local/bin/
+COPY docker/shared/entrypoint-airlock.sh /usr/local/bin/
+COPY docker/session-info.sh /usr/local/bin/session-info
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-airlock.sh /usr/local/bin/session-info
+
+# The entrypoint script will handle user creation and command execution.
+ENTRYPOINT [ "entrypoint.sh" ]
+
+# The default command to run if none is provided.
+CMD [ "copilot", "--banner" ]
