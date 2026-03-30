@@ -65,9 +65,10 @@ Extends the base image with:
 - Java JDK 21 (Eclipse Temurin)
 - Maven
 - Gradle
+- PlantUML (with Graphviz)
 - Eclipse JDT Language Server (jdtls)
 
-**Use Case:** Java development, Maven/Gradle builds, Spring Boot applications
+**Use Case:** Java development, Maven/Gradle builds, Spring Boot applications, UML diagrams
 
 ## Playwright Image: `dotnet-playwright`
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:dotnet-playwright`

@@ -48,7 +48,7 @@ All functions support switching between Docker image variants using flags:
 - **`--rust`** (`-rs`) - Rust image (includes Rust toolchain)
 - **`--dotnet-rust`** (`-dr`) - .NET + Rust image
 - **`--golang`** (`-go`) - Golang image (includes Go toolchain)
-- **`--java`** (`-j`) - Java image (includes JDK 21, Maven, Gradle)
+- **`--java`** (`-j`) - Java image (includes JDK 21, Maven, Gradle, PlantUML)
 - **`--image <name>`** (`-i`) - Use any custom Docker image (e.g., `my-image:tag`, `registry.io/org/image:v1`)
 
 ### Additional Options
@@ -558,7 +558,7 @@ This project provides multiple Docker image variants for different development s
 | `rust` | `--rust` | Rust toolchain |
 | `dotnet-rust` | `--dotnet-rust` | .NET + Rust combined |
 | `golang` | `--golang` | Go toolchain |
-| `java` | `--java` | Java JDK 21 with Maven & Gradle |
+| `java` | `--java` | Java JDK 21 with Maven, Gradle & PlantUML |
 | *(custom)* | `--image <name>` | Any custom Docker image |
 
 ### Choosing the Right Image

@@ -1,6 +1,6 @@
 # Install Eclipse JDT Language Server for Java code intelligence
 ARG JDTLS_VERSION=1.43.0
-ARG JDTLS_TIMESTAMP=202501232208
+ARG JDTLS_TIMESTAMP=202412191447
 RUN mkdir -p /usr/local/share/jdtls \
   && curl -fsSL "https://download.eclipse.org/jdtls/milestones/${JDTLS_VERSION}/jdt-language-server-${JDTLS_VERSION}-${JDTLS_TIMESTAMP}.tar.gz" -o jdtls.tar.gz \
   && tar -C /usr/local/share/jdtls -xzf jdtls.tar.gz \
