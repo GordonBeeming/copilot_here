@@ -15,7 +15,8 @@ public sealed partial class ImageCommands
     "dotnet-playwright",
     "rust",
     "dotnet-rust",
-    "golang"
+    "golang",
+    "java"
   ];
 
   private static Command SetListImagesCommand()
@@ -28,6 +29,8 @@ public sealed partial class ImageCommands
       {
         Console.WriteLine($"  • {tag}");
       }
+      Console.WriteLine();
+      Console.WriteLine("💡 Use --image <name> to run with any custom Docker image");
       return 0;
     });
     return command;

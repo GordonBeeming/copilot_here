@@ -28,6 +28,8 @@ class Program
     { "-rs", "--rust" },
     { "-dr", "--dotnet-rust" },
     { "-go", "--golang" },
+    { "-j", "--java" },
+    { "-i", "--image" },
 
     // PowerShell-style aliases (hidden from help, for backwards compatibility)
     { "-Dotnet", "--dotnet" },
