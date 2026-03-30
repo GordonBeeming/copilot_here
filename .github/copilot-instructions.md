@@ -168,6 +168,17 @@ Extends the Playwright image with:
 
 **Use Case**: .NET development, building and testing .NET applications with web testing capabilities
 
+### Java Image
+
+Extends the base image with:
+
+- Java JDK 21 (Eclipse Temurin)
+- Maven
+- Gradle
+- Eclipse JDT Language Server
+
+**Use Case**: Java development, Maven/Gradle builds, Spring Boot applications
+
 ## Container Runtime Support
 
 The CLI supports multiple container runtimes with automatic detection:
