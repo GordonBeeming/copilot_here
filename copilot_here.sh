@@ -248,9 +248,20 @@ fi
 $marker_end
 EOF
   
-  # Use cat+rm instead of mv to preserve symlinks (e.g. GNU Stow)
-  cat "$temp_file" > "$profile_path"
-  rm "$temp_file"
+  # Preserve symlinks: if target is a symlink, mv into the resolved path atomically;
+  # otherwise write through the path to handle regular files too.
+  local real_path
+  if [ -L "$profile_path" ]; then
+    real_path="$(readlink -f "$profile_path")"
+    mv "$temp_file" "$real_path"
+  else
+    if ! cat "$temp_file" > "$profile_path"; then
+      echo "   ✗ Failed to write $profile_name" >&2
+      rm -f "$temp_file"
+      return 1
+    fi
+    rm "$temp_file"
+  fi
   echo "   ✓ $profile_name"
 }
 
