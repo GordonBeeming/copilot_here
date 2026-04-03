@@ -189,7 +189,12 @@ function Update-ProfileWithMarkers {
     $block = "`n`n$markerStart`nif (Test-Path '$scriptPathEscaped') {`n    . '$scriptPathEscaped'`n}`n$markerEnd`n"
     
     $profileContent = $profileContent + $block
-    Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+    # Resolve symlink target to preserve symlinks (e.g. GNU Stow)
+    # Use PS 5.1-compatible null handling (no ?. or ?? operators)
+    $resolved = Resolve-Path $ProfilePath -ErrorAction SilentlyContinue
+    if ($resolved) { $resolvedPath = $resolved.Path } else { $resolvedPath = $ProfilePath }
+    # Explicitly use UTF-8 with BOM to match Set-Content default encoding
+    [System.IO.File]::WriteAllText($resolvedPath, $profileContent.TrimStart(), [System.Text.Encoding]::UTF8)
     Write-Host "   [OK] $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
 }
 
