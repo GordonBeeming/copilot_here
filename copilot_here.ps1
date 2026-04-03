@@ -189,7 +189,9 @@ function Update-ProfileWithMarkers {
     $block = "`n`n$markerStart`nif (Test-Path '$scriptPathEscaped') {`n    . '$scriptPathEscaped'`n}`n$markerEnd`n"
     
     $profileContent = $profileContent + $block
-    Set-Content -Path $ProfilePath -Value $profileContent.TrimStart()
+    # Use WriteAllText on resolved path to preserve symlinks (e.g. GNU Stow)
+    $resolvedPath = (Resolve-Path $ProfilePath -ErrorAction SilentlyContinue)?.Path ?? $ProfilePath
+    [System.IO.File]::WriteAllText($resolvedPath, $profileContent.TrimStart())
     Write-Host "   [OK] $(Split-Path $ProfilePath -Leaf)" -ForegroundColor Gray
 }
 

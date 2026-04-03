@@ -248,7 +248,9 @@ fi
 $marker_end
 EOF
   
-  mv "$temp_file" "$profile_path"
+  # Use cat+rm instead of mv to preserve symlinks (e.g. GNU Stow)
+  cat "$temp_file" > "$profile_path"
+  rm "$temp_file"
   echo "   ✓ $profile_name"
 }
 
