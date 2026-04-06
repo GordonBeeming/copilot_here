@@ -45,19 +45,19 @@ RUN ARCH=$(dpkg --print-architecture) \
   fi
 
 # --- snippet: java ---
-# Install Java (Eclipse Temurin JDK 21), Maven, and Gradle
+# Install Java (Eclipse Temurin JDK 25), Maven, and Gradle
 # Using Eclipse Temurin - widely used, well-maintained OpenJDK distribution
 
 # Add Eclipse Temurin repository and install JDK
 RUN apt-get update && apt-get install -y gnupg unzip \
   && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
   && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list \
-  && apt-get update && apt-get install -y temurin-21-jdk \
+  && apt-get update && apt-get install -y temurin-25-jdk \
   && rm -rf /var/lib/apt/lists/*
 
 # Set JAVA_HOME dynamically based on architecture (ENV can't use command substitution)
-RUN ln -s /usr/lib/jvm/temurin-21-jdk-$(dpkg --print-architecture) /usr/lib/jvm/temurin-21-jdk
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk
+RUN ln -s /usr/lib/jvm/temurin-25-jdk-$(dpkg --print-architecture) /usr/lib/jvm/temurin-25-jdk
+ENV JAVA_HOME=/usr/lib/jvm/temurin-25-jdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Install Maven
