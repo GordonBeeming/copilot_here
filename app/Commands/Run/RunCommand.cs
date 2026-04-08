@@ -596,6 +596,7 @@ public sealed class RunCommand : ICommand
         var sessionId = GenerateSessionId();
         var containerName = $"copilot_here-{sessionId}";
         var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull, broker);
+        DebugLogger.Log($"docker args: {string.Join(" | ", dockerArgs.Select(a => a.Length > 80 ? a[..80] + "..." : a))}");
 
         // Set terminal title
         var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
