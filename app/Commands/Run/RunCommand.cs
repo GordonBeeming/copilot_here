@@ -1,5 +1,7 @@
 using System.CommandLine;
+using System.Net;
 using CopilotHere.Commands.Airlock;
+using CopilotHere.Commands.DockerBroker;
 using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
@@ -39,6 +41,7 @@ public sealed class RunCommand : ICommand
   // === EXECUTION OPTIONS ===
   private readonly Option<bool> _noCleanupOption;
   private readonly Option<bool> _noPullOption;
+  private readonly Option<bool> _dindOption;
 
   // === HELP OPTIONS ===
   private readonly Option<bool> _help2Option;
@@ -115,6 +118,8 @@ public sealed class RunCommand : ICommand
     _noPullOption = new Option<bool>("--no-pull") { Description = "Skip pulling the latest image" };
     _noPullOption.Aliases.Add("--skip-pull");
 
+    _dindOption = new Option<bool>("--dind") { Description = "[BETA] Enable brokered Docker socket access for Testcontainers/sibling containers" };
+
     _help2Option = new Option<bool>("--help2") { Description = "Show GitHub Copilot CLI native help" };
 
     // Update option - handled by shell scripts but shown in help
@@ -170,6 +175,7 @@ public sealed class RunCommand : ICommand
     root.Add(_mountRwOption);
     root.Add(_noCleanupOption);
     root.Add(_noPullOption);
+    root.Add(_dindOption);
     root.Add(_help2Option);
     root.Add(_updateScriptsOption);
     root.Add(_installShellsOption);
@@ -226,6 +232,7 @@ public sealed class RunCommand : ICommand
       var cliMountsRw = parseResult.GetValue(_mountRwOption) ?? [];
       var noCleanup = parseResult.GetValue(_noCleanupOption);
       var noPull = parseResult.GetValue(_noPullOption);
+      var dind = parseResult.GetValue(_dindOption);
       var help2 = parseResult.GetValue(_help2Option);
       var updateScripts = parseResult.GetValue(_updateScriptsOption);
       var installShells = parseResult.GetValue(_installShellsOption);
@@ -540,47 +547,165 @@ public sealed class RunCommand : ICommand
       // Display mount info
       DisplayMounts(ctx, allMounts);
 
-      // Display Airlock status and run in appropriate mode
-      if (ctx.AirlockConfig.Enabled)
+      // Spin up the brokered Docker socket if requested.
+      // The broker lives in this host process; the workload container talks to a
+      // session-unique UDS (or TCP loopback on Windows) that we mount in below.
+      DockerSocketBroker? broker = null;
+      if (dind)
       {
-        var sourceDisplay = ctx.AirlockConfig.EnabledSource switch
+        broker = StartDockerBroker(ctx, airlock: ctx.AirlockConfig.Enabled);
+        if (broker is null)
         {
-          AirlockConfigSource.Local => "local (.copilot_here/network.json)",
-          AirlockConfigSource.Global => "global (~/.config/copilot_here/network.json)",
-          _ => "config"
-        };
-        Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
-
-        // Run in Airlock mode with Docker Compose
-        return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, toolCommand);
-      }
-
-      // Add directories for YOLO mode
-      if (_isYolo)
-      {
-        // Add current dir and all mount paths to --add-dir
-        toolCommand.Add("--add-dir");
-        toolCommand.Add(ctx.Paths.ContainerWorkDir);
-
-        foreach (var mount in allMounts)
-        {
-          toolCommand.Add("--add-dir");
-          toolCommand.Add(mount.GetContainerPath(ctx.Paths.UserHome));
+          // Helpful message already printed inside StartDockerBroker.
+          return 1;
         }
       }
 
-      // Build Docker args for standard mode
-      var sessionId = GenerateSessionId();
-      var containerName = $"copilot_here-{sessionId}";
-      var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull);
+      try
+      {
+        // Display Airlock status and run in appropriate mode
+        if (ctx.AirlockConfig.Enabled)
+        {
+          var sourceDisplay = ctx.AirlockConfig.EnabledSource switch
+          {
+            AirlockConfigSource.Local => "local (.copilot_here/network.json)",
+            AirlockConfigSource.Global => "global (~/.config/copilot_here/network.json)",
+            _ => "config"
+          };
+          Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
 
-      // Set terminal title
-      var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
-      var dirName = SystemInfo.GetCurrentDirectoryName();
-      var title = $"{titleEmoji} {dirName}";
+          // Run in Airlock mode with Docker Compose
+          return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, toolCommand, broker);
+        }
 
-      return ContainerRunner.RunInteractive(ctx.RuntimeConfig, dockerArgs, title);
+        // Add directories for YOLO mode
+        if (_isYolo)
+        {
+          // Add current dir and all mount paths to --add-dir
+          toolCommand.Add("--add-dir");
+          toolCommand.Add(ctx.Paths.ContainerWorkDir);
+
+          foreach (var mount in allMounts)
+          {
+            toolCommand.Add("--add-dir");
+            toolCommand.Add(mount.GetContainerPath(ctx.Paths.UserHome));
+          }
+        }
+
+        // Build Docker args for standard mode
+        var sessionId = GenerateSessionId();
+        var containerName = $"copilot_here-{sessionId}";
+        var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull, broker);
+
+        // Set terminal title
+        var titleEmoji = _isYolo ? "🤖⚡️" : "🤖";
+        var dirName = SystemInfo.GetCurrentDirectoryName();
+        var title = $"{titleEmoji} {dirName}";
+
+        return ContainerRunner.RunInteractive(ctx.RuntimeConfig, dockerArgs, title);
+      }
+      finally
+      {
+        if (broker is not null)
+        {
+          broker.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+      }
     });
+  }
+
+  /// <summary>
+  /// Constructs and starts the host-side Docker broker. Resolves the host runtime
+  /// socket, picks a session-unique listen endpoint, prints the warning banner,
+  /// and kicks off the accept loop. Returns null with an error message printed
+  /// when something prevents the broker from starting.
+  /// </summary>
+  private static DockerSocketBroker? StartDockerBroker(Infrastructure.AppContext ctx, bool airlock)
+  {
+    DockerSocketBroker.CleanupOrphanedSockets();
+
+    var hostSocket = ctx.RuntimeConfig.ResolveHostRuntimeSocket();
+    if (string.IsNullOrEmpty(hostSocket))
+    {
+      Console.WriteLine($"❌ --dind: could not locate a Docker-compatible socket for runtime '{ctx.RuntimeConfig.Runtime}'.");
+      Console.WriteLine($"   Set DOCKER_HOST or check that your runtime is running.");
+      return null;
+    }
+
+    var brokerCfg = DockerBrokerConfigLoader.LoadEffective(ctx.Paths, out var brokerSource);
+
+    var sessionId = GenerateSessionId();
+    BrokerListenEndpoint listen;
+    if (OperatingSystem.IsWindows())
+    {
+      listen = BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0);
+    }
+    else
+    {
+      var path = Path.Combine(Path.GetTempPath(), $"copilot-broker-{sessionId}.sock");
+      listen = BrokerListenEndpoint.Unix(path);
+    }
+
+    var logPath = brokerCfg.EnableLogging
+      ? Path.Combine(ctx.Paths.LocalConfigPath, "logs", "docker-broker.jsonl")
+      : null;
+
+    var broker = new DockerSocketBroker(brokerCfg, hostSocket, listen, logPath);
+
+    try
+    {
+      broker.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"❌ --dind: failed to start Docker broker: {ex.Message}");
+      broker.DisposeAsync().AsTask().GetAwaiter().GetResult();
+      return null;
+    }
+
+    PrintDindBanner(brokerCfg, brokerSource, broker, hostSocket, airlock);
+    return broker;
+  }
+
+  private static void PrintDindBanner(
+    DockerBrokerConfig brokerCfg,
+    DockerBrokerConfigSource source,
+    DockerSocketBroker broker,
+    string hostSocket,
+    bool airlock)
+  {
+    var sourceLabel = source switch
+    {
+      DockerBrokerConfigSource.Local => "local (.copilot_here/docker-broker.json)",
+      DockerBrokerConfigSource.Global => "global (~/.config/copilot_here/docker-broker.json)",
+      _ => "embedded defaults"
+    };
+
+    Console.WriteLine();
+    Console.WriteLine("⚠️  Docker broker enabled (BETA)");
+    Console.WriteLine($"   Rules:    {sourceLabel}");
+    Console.WriteLine($"   Mode:     {brokerCfg.Mode}");
+    Console.WriteLine($"   Allowed:  {brokerCfg.AllowedEndpoints.Count} endpoint patterns");
+    Console.WriteLine($"   Upstream: {hostSocket}");
+    if (broker.UnixSocketPath is not null)
+    {
+      Console.WriteLine($"   Listen:   {broker.UnixSocketPath}");
+    }
+    else if (broker.BoundTcpEndpoint is not null)
+    {
+      Console.WriteLine($"   Listen:   {broker.BoundTcpEndpoint}");
+    }
+    Console.WriteLine("   The host process brokers every Docker API call. Inspect with --show-docker-broker-rules.");
+
+    if (airlock)
+    {
+      Console.WriteLine();
+      Console.WriteLine("⚠️  DinD + Airlock: containers spawned by the AI bypass the airlock HTTP proxy.");
+      Console.WriteLine("   They reach the host's container daemon directly, so their network traffic is NOT filtered.");
+      Console.WriteLine("   Only the AI agent's own outbound traffic stays inside the airlock.");
+    }
+
+    Console.WriteLine();
   }
 
   private static string GenerateSessionId()
@@ -612,7 +737,7 @@ public sealed class RunCommand : ICommand
     }
   }
 
-  private static List<string> BuildDockerArgs(
+  internal static List<string> BuildDockerArgs(
     Infrastructure.AppContext ctx,
     string imageName,
     string containerName,
@@ -620,13 +745,14 @@ public sealed class RunCommand : ICommand
     List<string> toolCommand,
     bool isYolo,
     string imageTag,
-    bool noPull)
+    bool noPull,
+    DockerSocketBroker? broker)
   {
     // Generate session info JSON
     var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
     var hostToolConfigPath = ctx.ActiveTool.GetHostConfigPath(ctx.Paths);
     var containerToolConfigPath = ctx.ActiveTool.GetContainerConfigPath();
-    
+
     var args = new List<string>
     {
       "run",
@@ -643,6 +769,32 @@ public sealed class RunCommand : ICommand
       "-e", $"PGID={ctx.Environment.GroupId}",
       "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
+
+    // Brokered Docker socket: mount the host-side broker UDS into the container,
+    // or expose it via host.docker.internal on Windows where TCP is the only option.
+    if (broker is not null)
+    {
+      if (broker.UnixSocketPath is not null)
+      {
+        args.Add("-v");
+        args.Add($"{broker.UnixSocketPath}:/var/run/docker.sock");
+        args.Add("-e");
+        args.Add("DOCKER_HOST=unix:///var/run/docker.sock");
+      }
+      else if (broker.BoundTcpEndpoint is not null)
+      {
+        args.Add("-e");
+        args.Add($"DOCKER_HOST=tcp://host.docker.internal:{broker.BoundTcpEndpoint.Port}");
+      }
+
+      // Testcontainers spawns containers on the host daemon, so it needs to know
+      // how to reach those siblings from inside our container. host.docker.internal
+      // works on macOS/Windows out of the box; --add-host gives us Linux parity.
+      args.Add("-e");
+      args.Add("TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
+      args.Add("--add-host");
+      args.Add("host.docker.internal:host-gateway");
+    }
 
     // Add auth environment variables from the active tool's auth provider
     foreach (var (key, value) in ctx.ActiveTool.GetAuthProvider().GetEnvironmentVars())

@@ -57,6 +57,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\docker-compose.airlock.yml.template" />
     <EmbeddedResource Include="..\docker\tools\github-copilot\default-airlock-rules.json" Link="Resources\github-copilot-default-airlock-rules.json" />
+    <EmbeddedResource Include="..\docker\tools\github-copilot\default-docker-broker-rules.json" Link="Resources\default-docker-broker-rules.json" />
   </ItemGroup>
 
 </Project>

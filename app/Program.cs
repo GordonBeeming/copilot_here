@@ -1,6 +1,7 @@
 using System.CommandLine;
 using CopilotHere.Commands;
 using CopilotHere.Commands.Airlock;
+using CopilotHere.Commands.DockerBroker;
 using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
@@ -132,13 +133,14 @@ class Program
     // Register all commands
     ICommand[] commands =
     [
-      new RunCommand(isYolo),  // Main run command (default) - includes update option
-      new MountCommands(),     // Mount management
-      new ImageCommands(),     // Image management
-      new ModelCommands(),     // Model management
-      new ToolCommands(),      // Tool management
-      new AirlockCommands(),   // Airlock proxy
-      new RuntimeCommands(),   // Container runtime management
+      new RunCommand(isYolo),       // Main run command (default) - includes update option
+      new MountCommands(),          // Mount management
+      new ImageCommands(),          // Image management
+      new ModelCommands(),          // Model management
+      new ToolCommands(),           // Tool management
+      new AirlockCommands(),        // Airlock proxy
+      new DockerBrokerCommands(),   // Brokered Docker socket (--dind, BETA)
+      new RuntimeCommands(),        // Container runtime management
     ];
 
     foreach (var command in commands)

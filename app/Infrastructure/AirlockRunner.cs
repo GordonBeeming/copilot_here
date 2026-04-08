@@ -17,7 +17,7 @@ public static class AirlockRunner
   /// <summary>
   /// Gets the embedded compose template from assembly resources.
   /// </summary>
-  private static string? GetEmbeddedTemplate()
+  internal static string? GetEmbeddedTemplate()
   {
     try
     {
@@ -38,6 +38,8 @@ public static class AirlockRunner
 
   /// <summary>
   /// Runs the CLI tool in Airlock mode with a proxy container.
+  /// When <paramref name="broker"/> is non-null, the workload container is wired
+  /// to talk to the host-side Docker socket broker for --dind support.
   /// </summary>
   public static int Run(
     ContainerRuntimeConfig runtimeConfig,
@@ -45,7 +47,8 @@ public static class AirlockRunner
     string imageTag,
     bool isYolo,
     List<MountEntry> mounts,
-    List<string> toolArgs)
+    List<string> toolArgs,
+    DockerSocketBroker? broker = null)
   {
     var rulesPath = ctx.AirlockConfig.RulesPath;
     if (string.IsNullOrEmpty(rulesPath) || !File.Exists(rulesPath))
@@ -105,7 +108,7 @@ public static class AirlockRunner
     // Generate compose file
     var composeFile = GenerateComposeFile(
       runtimeConfig, ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, isYolo);
+      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, isYolo, broker);
 
     if (composeFile is null)
     {
@@ -272,7 +275,7 @@ public static class AirlockRunner
     }
   }
 
-  private static string? GenerateComposeFile(
+  internal static string? GenerateComposeFile(
     ContainerRuntimeConfig runtimeConfig,
     AppContext ctx,
     string template,
@@ -284,7 +287,8 @@ public static class AirlockRunner
     List<string> appSandboxFlags,
     List<MountEntry> mounts,
     List<string> toolArgs,
-    bool isYolo)
+    bool isYolo,
+    DockerSocketBroker? broker)
   {
     try
     {
@@ -297,6 +301,27 @@ public static class AirlockRunner
         var resolvedPath = mount.ResolveHostPath(ctx.Paths.UserHome);
         var dockerPath = ConvertToDockerPath(resolvedPath);
         extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
+      }
+
+      // Build Docker broker substitutions: bind mount the host-side UDS, point
+      // DOCKER_HOST at it, and pin host.docker.internal so Testcontainers can
+      // reach the spawned siblings on the host. Empty when --dind is off.
+      var brokerMount = new StringBuilder();
+      var brokerEnv = new StringBuilder();
+      var brokerExtraHosts = new StringBuilder();
+      if (broker is not null)
+      {
+        if (broker.UnixSocketPath is not null)
+        {
+          brokerMount.Append($"      - {broker.UnixSocketPath}:/var/run/docker.sock");
+          brokerEnv.AppendLine("      - DOCKER_HOST=unix:///var/run/docker.sock");
+        }
+        else if (broker.BoundTcpEndpoint is not null)
+        {
+          brokerEnv.AppendLine($"      - DOCKER_HOST=tcp://host.docker.internal:{broker.BoundTcpEndpoint.Port}");
+        }
+        brokerEnv.Append("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
+        brokerExtraHosts.Append("    extra_hosts:\n      - \"host.docker.internal:host-gateway\"");
       }
 
       // Build logs mount if logging enabled
@@ -412,6 +437,27 @@ public static class AirlockRunner
         {
           if (authEnvVars.Length > 0)
             lines[i] = authEnvVars.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{DOCKER_BROKER_MOUNT}}"))
+        {
+          if (brokerMount.Length > 0)
+            lines[i] = brokerMount.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{DOCKER_BROKER_ENV}}"))
+        {
+          if (brokerEnv.Length > 0)
+            lines[i] = brokerEnv.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{DOCKER_BROKER_EXTRA_HOSTS}}"))
+        {
+          if (brokerExtraHosts.Length > 0)
+            lines[i] = brokerExtraHosts.ToString().TrimEnd();
           else
             lines.RemoveAt(i);
         }

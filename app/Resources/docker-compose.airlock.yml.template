@@ -44,6 +44,7 @@ services:
       - PUID={{PUID}}
       - PGID={{PGID}}
 {{AUTH_ENV_VARS}}
+{{DOCKER_BROKER_ENV}}
       - TERM=${TERM:-xterm-256color}
       - COPILOT_HERE_SESSION_INFO={{SESSION_INFO}}
     volumes:
@@ -51,7 +52,9 @@ services:
       - {{TOOL_CONFIG}}:{{TOOL_CONFIG_CONTAINER_PATH}}
       - {{WORK_DIR}}:{{CONTAINER_WORK_DIR}}
 {{EXTRA_MOUNTS}}
+{{DOCKER_BROKER_MOUNT}}
 {{EXTRA_SANDBOX_FLAGS}}
+{{DOCKER_BROKER_EXTRA_HOSTS}}
     working_dir: {{CONTAINER_WORK_DIR}}
     entrypoint: ["/usr/local/bin/entrypoint-airlock.sh"]
     command: {{TOOL_ARGS}}
