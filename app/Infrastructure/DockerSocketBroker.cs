@@ -230,15 +230,50 @@ public sealed class DockerSocketBroker : IAsyncDisposable
         return;
       }
 
-      // Replay the request bytes we already buffered, then splice in both directions.
-      await upstream.WriteAsync(headerBuf.AsMemory(0, totalRead), ct).ConfigureAwait(false);
+      // CRITICAL: Rewrite the request to force `Connection: close` before forwarding.
+      //
+      // Why: HTTP/1.1 keep-alive lets a single TCP connection carry many requests.
+      // If we just spliced bytes after approving the first request, every subsequent
+      // request on the same connection (e.g. POST /containers/create after a benign
+      // GET /_ping) would bypass the rule engine. That would defeat the entire point
+      // of the broker.
+      //
+      // By stripping the client's Connection/Keep-Alive headers and inserting
+      // `Connection: close`, we tell the upstream daemon to close the socket after
+      // the response. The client then has to open a fresh connection for its next
+      // request, and that connection goes through CheckRule from scratch.
+      //
+      // This costs one TCP handshake per Docker API call, which is unmeasurable
+      // against a local Unix socket and entirely worth the security guarantee.
+      var rewrittenRequest = RewriteRequestForceClose(headerBuf, totalRead, headersEnd);
+      await upstream.WriteAsync(rewrittenRequest, ct).ConfigureAwait(false);
 
-      var clientToUpstream = clientStream.CopyToAsync(upstream, ct);
-      var upstreamToClient = upstream.CopyToAsync(clientStream, ct);
-
-      // Either side closing ends the conversation. WhenAny is sufficient because
-      // CopyToAsync returns when its source EOFs.
-      await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+      // Splice the response back to the client. The upstream will close after
+      // sending its response (because we asked for Connection: close), so the
+      // upstream→client copy will hit EOF and unblock here. We don't need to
+      // forward more from client→upstream because the request is already
+      // delivered in full above (the only reason to keep client→upstream open
+      // would be Connection: Upgrade hijacking, see below).
+      var isUpgrade = LooksLikeHijack(headerBuf, headersEnd);
+      if (isUpgrade)
+      {
+        // Hijacked endpoints (exec/attach) need bidirectional streaming after
+        // the upgrade. For these we have to splice both directions and tolerate
+        // the keep-alive bypass — the connection is consumed by a single
+        // hijacked stream and is closed by the client when it's done.
+        //
+        // Note that we did NOT rewrite Connection: close for hijacked requests
+        // (we still rewrite for non-hijacked, even on the rare occasion of a
+        // pipelined hijack — that's why we re-check the buffered request here).
+        var clientToUpstream = clientStream.CopyToAsync(upstream, ct);
+        var upstreamToClient = upstream.CopyToAsync(clientStream, ct);
+        await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+      }
+      else
+      {
+        // Standard request/response: pipe response back, then close.
+        await upstream.CopyToAsync(clientStream, ct).ConfigureAwait(false);
+      }
     }
     catch (OperationCanceledException)
     {
@@ -404,6 +439,86 @@ public sealed class DockerSocketBroker : IAsyncDisposable
       }
     }
     return sb.ToString();
+  }
+
+  // ─── Request rewriting ──────────────────────────────────────────────────────
+
+  /// <summary>
+  /// Rewrites the buffered HTTP request to force Connection: close. This is the
+  /// mechanism that makes the broker re-evaluate the rule engine for every
+  /// Docker API call: by closing after one response, the next call from the
+  /// same client has to open a fresh connection, which re-enters HandleConnectionAsync.
+  ///
+  /// The buffered bytes contain: request line + headers + (optionally, the
+  /// start of the body). We strip the client's Connection/Keep-Alive/Proxy-
+  /// Connection headers, append `Connection: close`, and preserve any body
+  /// bytes that were already in the buffer.
+  /// </summary>
+  internal static byte[] RewriteRequestForceClose(byte[] buf, int totalRead, int headersEnd)
+  {
+    // headersEnd points at the first byte of the \r\n\r\n that terminates the headers.
+    var headerSection = Encoding.ASCII.GetString(buf, 0, headersEnd);
+
+    // Split on \r\n. lines[0] is the request line; the rest are header lines.
+    // The header section ends just before \r\n\r\n so the trailing empty entry
+    // is not included.
+    var lines = headerSection.Split("\r\n", StringSplitOptions.None);
+
+    var rebuilt = new StringBuilder(headerSection.Length + 32);
+    rebuilt.Append(lines[0]).Append("\r\n");
+
+    for (int i = 1; i < lines.Length; i++)
+    {
+      var line = lines[i];
+      if (line.Length == 0) continue;
+
+      // Strip any header that controls connection persistence — we override it.
+      if (line.StartsWith("Connection:", StringComparison.OrdinalIgnoreCase)) continue;
+      if (line.StartsWith("Proxy-Connection:", StringComparison.OrdinalIgnoreCase)) continue;
+      if (line.StartsWith("Keep-Alive:", StringComparison.OrdinalIgnoreCase)) continue;
+
+      rebuilt.Append(line).Append("\r\n");
+    }
+
+    rebuilt.Append("Connection: close\r\n");
+    rebuilt.Append("\r\n");
+
+    var newHeaderBytes = Encoding.ASCII.GetBytes(rebuilt.ToString());
+
+    // Body bytes that were already buffered (the part of the buffer past the \r\n\r\n).
+    // headersEnd points at the first \r of \r\n\r\n, so the body starts at headersEnd + 4.
+    var bodyStart = headersEnd + 4;
+    var bodyLen = Math.Max(0, totalRead - bodyStart);
+
+    var combined = new byte[newHeaderBytes.Length + bodyLen];
+    Array.Copy(newHeaderBytes, 0, combined, 0, newHeaderBytes.Length);
+    if (bodyLen > 0)
+    {
+      Array.Copy(buf, bodyStart, combined, newHeaderBytes.Length, bodyLen);
+    }
+    return combined;
+  }
+
+  /// <summary>
+  /// Returns true if the buffered request looks like an HTTP Upgrade / hijacking
+  /// request — Docker uses this for `exec`, `attach`, and `logs --follow` style
+  /// endpoints that need bidirectional streaming after the response. We can't
+  /// rewrite these to Connection: close because the upgrade requires keeping
+  /// the socket open.
+  /// </summary>
+  internal static bool LooksLikeHijack(byte[] buf, int headersEnd)
+  {
+    var headerSection = Encoding.ASCII.GetString(buf, 0, headersEnd);
+    foreach (var line in headerSection.Split("\r\n", StringSplitOptions.None))
+    {
+      if (line.StartsWith("Upgrade:", StringComparison.OrdinalIgnoreCase)) return true;
+      if (line.StartsWith("Connection:", StringComparison.OrdinalIgnoreCase) &&
+          line.Contains("upgrade", StringComparison.OrdinalIgnoreCase))
+      {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────

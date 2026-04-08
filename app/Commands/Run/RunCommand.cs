@@ -636,14 +636,27 @@ public sealed class RunCommand : ICommand
 
     var sessionId = GenerateSessionId();
     BrokerListenEndpoint listen;
-    if (OperatingSystem.IsWindows())
+    if (OperatingSystem.IsLinux())
     {
-      listen = BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0);
+      // Linux native: no VM in the way, so the container can bind-mount the
+      // host UDS at /var/run/docker.sock and connect() to it normally. /tmp
+      // is short (well under the 104-char macOS limit, which doesn't matter
+      // here but doesn't hurt) and is always reachable.
+      var path = $"/tmp/copilot-broker-{sessionId}.sock";
+      listen = BrokerListenEndpoint.Unix(path);
     }
     else
     {
-      var path = Path.Combine(Path.GetTempPath(), $"copilot-broker-{sessionId}.sock");
-      listen = BrokerListenEndpoint.Unix(path);
+      // macOS (Docker Desktop, OrbStack) and Windows run containers in a Linux
+      // VM. Bind-mounting an arbitrary host UDS *shows* the socket file inside
+      // the container (VirtioFS exposes the inode), but connect() from inside
+      // the container fails because the file-sharing layer doesn't proxy UDS
+      // connections through to the macOS/Windows host. (The host's own
+      // /var/run/docker.sock works only because the runtime has special-case
+      // handling for it.) TCP loopback sidesteps the entire VM filesystem
+      // layer: the broker listens on 127.0.0.1:<ephemeral>, the container
+      // reaches it via host.docker.internal:<port>.
+      listen = BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0);
     }
 
     var logPath = brokerCfg.EnableLogging

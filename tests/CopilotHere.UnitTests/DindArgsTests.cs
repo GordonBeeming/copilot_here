@@ -63,6 +63,16 @@ public class DindArgsTests
     return new DockerSocketBroker(cfg, "/var/run/docker.sock", BrokerListenEndpoint.Unix(sockPath));
   }
 
+  private static async Task<DockerSocketBroker> MakeStartedTcpBrokerAsync()
+  {
+    var cfg = DockerBrokerConfig.CreateDefault(enabled: true);
+    var broker = new DockerSocketBroker(cfg, "/var/run/docker.sock",
+      BrokerListenEndpoint.Tcp(System.Net.IPAddress.Loopback, 0));
+    // Start so the OS assigns a port we can read via BoundTcpEndpoint.
+    await broker.StartAsync(CancellationToken.None);
+    return broker;
+  }
+
   [Test]
   public async Task BuildDockerArgs_WithoutBroker_DoesNotMountDockerSocket()
   {
@@ -135,6 +145,50 @@ public class DindArgsTests
 
     var hasOverride = args.Any(a => a == "TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
     await Assert.That(hasOverride).IsTrue();
+  }
+
+  [Test]
+  public async Task BuildDockerArgs_WithTcpBroker_DoesNotMountSocket()
+  {
+    // On macOS/Windows the broker uses TCP loopback, not UDS — VirtioFS doesn't
+    // proxy UDS connect() calls from container to host. Make sure we don't
+    // accidentally try to bind-mount a non-existent UDS path in that case.
+    var ctx = AppContext.Create();
+    await using var broker = await MakeStartedTcpBrokerAsync();
+
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker);
+
+    var joined = string.Join(" ", args);
+    await Assert.That(joined).DoesNotContain(":/var/run/docker.sock");
+  }
+
+  [Test]
+  public async Task BuildDockerArgs_WithTcpBroker_SetsDockerHostTcp()
+  {
+    var ctx = AppContext.Create();
+    await using var broker = await MakeStartedTcpBrokerAsync();
+    var port = broker.BoundTcpEndpoint!.Port;
+
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker);
+
+    var expected = $"DOCKER_HOST=tcp://host.docker.internal:{port}";
+    await Assert.That(args.Any(a => a == expected)).IsTrue();
+  }
+
+  [Test]
+  public async Task BuildDockerArgs_WithTcpBroker_AddsHostGatewayMapping()
+  {
+    var ctx = AppContext.Create();
+    await using var broker = await MakeStartedTcpBrokerAsync();
+
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker);
+
+    var hostIdx = args.FindIndex(a => a == "host.docker.internal:host-gateway");
+    await Assert.That(hostIdx).IsGreaterThanOrEqualTo(0);
+    await Assert.That(args[hostIdx - 1]).IsEqualTo("--add-host");
   }
 
   [Test]
