@@ -104,7 +104,7 @@ public sealed class RunCommand : ICommand
 
     _golangOption = new Option<bool>("--golang") { Description = "[-go] Use Golang image variant" };
 
-    _javaOption = new Option<bool>("--java") { Description = "[-j] Use Java image variant (JDK 21 + Maven + Gradle + PlantUML)" };
+    _javaOption = new Option<bool>("--java") { Description = "[-j] Use Java image variant (JDK 25 + Maven + Gradle + PlantUML)" };
 
     _mountOption = new Option<string[]>("--mount") { Description = "Mount directory (read-only). Format: path or host:container" };
 

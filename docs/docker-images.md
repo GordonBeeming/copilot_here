@@ -62,7 +62,7 @@ Extends the base image with:
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:java`
 
 Extends the base image with:
-- Java JDK 21 (Eclipse Temurin)
+- Java JDK 25 (Eclipse Temurin)
 - Maven
 - Gradle
 - PlantUML (with Graphviz)
