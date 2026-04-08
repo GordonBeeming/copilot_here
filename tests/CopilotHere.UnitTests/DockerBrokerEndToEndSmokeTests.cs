@@ -8,13 +8,31 @@ namespace CopilotHere.Tests;
 /// <summary>
 /// Live end-to-end smoke tests for the Docker socket broker. These actually
 /// boot the broker against the host's Docker daemon and run real `docker`
-/// commands inside an alpine container that mounts the broker socket. They
-/// only run when Docker is reachable on the host, so CI on machines without
-/// Docker silently skips them.
+/// commands, including pulling and running an alpine+docker-cli container that
+/// reaches the broker over TCP loopback.
+///
+/// These are intentionally OPT-IN: CI runners vary wildly in what flavour of
+/// Docker is available (some have only Windows containers, some have no Docker
+/// at all, some have Docker but no internet to pull docker:28-cli). Set the
+/// COPILOT_HERE_RUN_LIVE_DOCKER_TESTS environment variable to anything to run
+/// them. Locally I run them after touching DockerSocketBroker; they're how I
+/// caught the macOS UDS bind-mount and HTTP keep-alive bugs.
 /// </summary>
 [NotInParallel]
 public class DockerBrokerEndToEndSmokeTests
 {
+  private const string OptInEnvVar = "COPILOT_HERE_RUN_LIVE_DOCKER_TESTS";
+
+  private static bool ShouldRun()
+  {
+    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(OptInEnvVar)))
+    {
+      Console.WriteLine($"[skip] set {OptInEnvVar}=1 to run live Docker smoke tests");
+      return false;
+    }
+    return DockerAvailable();
+  }
+
   private static bool DockerAvailable()
   {
     try
@@ -58,7 +76,7 @@ public class DockerBrokerEndToEndSmokeTests
   [Test]
   public async Task Broker_HostCli_VersionForwardsToRealDaemon()
   {
-    if (!DockerAvailable())
+    if (!ShouldRun())
     {
       Console.WriteLine("[skip] Docker not reachable on host");
       return;
@@ -87,7 +105,7 @@ public class DockerBrokerEndToEndSmokeTests
   [Test]
   public async Task Broker_HostCli_DeniedEndpointReturns403()
   {
-    if (!DockerAvailable())
+    if (!ShouldRun())
     {
       Console.WriteLine("[skip] Docker not reachable on host");
       return;
@@ -145,7 +163,7 @@ public class DockerBrokerEndToEndSmokeTests
     // Docker Desktop) runs containers in a Linux VM and its file-sharing layer
     // does not proxy connect() calls on UDS files back to the macOS/Windows
     // host. TCP sidesteps that entirely.
-    if (!DockerAvailable())
+    if (!ShouldRun())
     {
       Console.WriteLine("[skip] Docker not reachable on host");
       return;
@@ -185,7 +203,7 @@ public class DockerBrokerEndToEndSmokeTests
     // host's images is the cheapest API call that exercises a real Docker REST
     // endpoint (GET /images/json) so we can confirm forwarding works for the
     // shape of calls Testcontainers makes.
-    if (!DockerAvailable())
+    if (!ShouldRun())
     {
       Console.WriteLine("[skip] Docker not reachable on host");
       return;
