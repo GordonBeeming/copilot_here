@@ -165,19 +165,21 @@ public sealed class DockerSocketBroker : IAsyncDisposable
     {
       using var clientStream = new NetworkStream(clientSocket, ownsSocket: true);
 
-      // Buffer the request line + headers (everything up to \r\n\r\n).
-      // Cap at 64 KiB — Docker API request headers are rarely anywhere near that size.
+      // Buffer the request line + headers (everything up to the empty line that
+      // terminates the headers). Cap at 64 KiB — Docker API request headers are
+      // rarely anywhere near that size.
       const int MaxHeaderBytes = 65536;
       var headerBuf = new byte[MaxHeaderBytes];
       int totalRead = 0;
       int headersEnd = -1;
+      int terminatorLength = 0;
 
       while (totalRead < headerBuf.Length)
       {
         var n = await clientStream.ReadAsync(headerBuf.AsMemory(totalRead, headerBuf.Length - totalRead), ct).ConfigureAwait(false);
         if (n <= 0) return;
         totalRead += n;
-        headersEnd = IndexOfDoubleCrLf(headerBuf, totalRead);
+        headersEnd = IndexOfHeadersEnd(headerBuf, totalRead, out terminatorLength);
         if (headersEnd >= 0) break;
       }
 
@@ -187,8 +189,8 @@ public sealed class DockerSocketBroker : IAsyncDisposable
         return;
       }
 
-      // Parse the request line.
-      var firstLineEnd = IndexOfCrLf(headerBuf, totalRead);
+      // Parse the request line. The first line terminator can be \r\n or bare \n.
+      var firstLineEnd = IndexOfLineTerminator(headerBuf, totalRead);
       if (firstLineEnd <= 0)
       {
         await WriteSimpleResponseAsync(clientStream, 400, "bad request", ct).ConfigureAwait(false);
@@ -218,6 +220,17 @@ public sealed class DockerSocketBroker : IAsyncDisposable
 
       LogDecision("ALLOW", method, rawTarget, reason);
 
+      // Detect HTTP Upgrade BEFORE we touch the request bytes. Docker uses
+      // Upgrade-based hijacking for /containers/*/attach and /exec/*/start;
+      // those connections become raw bidirectional streams after a 101
+      // Switching Protocols (or 200 OK) response, and we MUST NOT inject
+      // `Connection: close` into them — that header is mutually exclusive
+      // with `Connection: Upgrade` and the upstream daemon will reject the
+      // upgrade, leaving the container in "Created" state and the client
+      // hanging forever.
+      var isUpgrade = LooksLikeHijack(headerBuf, headersEnd);
+      var bodyStart = headersEnd + terminatorLength;
+
       // Connect to the host runtime daemon.
       try
       {
@@ -230,49 +243,68 @@ public sealed class DockerSocketBroker : IAsyncDisposable
         return;
       }
 
-      // CRITICAL: Rewrite the request to force `Connection: close` before forwarding.
-      //
-      // Why: HTTP/1.1 keep-alive lets a single TCP connection carry many requests.
-      // If we just spliced bytes after approving the first request, every subsequent
-      // request on the same connection (e.g. POST /containers/create after a benign
-      // GET /_ping) would bypass the rule engine. That would defeat the entire point
-      // of the broker.
-      //
-      // By stripping the client's Connection/Keep-Alive headers and inserting
-      // `Connection: close`, we tell the upstream daemon to close the socket after
-      // the response. The client then has to open a fresh connection for its next
-      // request, and that connection goes through CheckRule from scratch.
-      //
-      // This costs one TCP handshake per Docker API call, which is unmeasurable
-      // against a local Unix socket and entirely worth the security guarantee.
-      var rewrittenRequest = RewriteRequestForceClose(headerBuf, totalRead, headersEnd);
-      await upstream.WriteAsync(rewrittenRequest, ct).ConfigureAwait(false);
-
-      // Splice the response back to the client. The upstream will close after
-      // sending its response (because we asked for Connection: close), so the
-      // upstream→client copy will hit EOF and unblock here. We don't need to
-      // forward more from client→upstream because the request is already
-      // delivered in full above (the only reason to keep client→upstream open
-      // would be Connection: Upgrade hijacking, see below).
-      var isUpgrade = LooksLikeHijack(headerBuf, headersEnd);
       if (isUpgrade)
       {
-        // Hijacked endpoints (exec/attach) need bidirectional streaming after
-        // the upgrade. For these we have to splice both directions and tolerate
-        // the keep-alive bypass — the connection is consumed by a single
-        // hijacked stream and is closed by the client when it's done.
-        //
-        // Note that we did NOT rewrite Connection: close for hijacked requests
-        // (we still rewrite for non-hijacked, even on the rare occasion of a
-        // pipelined hijack — that's why we re-check the buffered request here).
+        // Hijacked endpoints (exec/attach): forward the original request
+        // verbatim — don't touch Connection or any other header — then splice
+        // bytes in both directions until either side closes. The hijack
+        // consumes the entire TCP connection, so the keep-alive-bypass
+        // concern below doesn't apply: a single connection carries exactly
+        // one logical operation.
+        await upstream.WriteAsync(headerBuf.AsMemory(0, totalRead), ct).ConfigureAwait(false);
         var clientToUpstream = clientStream.CopyToAsync(upstream, ct);
         var upstreamToClient = upstream.CopyToAsync(clientStream, ct);
         await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
       }
       else
       {
-        // Standard request/response: pipe response back, then close.
-        await upstream.CopyToAsync(clientStream, ct).ConfigureAwait(false);
+        // Standard request/response. Rewrite the request to force
+        // `Connection: close` before forwarding.
+        //
+        // Why: HTTP/1.1 keep-alive lets a single TCP connection carry many
+        // requests. If we just spliced bytes after approving the first
+        // request, every subsequent request on the same connection (e.g.
+        // POST /containers/create after a benign GET /_ping) would bypass
+        // the rule engine. That defeats the point of the broker.
+        //
+        // By stripping the client's Connection/Keep-Alive headers and
+        // inserting `Connection: close`, we tell the upstream daemon to
+        // close the socket after the response. The client then has to open
+        // a fresh connection for its next request, and that connection goes
+        // through CheckRule from scratch.
+        //
+        // Cost: one TCP handshake per Docker API call. Unmeasurable against
+        // a local Unix socket and entirely worth the security guarantee.
+        var rewrittenRequest = RewriteRequestForceClose(headerBuf, totalRead, headersEnd, bodyStart);
+        await upstream.WriteAsync(rewrittenRequest, ct).ConfigureAwait(false);
+
+        // Bidirectional splice. We've forwarded the buffered head of the
+        // request, but the request body may extend beyond what we've read
+        // (Content-Length larger than the initial read, or chunked transfer).
+        // Without the client→upstream task, large POST bodies (e.g.
+        // POST /containers/create with a JSON spec) hang the upstream daemon
+        // forever waiting for body bytes that never arrive.
+        //
+        // The keep-alive bypass concern that originally made me drop this
+        // bidirectional copy doesn't apply here: the rewritten request asked
+        // for Connection: close, so the upstream sends its response and then
+        // closes. As soon as upstream→client EOFs we cancel the client side
+        // and dispose both streams. The client can't slip a second request
+        // through onto an already-dead connection.
+        using var spliceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var clientToUpstream = clientStream.CopyToAsync(upstream, spliceCts.Token);
+        var upstreamToClient = upstream.CopyToAsync(clientStream, spliceCts.Token);
+        try
+        {
+          await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+        }
+        finally
+        {
+          // Tear down the other side of the splice once one direction has
+          // finished. Without this, a stuck client→upstream task would keep
+          // the broker connection alive past the response.
+          spliceCts.Cancel();
+        }
       }
     }
     catch (OperationCanceledException)
@@ -328,8 +360,16 @@ public sealed class DockerSocketBroker : IAsyncDisposable
   }
 
   /// <summary>
-  /// Segment-aware path matcher. '*' matches a single segment. The pattern and
-  /// path must have the same segment count to match — there is no '**' yet.
+  /// Segment-aware path matcher.
+  /// <list type="bullet">
+  ///   <item><c>*</c> matches exactly one path segment (e.g. <c>/containers/*/start</c>
+  ///         matches <c>/containers/abc123/start</c>).</item>
+  ///   <item><c>**</c> matches zero or more path segments (e.g. <c>/images/**/json</c>
+  ///         matches <c>/images/json</c>, <c>/images/alpine/json</c>, and
+  ///         <c>/images/testcontainers/ryuk:0.14.0/json</c>). Image-related Docker
+  ///         API endpoints need <c>**</c> because image names can contain literal
+  ///         slashes (registry/repo:tag).</item>
+  /// </list>
   /// </summary>
   internal static bool PathMatches(string pattern, string path)
   {
@@ -339,15 +379,33 @@ public sealed class DockerSocketBroker : IAsyncDisposable
     var patternSegments = pattern[1..].Split('/');
     var pathSegments = path[1..].Split('/');
 
-    if (patternSegments.Length != pathSegments.Length) return false;
+    return MatchSegments(patternSegments, 0, pathSegments, 0);
+  }
 
-    for (int i = 0; i < patternSegments.Length; i++)
+  private static bool MatchSegments(string[] pattern, int pi, string[] path, int qi)
+  {
+    while (pi < pattern.Length)
     {
-      if (patternSegments[i] == "*") continue;
-      if (!patternSegments[i].Equals(pathSegments[i], StringComparison.Ordinal)) return false;
-    }
+      if (pattern[pi] == "**")
+      {
+        // ** matches zero or more segments. If it's the last token, it greedily
+        // consumes the remainder of the path. Otherwise, try every possible
+        // split point and recurse.
+        if (pi == pattern.Length - 1) return true;
+        for (int k = qi; k <= path.Length; k++)
+        {
+          if (MatchSegments(pattern, pi + 1, path, k)) return true;
+        }
+        return false;
+      }
 
-    return true;
+      if (qi >= path.Length) return false;
+      if (pattern[pi] != "*" && !pattern[pi].Equals(path[qi], StringComparison.Ordinal)) return false;
+
+      pi++;
+      qi++;
+    }
+    return qi == path.Length;
   }
 
   /// <summary>
@@ -453,23 +511,27 @@ public sealed class DockerSocketBroker : IAsyncDisposable
   /// start of the body). We strip the client's Connection/Keep-Alive/Proxy-
   /// Connection headers, append `Connection: close`, and preserve any body
   /// bytes that were already in the buffer.
+  ///
+  /// HTTP/1.1 line terminators can be `\r\n` or bare `\n` (RFC 7230 §3.5: "a
+  /// recipient MAY recognize a single LF as a line terminator"). Docker.DotNet's
+  /// HTTP client uses bare LFs between headers, so we have to split on `\n`
+  /// and trim trailing `\r` from each line, then re-emit canonical CRLF.
   /// </summary>
-  internal static byte[] RewriteRequestForceClose(byte[] buf, int totalRead, int headersEnd)
+  internal static byte[] RewriteRequestForceClose(byte[] buf, int totalRead, int headersEnd, int bodyStart)
   {
-    // headersEnd points at the first byte of the \r\n\r\n that terminates the headers.
+    // headersEnd points at the first byte of the empty-line terminator.
+    // bodyStart is headersEnd + terminatorLength (passed in from the caller).
     var headerSection = Encoding.ASCII.GetString(buf, 0, headersEnd);
 
-    // Split on \r\n. lines[0] is the request line; the rest are header lines.
-    // The header section ends just before \r\n\r\n so the trailing empty entry
-    // is not included.
-    var lines = headerSection.Split("\r\n", StringSplitOptions.None);
+    // Split on \n then trim trailing \r — handles \r\n, bare \n, and mixed.
+    var lines = headerSection.Split('\n');
 
     var rebuilt = new StringBuilder(headerSection.Length + 32);
-    rebuilt.Append(lines[0]).Append("\r\n");
+    rebuilt.Append(lines[0].TrimEnd('\r')).Append("\r\n");
 
     for (int i = 1; i < lines.Length; i++)
     {
-      var line = lines[i];
+      var line = lines[i].TrimEnd('\r');
       if (line.Length == 0) continue;
 
       // Strip any header that controls connection persistence — we override it.
@@ -485,9 +547,6 @@ public sealed class DockerSocketBroker : IAsyncDisposable
 
     var newHeaderBytes = Encoding.ASCII.GetBytes(rebuilt.ToString());
 
-    // Body bytes that were already buffered (the part of the buffer past the \r\n\r\n).
-    // headersEnd points at the first \r of \r\n\r\n, so the body starts at headersEnd + 4.
-    var bodyStart = headersEnd + 4;
     var bodyLen = Math.Max(0, totalRead - bodyStart);
 
     var combined = new byte[newHeaderBytes.Length + bodyLen];
@@ -523,21 +582,66 @@ public sealed class DockerSocketBroker : IAsyncDisposable
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  private static int IndexOfDoubleCrLf(byte[] buf, int length)
+  /// <summary>
+  /// Locates the end of the HTTP header block. The empty line separating headers
+  /// from body can be expressed four ways depending on whether the sender uses
+  /// CRLF or bare LF terminators (RFC 7230 §3.5 — recipients SHOULD accept both):
+  /// <list type="bullet">
+  ///   <item>"\r\n\r\n" (4 bytes) — strict CRLF</item>
+  ///   <item>"\n\n" (2 bytes) — bare LF throughout</item>
+  ///   <item>"\r\n\n" or "\n\r\n" (3 bytes) — mixed</item>
+  /// </list>
+  /// Returns the index of the FIRST byte of the terminator and the terminator
+  /// length via the out parameter, or -1 if no terminator is in the buffer yet.
+  ///
+  /// We have to handle bare LF because Docker.DotNet's <c>Microsoft.Net.Http.Client</c>
+  /// emits headers with `\n` terminators between headers and only a final `\r\n`,
+  /// producing the `\n...\n\r\n` shape — which our previous strict CRLF check
+  /// missed entirely, leaving the broker waiting for a terminator that never came.
+  /// </summary>
+  internal static int IndexOfHeadersEnd(byte[] buf, int length, out int terminatorLength)
   {
-    for (int i = 0; i + 3 < length; i++)
+    for (int i = 0; i < length; i++)
     {
-      if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n')
+      // 4-byte: \r\n\r\n
+      if (i + 3 < length && buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n')
+      {
+        terminatorLength = 4;
         return i;
+      }
+      // 3-byte: \r\n\n
+      if (i + 2 < length && buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\n')
+      {
+        terminatorLength = 3;
+        return i;
+      }
+      // 3-byte: \n\r\n
+      if (i + 2 < length && buf[i] == '\n' && buf[i + 1] == '\r' && buf[i + 2] == '\n')
+      {
+        terminatorLength = 3;
+        return i;
+      }
+      // 2-byte: \n\n
+      if (i + 1 < length && buf[i] == '\n' && buf[i + 1] == '\n')
+      {
+        terminatorLength = 2;
+        return i;
+      }
     }
+    terminatorLength = 0;
     return -1;
   }
 
-  private static int IndexOfCrLf(byte[] buf, int length)
+  /// <summary>
+  /// Returns the index of the first line terminator (CRLF or bare LF) in the
+  /// buffer, used to find the end of the request line.
+  /// </summary>
+  internal static int IndexOfLineTerminator(byte[] buf, int length)
   {
-    for (int i = 0; i + 1 < length; i++)
+    for (int i = 0; i < length; i++)
     {
-      if (buf[i] == '\r' && buf[i + 1] == '\n') return i;
+      if (buf[i] == '\r' && i + 1 < length && buf[i + 1] == '\n') return i;
+      if (buf[i] == '\n') return i;
     }
     return -1;
   }
