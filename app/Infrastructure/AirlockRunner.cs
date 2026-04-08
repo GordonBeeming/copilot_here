@@ -320,7 +320,18 @@ public static class AirlockRunner
         {
           brokerEnv.AppendLine($"      - DOCKER_HOST=tcp://host.docker.internal:{broker.BoundTcpEndpoint.Port}");
         }
-        brokerEnv.Append("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
+        brokerEnv.AppendLine("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
+        // CRITICAL for airlock + DinD: the airlock template sets HTTP_PROXY /
+        // HTTPS_PROXY pointing at the airlock proxy, and HTTP clients (including
+        // Docker.DotNet's ManagedHandler used by Testcontainers .NET) will
+        // dutifully route every connection — including the one to our broker on
+        // host.docker.internal — through that proxy. The airlock proxy then
+        // rejects it with "Host not allowed" because host.docker.internal isn't
+        // in the network allowlist. NO_PROXY tells the HTTP client to bypass
+        // the airlock proxy for broker traffic, which is what we want — broker
+        // requests stay local to the host and never touch the airlock network.
+        brokerEnv.AppendLine("      - NO_PROXY=host.docker.internal,localhost,127.0.0.1");
+        brokerEnv.Append("      - no_proxy=host.docker.internal,localhost,127.0.0.1");
         brokerExtraHosts.Append("    extra_hosts:\n      - \"host.docker.internal:host-gateway\"");
       }
 
