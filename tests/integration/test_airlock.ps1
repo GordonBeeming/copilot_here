@@ -202,7 +202,10 @@ networks:
         -replace '\{\{PGID\}\}', '1000' `
         -replace '\{\{EXTRA_MOUNTS\}\}', '' `
         -replace '\{\{EXTRA_SANDBOX_FLAGS\}\}', '' `
-        -replace '\{\{TOOL_ARGS\}\}', '["sleep", "infinity"]'
+        -replace '\{\{TOOL_ARGS\}\}', '["sleep", "infinity"]' `
+        -replace '\{\{DOCKER_BROKER_ENV\}\}', '' `
+        -replace '\{\{DOCKER_BROKER_MOUNT\}\}', '' `
+        -replace '\{\{DOCKER_BROKER_EXTRA_HOSTS\}\}', ''
     
     # Write compose file
     $script:ComposeFile = Join-Path $script:TestDir "docker-compose.yml"
