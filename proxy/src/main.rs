@@ -103,9 +103,12 @@ fn check_host_allowed(config: &Config, host: &str) -> (bool, String, bool) {
         return (true, "Monitor Mode".to_string(), true);
     }
 
-    let host_rule = config.allowed_rules.iter().find(|rule| {
-        host == rule.host || host.ends_with(&format!(".{}", rule.host))
-    });
+    // Strict exact-host match only. Suffix matching (e.g. `github.com` rule
+    // catching `api.github.com`) was historically permitted but it produced
+    // surprising blocks: a broad parent-domain rule would shadow a more
+    // specific subdomain rule listed later in the file. Each subdomain must
+    // be allowlisted explicitly.
+    let host_rule = config.allowed_rules.iter().find(|rule| host == rule.host);
 
     match host_rule {
         None => (false, "Host Not Allowed".to_string(), false),
@@ -119,9 +122,18 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
         return (true, "Monitor Mode".to_string());
     }
 
-    let host_rule = config.allowed_rules.iter().find(|rule| {
-        host == rule.host || host.ends_with(&format!(".{}", rule.host))
-    });
+    // Strict exact-host match only — see check_host_allowed for rationale.
+    let host_rule = config.allowed_rules.iter().find(|rule| host == rule.host);
+
+    // Strip the query string before path matching. The HTTP request target
+    // can be `/copilot_internal/user?api-version=1`, and rules are written
+    // as bare paths — without this, an exact-path rule never matches a
+    // request that has query params, and users get baffling Path Not Allowed
+    // blocks against entries that are clearly in their allowlist.
+    let path_no_query = match path.find('?') {
+        Some(idx) => &path[..idx],
+        None => path,
+    };
 
     match host_rule {
         None => (false, "Host Not Allowed".to_string()),
