@@ -5,7 +5,7 @@
 # Configuration
 COPILOT_HERE_BIN="${COPILOT_HERE_BIN:-$HOME/.local/bin/copilot_here}"
 COPILOT_HERE_RELEASE_URL="https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-COPILOT_HERE_VERSION="2026.04.08"
+COPILOT_HERE_VERSION="2026.04.09"
 
 # Ensure user bin directory is on PATH (required for the native binary + shell integration checks)
 if [ -d "$HOME/.local/bin" ]; then
