@@ -5,6 +5,7 @@ This document lists known issues and limitations. Click the issue title for full
 | Issue | OS | Shell/Terminal | Fix Planned? |
 |-------|----|----|-------------|
 | Brokered Docker socket: chunked-body create requests skip inspection | All | - | Yes |
+| Brokered Docker socket: DinD + airlock mode — Testcontainers cannot reach sibling containers | macOS, Windows | - | Investigating |
 | Brokered Docker socket: Windows host is best-effort | Windows | - | Investigating |
 
 ## Brokered Docker socket (beta)
@@ -26,7 +27,7 @@ The `--dind` flag enables Testcontainers and sibling-container workflows by rout
 - **Windows host is best-effort.** The broker uses TCP loopback on Windows and connects upstream via Docker Desktop's named pipe (`\\.\pipe\docker_engine`). This works on Docker Desktop with WSL2 in most setups; if your environment routes the daemon differently, set `DOCKER_HOST` explicitly or run from a Linux/macOS host.
 - **Podman:** Works via runtime detection. The broker queries `podman info --format '{{.Host.RemoteSocket.Path}}'` and falls back to the conventional rootless and rootful socket paths. If your Podman setup doesn't expose `Host.RemoteSocket.Path`, set `DOCKER_HOST=unix:///path/to/podman.sock`.
 - **OrbStack:** Works without configuration. OrbStack exposes the standard `/var/run/docker.sock` on macOS, so the broker connects to it the same way as Docker Desktop.
-- **DinD + airlock:** Works end-to-end via the proxy container's socat bridge (the airlock proxy is dual-homed and forwards `proxy:2375` to the host broker on macOS / Windows where the airlock network can't reach `host.docker.internal` directly). Spawned siblings get `NetworkMode` rewritten to the airlock compose network, so the workload reaches them by Docker DNS without ever crossing the airlock boundary.
+- **DinD + airlock (macOS / Windows):** The Docker API path works (workload → `proxy:2375` → socat → host broker), and sibling containers are created on the airlock compose network. However, **Testcontainers data-plane connections fail**: the workload sets `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`, but `host.docker.internal` is unreachable via raw TCP from the `internal: true` airlock network. Testcontainers tries to connect to `<host>:<random_mapped_port>` and times out. **Workaround:** use `--dind` without `--airlock` until a fix lands. See [#101](https://github.com/GordonBeeming/copilot_here/issues/101) for potential solutions and discussion.
 
 ## Reporting New Issues
 
