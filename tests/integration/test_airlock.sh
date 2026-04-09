@@ -335,6 +335,10 @@ EOF
         gsub(/\{\{DOCKER_BROKER_ENV\}\}/, "");
         gsub(/\{\{DOCKER_BROKER_MOUNT\}\}/, "");
         gsub(/\{\{DOCKER_BROKER_EXTRA_HOSTS\}\}/, "");
+        # Proxy-side broker bridge placeholders (socat in proxy container).
+        # Same reasoning: integration test doesn't exercise --dind, empty them.
+        gsub(/\{\{PROXY_BROKER_ENV\}\}/, "");
+        gsub(/\{\{PROXY_BROKER_EXTRA_HOSTS\}\}/, "");
         print
       }' "$template_file" > "$COMPOSE_FILE"
   

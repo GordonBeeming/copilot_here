@@ -52,6 +52,10 @@ public class AirlockSmokeTests
     var rules = DockerBrokerConfigLoader.LoadDefaultRules()
       ?? throw new InvalidOperationException("default broker rules missing");
     rules.EnableLogging = true;
+    // Strict default-deny image allowlist requires explicit trust. The
+    // smoke test spawns alpine as its sibling, so whitelist alpine here.
+    rules.BodyInspection ??= new CopilotHere.Commands.DockerBroker.DockerBrokerBodyInspectionConfig();
+    rules.BodyInspection.AllowedImages = ["alpine:*", "alpine"];
 
     var sessionId = Guid.NewGuid().ToString("N")[..8];
     var projectName = $"copilot-airlock-it-{sessionId}";

@@ -33,9 +33,24 @@ public class BrokerSmokeTests
     var rules = DockerBrokerConfigLoader.LoadDefaultRules()
       ?? throw new InvalidOperationException("Default broker rules missing from embedded resources");
     rules.EnableLogging = true;
+    // Default broker policy is strict default-deny on AllowedImages: an empty
+    // list rejects every spawn. The smoke tests want to exercise the
+    // happy-path AND the privileged/forbidden-bind rejection paths against
+    // alpine, so we whitelist alpine here. PrivilegedContainer + HostBindMount
+    // tests still exercise their respective rules because the image-allowlist
+    // check passes for alpine and inspection then trips on Privileged / Binds.
+    rules.BodyInspection ??= new CopilotHere.Commands.DockerBroker.DockerBrokerBodyInspectionConfig();
+    rules.BodyInspection.AllowedImages = ["alpine:*", "alpine"];
 
     var logPath = Path.Combine(Path.GetTempPath(), $"copilot-broker-it-{testName}-{Guid.NewGuid():N}.jsonl");
-    var listen = BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0);
+    // Bind to all interfaces, not just loopback. On Linux Docker (CI runners),
+    // host.docker.internal:host-gateway resolves to the host bridge IP (e.g.
+    // 172.17.0.1), NOT 127.0.0.1 — there's no Docker Desktop / OrbStack VM
+    // doing the loopback magic that macOS users get for free. A loopback-only
+    // listener can't accept connections coming in from the bridge gateway,
+    // so the workload container's `docker version` falls back to "Cannot
+    // connect to the Docker daemon". IPAddress.Any fixes both runners.
+    var listen = BrokerListenEndpoint.Tcp(IPAddress.Any, 0);
     var broker = new DockerSocketBroker(rules, hostSocket, listen, logPath);
     broker.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
 

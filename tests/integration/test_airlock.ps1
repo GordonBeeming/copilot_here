@@ -205,7 +205,9 @@ networks:
         -replace '\{\{TOOL_ARGS\}\}', '["sleep", "infinity"]' `
         -replace '\{\{DOCKER_BROKER_ENV\}\}', '' `
         -replace '\{\{DOCKER_BROKER_MOUNT\}\}', '' `
-        -replace '\{\{DOCKER_BROKER_EXTRA_HOSTS\}\}', ''
+        -replace '\{\{DOCKER_BROKER_EXTRA_HOSTS\}\}', '' `
+        -replace '\{\{PROXY_BROKER_ENV\}\}', '' `
+        -replace '\{\{PROXY_BROKER_EXTRA_HOSTS\}\}', ''
     
     # Write compose file
     $script:ComposeFile = Join-Path $script:TestDir "docker-compose.yml"
