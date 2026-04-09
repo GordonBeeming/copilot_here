@@ -201,10 +201,44 @@ jobs:
       - name: Run airlock integration tests
         run: ./tests/integration/test_airlock.sh --use-local
 
+  # Live-Docker smoke tests for the brokered Docker socket (--dind).
+  # Runs on every PR and push: starts the real DockerSocketBroker against
+  # the runner's Docker daemon, executes docker commands inside a workload
+  # container that points DOCKER_HOST at the broker, and asserts both the
+  # happy path (docker version, docker run alpine) AND the Phase 2 body
+  # inspection rejections (privileged, forbidden host binds).
+  #
+  # No copilot_here images required — uses the public docker:cli + alpine
+  # images so this stage is fast (~1 minute) and unblocked from the main
+  # build matrices.
+  integration-tests-broker:
+    name: Integration Tests (Broker)
+    needs: [test-cli]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Pre-pull test images
+        run: |
+          docker pull docker:cli
+          docker pull alpine:3.21
+
+      - name: Run integration tests
+        env:
+          RUN_LIVE_DOCKER_TESTS: "1"
+        working-directory: tests/CopilotHere.IntegrationTests
+        run: dotnet run --configuration Release
+
   # Build proxy Rust binary natively on each architecture (much faster than QEMU/Docker)
   build-proxy-binary:
     name: Build Proxy Binary (${{ matrix.arch }})
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, integration-tests-broker]
     runs-on: ${{ matrix.runner }}
     if: github.ref == 'refs/heads/main'
     strategy:
@@ -336,7 +370,7 @@ jobs:
   # Fetch latest dependency versions for image builds
   prepare-versions:
     name: Prepare Versions
-    needs: [test-cli-integration, test-shell-functions, test-airlock]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, integration-tests-broker]
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -489,6 +523,50 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-${{ matrix.image }},mode=max
           cache-to: type=inline
 
+  # Full airlock + DinD smoke test using the freshly published proxy and
+  # default app images. This is the unblocker test from issue #20: it spins
+  # up a real airlock compose project, points the workload at the broker via
+  # the proxy bridge, and verifies that spawned siblings get the airlock
+  # NetworkMode injected via Phase 2 body inspection.
+  #
+  # Only runs on main because it depends on build-proxy and build-images
+  # having pushed the canonical sha-tagged images. PRs are covered by the
+  # cheaper integration-tests-broker job above.
+  integration-tests-airlock:
+    name: Integration Tests (Airlock)
+    needs: [build-proxy, build-images, prepare-versions]
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pre-pull test images
+        run: |
+          docker pull alpine:3.21
+          docker pull ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:proxy-sha-${{ github.sha }}
+          docker pull ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-default-sha-${{ github.sha }}
+
+      - name: Run integration tests (airlock + dind)
+        env:
+          RUN_LIVE_DOCKER_TESTS: "1"
+          COPILOT_HERE_PROXY_IMAGE: ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:proxy-sha-${{ github.sha }}
+          COPILOT_HERE_APP_IMAGE: ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-default-sha-${{ github.sha }}
+        working-directory: tests/CopilotHere.IntegrationTests
+        run: dotnet run --configuration Release
+
   # Compute version from VERSION file + run number as revision
   compute-version:
     name: Compute Version
@@ -513,7 +591,7 @@ jobs:
   # Publish .NET Tool to NuGet
   publish-nuget:
     name: Publish NuGet
-    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, integration-tests-broker, compute-version]
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     steps:
@@ -538,6 +616,7 @@ jobs:
       [
         build-images,
         build-proxy,
+        integration-tests-airlock,
         release-cli,
         publish-nuget,
         update-winget,
@@ -593,7 +672,7 @@ jobs:
   # Build native CLI binaries for all platforms
   build-cli:
     name: Build CLI ${{ matrix.rid }}
-    needs: [test-cli-integration, test-shell-functions, test-airlock, compute-version]
+    needs: [test-cli-integration, test-shell-functions, test-airlock, integration-tests-broker, compute-version]
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     strategy:

@@ -47,6 +47,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CopilotHere.UnitTests" />
+    <InternalsVisibleTo Include="CopilotHere.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
