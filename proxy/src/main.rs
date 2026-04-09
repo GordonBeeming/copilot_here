@@ -135,9 +135,9 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
                     // Explicit wildcard for all paths
                     true
                 } else if let Some(prefix) = p.strip_suffix('*') {
-                    path.starts_with(prefix)
+                    path_no_query.starts_with(prefix)
                 } else {
-                    path == p
+                    path_no_query == p
                 }
             });
             if path_match {
