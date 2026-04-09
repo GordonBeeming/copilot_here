@@ -5550,3 +5550,9 @@ test-bin/
 pbi.md
 
 .dev-build.env
+
+# Playwright MCP snapshots
+.playwright-mcp/
+
+# Claude scheduled tasks lock
+.claude/scheduled_tasks.lock
