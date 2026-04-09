@@ -97,16 +97,22 @@ fn log_traffic(config: &Config, action: &str, host: &str, path: &str, method: &s
 // Security Check
 // ============================================================================
 
-/// Normalize a hostname for comparison: hostnames are case-insensitive per
-/// RFC 1035 §2.3.3, and DNS allows a trailing dot for fully-qualified names
-/// (e.g. `api.github.com.`) which is semantically identical to the bare form.
-/// Without normalization, a request to `API.GITHUB.COM` or `api.github.com.`
-/// fails to match an allowlisted `api.github.com` and gets rejected with a
-/// confusing `Host Not Allowed`. Lowercase + strip a single trailing `.`
-/// matches what every browser, curl, and the DNS spec do.
-fn normalize_host(host: &str) -> String {
-    let trimmed = host.strip_suffix('.').unwrap_or(host);
-    trimmed.to_ascii_lowercase()
+/// Allocation-free hostname comparison.
+///
+/// Hostnames are case-insensitive per RFC 1035 §2.3.3, and DNS allows a
+/// trailing dot for fully-qualified names (`api.github.com.` ≡ `api.github.com`).
+/// We need both sides treated identically without allocating a new `String`
+/// per rule per request — this lives in the proxy hot path and the previous
+/// `normalize_host -> String` formulation churned the allocator on every
+/// connection.
+///
+/// `eq_ignore_ascii_case` does the case fold byte-for-byte without copying,
+/// and stripping a single trailing dot from each side is a slice operation.
+/// Result: zero allocations per call.
+fn host_matches(request_host: &str, rule_host: &str) -> bool {
+    let req = request_host.strip_suffix('.').unwrap_or(request_host);
+    let rule = rule_host.strip_suffix('.').unwrap_or(rule_host);
+    req.eq_ignore_ascii_case(rule)
 }
 
 /// Check if a host is allowed and whether insecure is permitted (for CONNECT-level checks, ignores path rules)
@@ -121,14 +127,13 @@ fn check_host_allowed(config: &Config, host: &str) -> (bool, String, bool) {
     // specific subdomain rule listed later in the file. Each subdomain must
     // be allowlisted explicitly.
     //
-    // Both sides are normalized (lowercase + strip trailing dot) so the
-    // exact-match comparison still does the right thing for clients that
-    // hand us `API.GITHUB.COM` or `api.github.com.`.
-    let normalized_host = normalize_host(host);
+    // The comparison is case-insensitive and tolerates a trailing dot on
+    // either side (so `API.GITHUB.COM` and `api.github.com.` both match a
+    // rule listing `api.github.com`) without allocating per request.
     let host_rule = config
         .allowed_rules
         .iter()
-        .find(|rule| normalize_host(&rule.host) == normalized_host);
+        .find(|rule| host_matches(host, &rule.host));
 
     match host_rule {
         None => (false, "Host Not Allowed".to_string(), false),
@@ -143,12 +148,11 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
     }
 
     // Strict exact-host match only — see check_host_allowed for rationale.
-    // Both sides normalized so case and trailing dot don't matter.
-    let normalized_host = normalize_host(host);
+    // Allocation-free comparison via host_matches.
     let host_rule = config
         .allowed_rules
         .iter()
-        .find(|rule| normalize_host(&rule.host) == normalized_host);
+        .find(|rule| host_matches(host, &rule.host));
 
     // Strip the query string before path matching. The HTTP request target
     // can be `/copilot_internal/user?api-version=1`, and rules are written
