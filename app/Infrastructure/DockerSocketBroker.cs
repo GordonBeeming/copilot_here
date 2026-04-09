@@ -51,6 +51,15 @@ public sealed class DockerSocketBroker : IAsyncDisposable
   public DockerBrokerConfig Config => _config;
 
   /// <summary>
+  /// When set, the broker injects this value into HostConfig.NetworkMode for
+  /// every POST /containers/create request whose body has no explicit network.
+  /// Used in airlock + DinD mode so spawned siblings join the airlocked
+  /// network and remain reachable from the workload. Standard --dind mode
+  /// leaves this null.
+  /// </summary>
+  public string? SiblingNetworkName { get; set; }
+
+  /// <summary>
   /// Once <see cref="StartAsync"/> has bound a TCP listener, this returns the
   /// real endpoint (with the OS-assigned port if the caller asked for port 0).
   /// Null for Unix-domain listeners or before Start.
@@ -231,6 +240,34 @@ public sealed class DockerSocketBroker : IAsyncDisposable
       var isUpgrade = LooksLikeHijack(headerBuf, headersEnd);
       var bodyStart = headersEnd + terminatorLength;
 
+      // Phase 2: body inspection for POST /containers/create. We buffer the
+      // full body, parse it as JSON, run safety rules, and either reject the
+      // request or rewrite the body (e.g. injecting NetworkMode for airlock
+      // siblings). Anything else falls through to the standard splice path.
+      byte[]? rewrittenBody = null;
+      bool bodyAlreadyConsumed = false;
+      if (!isUpgrade &&
+          string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase) &&
+          string.Equals(canonicalPath, "/containers/create", StringComparison.Ordinal))
+      {
+        var inspectionOutcome = await ReadAndInspectCreateBodyAsync(
+          clientStream, headerBuf, totalRead, headersEnd, bodyStart, ct).ConfigureAwait(false);
+
+        if (inspectionOutcome.Blocked)
+        {
+          LogDecision("BLOCK", method, rawTarget, inspectionOutcome.Reason);
+          await WriteJsonErrorAsync(clientStream, 403, $"blocked by copilot_here docker broker: {inspectionOutcome.Reason}", ct).ConfigureAwait(false);
+          return;
+        }
+
+        rewrittenBody = inspectionOutcome.RewrittenBody;
+        bodyAlreadyConsumed = inspectionOutcome.FullyConsumed;
+        if (rewrittenBody is not null)
+        {
+          LogDecision("REWRITE", method, rawTarget, inspectionOutcome.Reason);
+        }
+      }
+
       // Connect to the host runtime daemon.
       try
       {
@@ -247,14 +284,36 @@ public sealed class DockerSocketBroker : IAsyncDisposable
       {
         // Hijacked endpoints (exec/attach): forward the original request
         // verbatim — don't touch Connection or any other header — then splice
-        // bytes in both directions until either side closes. The hijack
-        // consumes the entire TCP connection, so the keep-alive-bypass
-        // concern below doesn't apply: a single connection carries exactly
-        // one logical operation.
+        // bytes in both directions. The hijack consumes the entire TCP
+        // connection, so the keep-alive-bypass concern below doesn't apply:
+        // a single connection carries exactly one logical operation.
+        //
+        // Lifecycle: we MUST wait until the *upstream → client* direction
+        // EOFs before tearing down. Waiting on Task.WhenAny was a bug —
+        // for `docker run alpine echo X`, the docker CLI shuts its write
+        // half immediately (it has no input for echo), so client→upstream
+        // completes within microseconds. WhenAny would then dispose both
+        // streams while the alpine container's stdout was still in flight,
+        // and the user would see exit=0 with empty output. The right
+        // signal is the upstream side: when the daemon closes the upgraded
+        // socket (because the container exited), all output has been
+        // delivered. Anything we still owe the client at that point is
+        // already in our send buffer.
         await upstream.WriteAsync(headerBuf.AsMemory(0, totalRead), ct).ConfigureAwait(false);
-        var clientToUpstream = clientStream.CopyToAsync(upstream, ct);
-        var upstreamToClient = upstream.CopyToAsync(clientStream, ct);
-        await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+        using var hijackCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var clientToUpstream = clientStream.CopyToAsync(upstream, hijackCts.Token);
+        var upstreamToClient = upstream.CopyToAsync(clientStream, hijackCts.Token);
+        try
+        {
+          await upstreamToClient.ConfigureAwait(false);
+        }
+        finally
+        {
+          // Upstream is done; client→upstream is irrelevant now. Cancel it
+          // so disposal doesn't strand a background task on a closed socket.
+          hijackCts.Cancel();
+          try { await clientToUpstream.ConfigureAwait(false); } catch { /* expected on cancel */ }
+        }
       }
       else
       {
@@ -275,7 +334,7 @@ public sealed class DockerSocketBroker : IAsyncDisposable
         //
         // Cost: one TCP handshake per Docker API call. Unmeasurable against
         // a local Unix socket and entirely worth the security guarantee.
-        var rewrittenRequest = RewriteRequestForceClose(headerBuf, totalRead, headersEnd, bodyStart);
+        var rewrittenRequest = RewriteRequestForceClose(headerBuf, totalRead, headersEnd, bodyStart, rewrittenBody);
         await upstream.WriteAsync(rewrittenRequest, ct).ConfigureAwait(false);
 
         // Bidirectional splice. We've forwarded the buffered head of the
@@ -291,12 +350,24 @@ public sealed class DockerSocketBroker : IAsyncDisposable
         // closes. As soon as upstream→client EOFs we cancel the client side
         // and dispose both streams. The client can't slip a second request
         // through onto an already-dead connection.
+        //
+        // When we already consumed the body during inspection (Phase 2 path),
+        // there's nothing left on the client side — skip the client→upstream
+        // task entirely. Otherwise the splice would block indefinitely on a
+        // socket the client has nothing more to write to.
         using var spliceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var clientToUpstream = clientStream.CopyToAsync(upstream, spliceCts.Token);
         var upstreamToClient = upstream.CopyToAsync(clientStream, spliceCts.Token);
+        Task? clientToUpstream = null;
+        if (!bodyAlreadyConsumed)
+        {
+          clientToUpstream = clientStream.CopyToAsync(upstream, spliceCts.Token);
+        }
         try
         {
-          await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+          if (clientToUpstream is not null)
+            await Task.WhenAny(clientToUpstream, upstreamToClient).ConfigureAwait(false);
+          else
+            await upstreamToClient.ConfigureAwait(false);
         }
         finally
         {
@@ -517,7 +588,7 @@ public sealed class DockerSocketBroker : IAsyncDisposable
   /// HTTP client uses bare LFs between headers, so we have to split on `\n`
   /// and trim trailing `\r` from each line, then re-emit canonical CRLF.
   /// </summary>
-  internal static byte[] RewriteRequestForceClose(byte[] buf, int totalRead, int headersEnd, int bodyStart)
+  internal static byte[] RewriteRequestForceClose(byte[] buf, int totalRead, int headersEnd, int bodyStart, byte[]? bodyOverride = null)
   {
     // headersEnd points at the first byte of the empty-line terminator.
     // bodyStart is headersEnd + terminatorLength (passed in from the caller).
@@ -526,8 +597,14 @@ public sealed class DockerSocketBroker : IAsyncDisposable
     // Split on \n then trim trailing \r — handles \r\n, bare \n, and mixed.
     var lines = headerSection.Split('\n');
 
-    var rebuilt = new StringBuilder(headerSection.Length + 32);
+    var rebuilt = new StringBuilder(headerSection.Length + 64);
     rebuilt.Append(lines[0].TrimEnd('\r')).Append("\r\n");
+
+    // When a body override is supplied (Phase 2 inspection rewrote the JSON)
+    // we also strip any existing Content-Length / Transfer-Encoding so the
+    // upstream daemon reads exactly the bytes we hand it. We append a fresh
+    // Content-Length below.
+    var hasBodyOverride = bodyOverride is not null;
 
     for (int i = 1; i < lines.Length; i++)
     {
@@ -539,13 +616,31 @@ public sealed class DockerSocketBroker : IAsyncDisposable
       if (line.StartsWith("Proxy-Connection:", StringComparison.OrdinalIgnoreCase)) continue;
       if (line.StartsWith("Keep-Alive:", StringComparison.OrdinalIgnoreCase)) continue;
 
+      if (hasBodyOverride)
+      {
+        if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)) continue;
+        if (line.StartsWith("Transfer-Encoding:", StringComparison.OrdinalIgnoreCase)) continue;
+      }
+
       rebuilt.Append(line).Append("\r\n");
     }
 
     rebuilt.Append("Connection: close\r\n");
+    if (hasBodyOverride)
+    {
+      rebuilt.Append("Content-Length: ").Append(bodyOverride!.Length).Append("\r\n");
+    }
     rebuilt.Append("\r\n");
 
     var newHeaderBytes = Encoding.ASCII.GetBytes(rebuilt.ToString());
+
+    if (hasBodyOverride)
+    {
+      var combinedOverride = new byte[newHeaderBytes.Length + bodyOverride!.Length];
+      Array.Copy(newHeaderBytes, 0, combinedOverride, 0, newHeaderBytes.Length);
+      Array.Copy(bodyOverride, 0, combinedOverride, newHeaderBytes.Length, bodyOverride.Length);
+      return combinedOverride;
+    }
 
     var bodyLen = Math.Max(0, totalRead - bodyStart);
 
@@ -578,6 +673,133 @@ public sealed class DockerSocketBroker : IAsyncDisposable
       }
     }
     return false;
+  }
+
+  // ─── Body inspection ────────────────────────────────────────────────────────
+
+  private readonly record struct CreateBodyOutcome(
+    bool Blocked,
+    string Reason,
+    byte[]? RewrittenBody,
+    bool FullyConsumed);
+
+  /// <summary>
+  /// Reads the full request body for POST /containers/create and runs it through
+  /// <see cref="DockerBrokerBodyInspector"/>. Returns:
+  ///   * Blocked: true → caller emits 403 and closes the connection.
+  ///   * RewrittenBody: non-null → caller forwards a request with this body and
+  ///     a recomputed Content-Length.
+  ///   * FullyConsumed: true → the client has nothing more to write, so the
+  ///     splice loop must skip the client→upstream half (otherwise it blocks
+  ///     on a socket the caller has already drained).
+  ///
+  /// Falls back to "allow without rewrite" when:
+  ///   * Content-Length is missing or unparseable
+  ///   * the body uses chunked transfer encoding (we don't dechunk yet)
+  ///   * the body is larger than <see cref="DockerBrokerBodyInspector.MaxInspectableBodyBytes"/>
+  ///
+  /// In each fallback case the request flows through unchanged. The endpoint
+  /// allowlist already gates which paths can be reached at all, so this is a
+  /// degraded-not-bypassed posture.
+  /// </summary>
+  private async Task<CreateBodyOutcome> ReadAndInspectCreateBodyAsync(
+    Stream clientStream,
+    byte[] headerBuf,
+    int totalRead,
+    int headersEnd,
+    int bodyStart,
+    CancellationToken ct)
+  {
+    var headerSection = Encoding.ASCII.GetString(headerBuf, 0, headersEnd);
+
+    // Bail on chunked — dechunking is complex enough to defer to a follow-up.
+    if (HeaderContains(headerSection, "Transfer-Encoding:", "chunked"))
+    {
+      DebugLogger.Log("DockerSocketBroker: skipping body inspection for chunked POST /containers/create");
+      return new CreateBodyOutcome(false, "skipped (chunked body)", null, false);
+    }
+
+    var contentLength = ParseContentLength(headerSection);
+    if (contentLength is null)
+    {
+      DebugLogger.Log("DockerSocketBroker: skipping body inspection — no Content-Length");
+      return new CreateBodyOutcome(false, "skipped (no Content-Length)", null, false);
+    }
+
+    if (contentLength.Value > DockerBrokerBodyInspector.MaxInspectableBodyBytes)
+    {
+      DebugLogger.Log($"DockerSocketBroker: skipping body inspection — body {contentLength.Value} exceeds inspection limit");
+      return new CreateBodyOutcome(false, "skipped (body too large)", null, false);
+    }
+
+    var totalBodyBytes = contentLength.Value;
+    var bodyBuffer = new byte[totalBodyBytes];
+
+    // Copy whatever the initial read already pulled past the header terminator.
+    var alreadyBuffered = Math.Max(0, totalRead - bodyStart);
+    if (alreadyBuffered > totalBodyBytes)
+    {
+      // The buffered region claims to extend past Content-Length. Trust the
+      // header and only copy the declared length — anything else would be a
+      // protocol violation we can't safely forward.
+      alreadyBuffered = totalBodyBytes;
+    }
+    if (alreadyBuffered > 0)
+    {
+      Array.Copy(headerBuf, bodyStart, bodyBuffer, 0, alreadyBuffered);
+    }
+
+    var remaining = totalBodyBytes - alreadyBuffered;
+    var offset = alreadyBuffered;
+    while (remaining > 0)
+    {
+      var n = await clientStream.ReadAsync(bodyBuffer.AsMemory(offset, remaining), ct).ConfigureAwait(false);
+      if (n <= 0)
+      {
+        // Client closed mid-body. Treat as a malformed request — block.
+        return new CreateBodyOutcome(true, "client closed during body read", null, true);
+      }
+      offset += n;
+      remaining -= n;
+    }
+
+    var result = DockerBrokerBodyInspector.Inspect(bodyBuffer, SiblingNetworkName, _config.BodyInspection);
+    if (!result.Allowed)
+    {
+      return new CreateBodyOutcome(true, result.Reason, null, true);
+    }
+
+    // Whether or not we mutated the body, we've now consumed every byte the
+    // client intended to send. The splice loop must skip the client→upstream
+    // half so it doesn't hang waiting for bytes that won't arrive.
+    return new CreateBodyOutcome(false, result.Reason, result.RewrittenBody ?? bodyBuffer, true);
+  }
+
+  private static bool HeaderContains(string headerSection, string headerName, string value)
+  {
+    foreach (var rawLine in headerSection.Split('\n'))
+    {
+      var line = rawLine.TrimEnd('\r');
+      if (line.StartsWith(headerName, StringComparison.OrdinalIgnoreCase) &&
+          line.Contains(value, StringComparison.OrdinalIgnoreCase))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static int? ParseContentLength(string headerSection)
+  {
+    foreach (var rawLine in headerSection.Split('\n'))
+    {
+      var line = rawLine.TrimEnd('\r');
+      if (!line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)) continue;
+      var value = line["Content-Length:".Length..].Trim();
+      if (int.TryParse(value, out var parsed) && parsed >= 0) return parsed;
+      return null;
+    }
+    return null;
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
