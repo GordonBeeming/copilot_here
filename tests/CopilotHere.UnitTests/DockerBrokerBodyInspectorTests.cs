@@ -115,6 +115,25 @@ public class DockerBrokerBodyInspectorTests
   }
 
   [Test]
+  [Arguments("/etc/passwd:/mnt/passwd")]
+  [Arguments("/etc/shadow:/mnt/shadow")]
+  [Arguments("/var/lib/docker:/mnt/docker")]
+  [Arguments("/var/run/docker.sock:/mnt/sock")]
+  [Arguments("/proc/self/mem:/mnt/mem")]
+  [Arguments("/sys/kernel:/mnt/sys")]
+  public async Task Rejects_SubpathsUnderForbiddenDirs(string bind)
+  {
+    // Regression for the IsForbiddenHostPath subpath bypass caught in PR #93
+    // review. Exact-match wasn't enough — anything UNDER a forbidden
+    // directory must also be denied or the entire allowlist is bypassable
+    // with `-v /etc/passwd:/mnt/passwd`.
+    var body = Bytes(Container(new JsonObject { ["Binds"] = ToArray(bind) }));
+    var result = DockerBrokerBodyInspector.Inspect(body, siblingNetworkName: null, PermissiveImages());
+    await Assert.That(result.Allowed).IsFalse();
+    await Assert.That(result.Reason).Contains("forbidden host path");
+  }
+
+  [Test]
   [Arguments("SYS_ADMIN")]
   [Arguments("CAP_SYS_ADMIN")]
   [Arguments("SYS_PTRACE")]

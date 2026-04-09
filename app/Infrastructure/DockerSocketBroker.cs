@@ -663,8 +663,16 @@ public sealed class DockerSocketBroker : IAsyncDisposable
   internal static bool LooksLikeHijack(byte[] buf, int headersEnd)
   {
     var headerSection = Encoding.ASCII.GetString(buf, 0, headersEnd);
-    foreach (var line in headerSection.Split("\r\n", StringSplitOptions.None))
+    // Split on bare \n then trim trailing \r — same approach as
+    // RewriteRequestForceClose. The previous strict "\r\n" split missed
+    // bare-LF terminators emitted by clients like Docker.DotNet's
+    // ManagedHandler, which would cause LooksLikeHijack to return false
+    // for a real Upgrade request, the broker to apply Connection: close,
+    // and exec/attach to break with the same class of bug as the original
+    // header-end-detection issue.
+    foreach (var rawLine in headerSection.Split('\n'))
     {
+      var line = rawLine.TrimEnd('\r');
       if (line.StartsWith("Upgrade:", StringComparison.OrdinalIgnoreCase)) return true;
       if (line.StartsWith("Connection:", StringComparison.OrdinalIgnoreCase) &&
           line.Contains("upgrade", StringComparison.OrdinalIgnoreCase))

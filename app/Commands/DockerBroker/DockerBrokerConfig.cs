@@ -69,15 +69,18 @@ public sealed class DockerBrokerBodyInspectionConfig
   public bool RejectDangerousCapabilities { get; set; } = true;
 
   /// <summary>
-  /// When non-empty, the broker rejects any POST /containers/create whose
-  /// Image field doesn't match one of these patterns. Glob syntax: '*'
-  /// matches any sequence of characters (including slashes), so
-  /// "mcr.microsoft.com/mssql/server:*" matches every tag of that image.
+  /// Strict whitelist for spawned sibling images. The broker rejects any
+  /// POST /containers/create whose Image field doesn't match one of these
+  /// patterns. Glob syntax: '*' matches any sequence of characters
+  /// (including slashes), so "mcr.microsoft.com/mssql/server:*" matches
+  /// every tag of that image.
   ///
-  /// Empty (default) disables image filtering — every image is allowed.
-  /// Users who know exactly what their workload spawns can enumerate them
-  /// here and get a meaningful additional layer of protection without
-  /// having to inspect every PR's Dockerfile by hand.
+  /// Empty (default) means NO sibling containers are allowed to spawn —
+  /// the safe posture for an AI agent is "name every image you trust,
+  /// deny everything else". Users who legitimately need to spawn
+  /// containers must enumerate the trusted patterns here (or via
+  /// `--add-docker-broker-image &lt;glob&gt;`); otherwise every Docker create
+  /// call is refused with a clear error.
   /// </summary>
   [JsonPropertyName("allowed_images")]
   public List<string> AllowedImages { get; set; } = [];

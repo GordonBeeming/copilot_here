@@ -295,9 +295,28 @@ public static class DockerBrokerBodyInspector
     if (string.IsNullOrEmpty(hostPath)) return false;
     var normalized = hostPath.TrimEnd('/');
     if (normalized.Length == 0) normalized = "/";
-    foreach (var forbidden in ForbiddenBindHostPaths)
+
+    foreach (var forbiddenPath in ForbiddenBindHostPaths)
     {
+      var forbidden = forbiddenPath.TrimEnd('/');
+      if (forbidden.Length == 0) forbidden = "/";
+
+      // Exact match: e.g. "/etc" itself, or the literal root "/".
       if (string.Equals(normalized, forbidden, StringComparison.Ordinal))
+        return true;
+
+      // The root entry "/" only blocks the literal root path. We don't
+      // want to treat it as "block every absolute path" because that
+      // would refuse harmless mounts like /tmp/work or /home/user/proj.
+      // The other entries in the deny list cover the actually-dangerous
+      // host directories.
+      if (forbidden == "/") continue;
+
+      // Subpath: "/etc/passwd" is under "/etc", "/var/lib/docker" is
+      // under "/var", etc. Without this check the previous exact-match
+      // logic was bypassable — `-v /etc/passwd:/mnt/passwd` would slip
+      // through despite "/etc" being on the deny list.
+      if (normalized.StartsWith(forbidden + "/", StringComparison.Ordinal))
         return true;
     }
     return false;
