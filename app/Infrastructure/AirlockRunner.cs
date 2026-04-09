@@ -72,8 +72,14 @@ public static class AirlockRunner
         DebugLogger.Log($"Using external network: {externalNetwork}");
     }
 
-    var appImage = ContainerRunner.IsAbsoluteImageReference(imageTag) ? imageTag : $"{ImagePrefix}:{imageTag}";
-    var proxyImage = $"{ImagePrefix}:proxy";
+    var appImage = ContainerRunner.GetImageName(imageTag);
+    // COPILOT_HERE_PROXY_IMAGE lets CI smoke tests point at an ephemeral
+    // proxy-st:<sha> tag that was just built in a previous job. Falls back
+    // to the canonical tag for normal use.
+    var proxyImage = Environment.GetEnvironmentVariable("COPILOT_HERE_PROXY_IMAGE")
+      is { Length: > 0 } overrideImage
+      ? overrideImage
+      : $"{ImagePrefix}:proxy";
 
     Console.WriteLine("🛡️  Starting in Airlock mode...");
     Console.WriteLine($"   App image: {appImage}");
@@ -86,6 +92,18 @@ public static class AirlockRunner
     var sessionId = GenerateSessionId();
     var projectName = $"{SystemInfo.GetCurrentDirectoryName()}-{sessionId}".ToLowerInvariant();
 
+    // Tell the broker which compose-network to inject as NetworkMode for any
+    // siblings the workload spawns. Docker prefixes user-defined networks
+    // with the compose project name, so the airlock network's real name is
+    // "{projectName}_airlock". With this set, body inspection in
+    // DockerSocketBroker will route Testcontainers / docker-run children onto
+    // the same internal-only network as the workload, keeping the airlock
+    // boundary intact and making the children reachable by Docker DNS.
+    if (broker is not null)
+    {
+      broker.SiblingNetworkName = $"{projectName}_airlock";
+    }
+
     // Get compose template from embedded resource
     var templateContent = GetEmbeddedTemplate();
     if (templateContent is null)
@@ -94,7 +112,10 @@ public static class AirlockRunner
       return 1;
     }
 
-    // Process network config with placeholders
+    // Process network config with placeholders. The workload no longer
+    // needs host.docker.internal in the airlock allowlist: it talks to
+    // tcp://proxy:2375 directly, and the proxy container forwards to the
+    // host broker via its own external network leg (see proxy-entrypoint.sh).
     var processedConfigPath = ProcessNetworkConfig(rulesPath, ctx.Paths);
     if (processedConfigPath is null)
     {
@@ -208,7 +229,7 @@ public static class AirlockRunner
           // Add default rules that don't conflict with user rules
           // Priority: user rules > default rules (user rules for same host override)
           var userHosts = new HashSet<string>(userConfig.AllowedRules.Select(r => r.Host), StringComparer.OrdinalIgnoreCase);
-          
+
           foreach (var defaultRule in defaultRules.AllowedRules)
           {
             if (!userHosts.Contains(defaultRule.Host))
@@ -303,12 +324,36 @@ public static class AirlockRunner
         extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
       }
 
-      // Build Docker broker substitutions: bind mount the host-side UDS, point
-      // DOCKER_HOST at it, and pin host.docker.internal so Testcontainers can
-      // reach the spawned siblings on the host. Empty when --dind is off.
+      // Build Docker broker substitutions for DinD on the airlock network.
+      //
+      // Two transport flavours depending on whether the host broker listens
+      // on a Unix socket (Linux) or TCP loopback (macOS / Windows):
+      //
+      //   * Linux native: bind-mount the host-side UDS into the workload
+      //     container at /var/run/docker.sock. Works on `internal: true`
+      //     networks because UDS doesn't use IP routing at all — the socket
+      //     file is local to the container's filesystem view.
+      //
+      //   * macOS / Windows (TCP loopback): the workload container can't
+      //     reach the host gateway directly because the airlock network is
+      //     internal-only. The airlock proxy container, however, IS already
+      //     dual-homed on the airlock network AND the external network. So
+      //     we extend the proxy image with socat (see proxy-entrypoint.sh)
+      //     and ask it to forward TCP from inside the airlock network to
+      //     the host's broker. Workload sets DOCKER_HOST=tcp://proxy:2375.
+      //     The host broker still enforces every Docker API rule — this is
+      //     just a layer-4 hop, no inspection.
+      //
+      // Keeping the bridge inside the proxy container (instead of a separate
+      // sidecar service) matches the architectural rule that airlock-only
+      // features should live in the airlock proxy image.
+      //
+      // All buffers below are empty when --dind is off.
       var brokerMount = new StringBuilder();
       var brokerEnv = new StringBuilder();
       var brokerExtraHosts = new StringBuilder();
+      var proxyBrokerEnv = new StringBuilder();
+      var proxyBrokerExtraHosts = new StringBuilder();
       if (broker is not null)
       {
         if (broker.UnixSocketPath is not null)
@@ -318,20 +363,23 @@ public static class AirlockRunner
         }
         else if (broker.BoundTcpEndpoint is not null)
         {
-          brokerEnv.AppendLine($"      - DOCKER_HOST=tcp://host.docker.internal:{broker.BoundTcpEndpoint.Port}");
+          var port = broker.BoundTcpEndpoint.Port;
+          brokerEnv.AppendLine("      - DOCKER_HOST=tcp://proxy:2375");
+          // Bypass the airlock HTTP proxy for the daemon connection. The
+          // docker CLI itself doesn't apply HTTP_PROXY to the daemon socket,
+          // but Docker.DotNet's ManagedHandler (Testcontainers .NET) might,
+          // and the airlock proxy would reject `proxy:2375` outright since
+          // it isn't in the host allowlist.
+          brokerEnv.AppendLine("      - NO_PROXY=proxy,localhost,127.0.0.1");
+          brokerEnv.AppendLine("      - no_proxy=proxy,localhost,127.0.0.1");
+          // Tell the proxy container to spin up its socat bridge pointed at
+          // the host broker, and give it a route to the host gateway.
+          proxyBrokerEnv.AppendLine("    environment:");
+          proxyBrokerEnv.Append($"      - BROKER_BRIDGE_TARGET=host.docker.internal:{port}");
+          proxyBrokerExtraHosts.AppendLine("    extra_hosts:");
+          proxyBrokerExtraHosts.Append("      - \"host.docker.internal:host-gateway\"");
         }
-        brokerEnv.AppendLine("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
-        // CRITICAL for airlock + DinD: the airlock template sets HTTP_PROXY /
-        // HTTPS_PROXY pointing at the airlock proxy, and HTTP clients (including
-        // Docker.DotNet's ManagedHandler used by Testcontainers .NET) will
-        // dutifully route every connection — including the one to our broker on
-        // host.docker.internal — through that proxy. The airlock proxy then
-        // rejects it with "Host not allowed" because host.docker.internal isn't
-        // in the network allowlist. NO_PROXY tells the HTTP client to bypass
-        // the airlock proxy for broker traffic, which is what we want — broker
-        // requests stay local to the host and never touch the airlock network.
-        brokerEnv.AppendLine("      - NO_PROXY=host.docker.internal,localhost,127.0.0.1");
-        brokerEnv.Append("      - no_proxy=host.docker.internal,localhost,127.0.0.1");
+        brokerEnv.Append("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
         brokerExtraHosts.Append("    extra_hosts:\n      - \"host.docker.internal:host-gateway\"");
       }
 
@@ -469,6 +517,20 @@ public static class AirlockRunner
         {
           if (brokerExtraHosts.Length > 0)
             lines[i] = brokerExtraHosts.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{PROXY_BROKER_ENV}}"))
+        {
+          if (proxyBrokerEnv.Length > 0)
+            lines[i] = proxyBrokerEnv.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{PROXY_BROKER_EXTRA_HOSTS}}"))
+        {
+          if (proxyBrokerExtraHosts.Length > 0)
+            lines[i] = proxyBrokerExtraHosts.ToString().TrimEnd();
           else
             lines.RemoveAt(i);
         }

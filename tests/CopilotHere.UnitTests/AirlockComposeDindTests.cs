@@ -129,5 +129,46 @@ public class AirlockComposeDindTests
     await Assert.That(content).DoesNotContain("{{DOCKER_BROKER_MOUNT}}");
     await Assert.That(content).DoesNotContain("{{DOCKER_BROKER_ENV}}");
     await Assert.That(content).DoesNotContain("{{DOCKER_BROKER_EXTRA_HOSTS}}");
+    await Assert.That(content).DoesNotContain("{{PROXY_BROKER_ENV}}");
+    await Assert.That(content).DoesNotContain("{{PROXY_BROKER_EXTRA_HOSTS}}");
+    // No proxy-side bridge for the UDS path — bind mount handles it directly.
+    await Assert.That(content).DoesNotContain("BROKER_BRIDGE_TARGET");
+  }
+
+  [Test]
+  public async Task GenerateComposeFile_WithTcpBroker_AddsProxySideBridgeAndDockerHost()
+  {
+    // The TCP path is what macOS / Windows / CI use. We can't actually bind
+    // a TCP listener inside a unit test reliably, but we can construct the
+    // broker object with a synthetic bound endpoint by reaching through the
+    // public ctor + StartAsync; we then immediately dispose the listener and
+    // pass the broker to GenerateComposeFile, which only reads BoundTcpEndpoint.
+    var brokerCfg = DockerBrokerConfig.CreateDefault(enabled: true);
+    await using var broker = new DockerSocketBroker(
+      brokerCfg,
+      "/var/run/docker.sock",
+      BrokerListenEndpoint.Tcp(System.Net.IPAddress.Loopback, 0));
+    await broker.StartAsync(CancellationToken.None);
+
+    var content = GenerateCompose(broker: broker);
+
+    var port = broker.BoundTcpEndpoint!.Port;
+
+    // Workload talks to the proxy directly over TCP — no host.docker.internal in DOCKER_HOST.
+    await Assert.That(content).Contains("DOCKER_HOST=tcp://proxy:2375");
+
+    // Proxy gets the bridge target env so its socat sidecar starts up.
+    await Assert.That(content).Contains($"BROKER_BRIDGE_TARGET=host.docker.internal:{port}");
+
+    // Proxy gets host.docker.internal:host-gateway so socat can resolve the host gateway.
+    // (The workload also gets it via brokerExtraHosts for Testcontainers reachability.)
+    await Assert.That(content).Contains("host.docker.internal:host-gateway");
+
+    // Workload bypasses the airlock HTTP proxy for the daemon socket.
+    await Assert.That(content).Contains("NO_PROXY=proxy,localhost,127.0.0.1");
+
+    // No raw placeholders left over.
+    await Assert.That(content).DoesNotContain("{{PROXY_BROKER_ENV}}");
+    await Assert.That(content).DoesNotContain("{{PROXY_BROKER_EXTRA_HOSTS}}");
   }
 }

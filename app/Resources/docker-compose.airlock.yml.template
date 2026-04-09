@@ -30,7 +30,8 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
-
+{{PROXY_BROKER_ENV}}
+{{PROXY_BROKER_EXTRA_HOSTS}}
   app:
     image: {{APP_IMAGE}}
     container_name: "{{PROJECT_NAME}}-app"
