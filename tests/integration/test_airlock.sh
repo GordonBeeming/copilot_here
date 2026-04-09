@@ -328,6 +328,19 @@ EOF
         gsub(/\{\{EXTRA_SANDBOX_FLAGS\}\}/, extra_sandbox_flags);
         gsub(/\{\{TOOL_ARGS\}\}/, copilot_args);
         gsub(/\{\{SESSION_INFO\}\}/, session_info);
+        # Brokered Docker socket placeholders (--dind feature). The integration
+        # test does not exercise --dind, so empty out the placeholders. The
+        # corresponding lines collapse to blank lines, which docker compose
+        # tolerates. NOTE: avoid apostrophes in comments inside this awk
+        # block — the surrounding shell single-quote will close on the
+        # apostrophe and the rest becomes bash, breaking the script.
+        gsub(/\{\{DOCKER_BROKER_ENV\}\}/, "");
+        gsub(/\{\{DOCKER_BROKER_MOUNT\}\}/, "");
+        gsub(/\{\{DOCKER_BROKER_EXTRA_HOSTS\}\}/, "");
+        # Proxy-side broker bridge placeholders (socat in proxy container).
+        # Same reasoning: integration test does not exercise --dind, empty them.
+        gsub(/\{\{PROXY_BROKER_ENV\}\}/, "");
+        gsub(/\{\{PROXY_BROKER_EXTRA_HOSTS\}\}/, "");
         print
       }' "$template_file" > "$COMPOSE_FILE"
   

@@ -56,6 +56,7 @@ All functions support switching between Docker image variants using flags:
 - **`-h` or `--help`** - Show usage help and examples
 - **`--no-cleanup`** - Skip cleanup of unused Docker images
 - **`--no-pull`** - Skip pulling the latest image
+- **`--dind`** *(beta)* - Enable brokered Docker socket access for Testcontainers and sibling-container workflows. See [Brokered Docker Socket](#-brokered-docker-socket-dind--beta) below.
 - **`--mount <path>`** - Mount a directory as read-only (supports `path` or `host:container` format)
 - **`--mount-rw <path>`** - Mount a directory as read-write (supports `path` or `host:container` format)
 - **`--save-mount <path>`** - Save a mount to local config
@@ -317,6 +318,72 @@ graph LR
 3.  **✅ The Controlled Exit:**
     Traffic can only leave the Airlock if it explicitly asks the Proxy to carry it. The Proxy inspects the destination against your allow-list and decides whether to let the request pass or block it.
 
+
+### 🐳 Brokered Docker Socket (DinD) (Beta)
+
+> 🧪 **Beta:** The brokered Docker socket is safer than mounting `/var/run/docker.sock` directly. Every Docker API call passes through a host-owned allowlist. Body-level inspection (rejecting `--privileged` and host bind mounts at request time) is the next phase. See [docs/known-issues.md](docs/known-issues.md#brokered-docker-socket-beta) for what's in scope today.
+
+The `--dind` flag lets the AI inside the container spawn sibling containers on the host's runtime. This unblocks Testcontainers integration tests, on-the-fly image builds, and any workflow where the agent needs `docker run`. The container never sees the real socket: a host-side broker inside the `copilot_here` binary forwards only the requests that match a JSON allowlist.
+
+**Why it's safer than mounting the socket directly:**
+
+- Every Docker API call passes through the host process. The host stays in control of which endpoints reach the daemon.
+- Dangerous endpoint families are denied by default: `swarm`, `services`, `tasks`, `nodes`, `secrets`, `configs`, `plugins`, `session`, `distribution`, `auth`, `events`.
+- The allowlist is configured per-project (`.copilot_here/docker-broker.json`) or globally (`~/.config/copilot_here/docker-broker.json`).
+- `enforce` mode blocks unmatched requests with a 403. `monitor` mode allows everything but logs each call to a JSONL file you can audit.
+
+**Quick start:**
+
+```bash
+# One-off session, using the embedded default rules.
+copilot_here --dind --dotnet -p "run the integration tests"
+
+# Persist to local project config.
+copilot_here --enable-docker-broker
+copilot_here --show-docker-broker-rules
+
+# Allow specific images to be spawned (the broker is strict default-deny).
+copilot_here --add-docker-broker-image 'mcr.microsoft.com/mssql/server:*'
+copilot_here --add-docker-broker-image 'testcontainers/ryuk:*'
+
+# Tweak the rules in $EDITOR.
+copilot_here --edit-docker-broker-rules
+```
+
+**Setup Commands:**
+
+- **`--enable-docker-broker`** - Enable the broker for current project
+- **`--enable-global-docker-broker`** - Enable the broker globally
+- **`--disable-docker-broker`** - Disable the broker for current project
+- **`--disable-global-docker-broker`** - Disable the broker globally
+
+**Trusted Image Commands:**
+
+- **`--add-docker-broker-image <pattern>`** - Add an image glob to the local trusted list (e.g. `'alpine:*'`)
+- **`--add-global-docker-broker-image <pattern>`** - Same, global config
+- **`--remove-docker-broker-image <pattern>`** - Remove an image glob from local
+- **`--remove-global-docker-broker-image <pattern>`** - Remove from global
+- **`--allow-privileged-docker-broker`** / **`--deny-privileged-docker-broker`** - Toggle whether spawned siblings may request `HostConfig.Privileged=true` (default: deny)
+- **`--allow-privileged-global-docker-broker`** / **`--deny-privileged-global-docker-broker`** - Same, global config
+
+**Management Commands:**
+
+- **`--show-docker-broker-rules`** - Display defaults plus the active local and global config
+- **`--edit-docker-broker-rules`** - Edit local rules in `$EDITOR`
+- **`--edit-global-docker-broker-rules`** - Edit global rules in `$EDITOR`
+
+**Modes:**
+
+| Mode | Behavior |
+|------|----------|
+| `enforce` (default) | Blocks any Docker API call that doesn't match the allowlist with a 403. |
+| `monitor` | Allows everything but logs each call to `.copilot_here/logs/docker-broker.jsonl` when `enable_logging: true`. |
+
+**Runtime support:** Docker, OrbStack (uses the standard `/var/run/docker.sock` on macOS, so no extra setup), Podman (rootless and rootful, detected via `podman info`). Set `DOCKER_HOST` if you need to override.
+
+**DinD with airlock:** Allowed, with a loud warning at startup. The broker inspects every `POST /containers/create` body, and in airlock mode it rewrites `HostConfig.NetworkMode` so spawned siblings land on the same internal-only airlock network as the workload. The workload then reaches them by Docker DNS instead of crossing the airlock boundary. This is still beta; check the known issues before relying on it for strict isolation.
+
+**Read this before turning it on:** the broker reads every `POST /containers/create` body and rejects unsafe settings: `Privileged: true`, host network/PID/IPC namespaces, forbidden bind mounts (`/`, `/etc`, `/var`, `/var/run/docker.sock`, and similar), and dangerous Linux capabilities (`SYS_ADMIN`, `SYS_MODULE`, and friends). It also enforces a strict default-deny image allowlist: every image the AI tries to spawn must match an explicit pattern in `body_inspection.allowed_images`, otherwise the call is refused. See [docs/known-issues.md](docs/known-issues.md#brokered-docker-socket-beta) for the remaining limitations and operational caveats.
 
 ### Package Managers
 

@@ -12,9 +12,16 @@ public static class ContainerRunner
   /// <summary>
   /// Gets the full image name for a given tag.
   /// If the tag contains a '/', it is treated as an absolute image reference and used as-is.
+  /// COPILOT_HERE_APP_IMAGE overrides the resolved image entirely (used by CI smoke
+  /// tests to point at ephemeral -st:&lt;sha&gt; tags built earlier in the workflow).
   /// </summary>
-  public static string GetImageName(string tag) =>
-    IsAbsoluteImageReference(tag) ? tag : $"{ImagePrefix}:{tag}";
+  public static string GetImageName(string tag)
+  {
+    var overrideImage = Environment.GetEnvironmentVariable("COPILOT_HERE_APP_IMAGE");
+    if (!string.IsNullOrEmpty(overrideImage))
+      return overrideImage;
+    return IsAbsoluteImageReference(tag) ? tag : $"{ImagePrefix}:{tag}";
+  }
 
   /// <summary>
   /// Determines whether a value is an absolute image reference (e.g., "myregistry.io/myimage:v1")

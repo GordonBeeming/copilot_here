@@ -2,47 +2,47 @@
   "images": {
     "default": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "lsp-typescript", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "lsp-typescript", "copilot-cli", "entrypoint"]
     },
     "dotnet": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
     },
     "dotnet-8": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "lsp-typescript", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "lsp-typescript", "copilot-cli", "entrypoint"]
     },
     "dotnet-9": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet9", "lsp-typescript", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet9", "lsp-typescript", "copilot-cli", "entrypoint"]
     },
     "dotnet-10": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet10", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet10", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
     },
     "playwright": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "playwright", "lsp-typescript", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "playwright", "lsp-typescript", "copilot-cli", "entrypoint"]
     },
     "rust": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "rust", "lsp-typescript", "lsp-rust", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "rust", "lsp-typescript", "lsp-rust", "copilot-cli", "entrypoint"]
     },
     "golang": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "golang", "lsp-typescript", "lsp-golang", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "golang", "lsp-typescript", "lsp-golang", "copilot-cli", "entrypoint"]
     },
     "dotnet-playwright": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "playwright", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "playwright", "lsp-typescript", "lsp-csharp", "copilot-cli", "entrypoint"]
     },
     "dotnet-rust": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "rust", "lsp-typescript", "lsp-csharp", "lsp-rust", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "rust", "lsp-typescript", "lsp-csharp", "lsp-rust", "copilot-cli", "entrypoint"]
     },
     "java": {
       "base": "node:20-slim",
-      "snippets": ["system-packages", "powershell", "java", "lsp-typescript", "lsp-java", "copilot-cli", "entrypoint"]
+      "snippets": ["system-packages", "docker-cli", "powershell", "java", "lsp-typescript", "lsp-java", "copilot-cli", "entrypoint"]
     }
   }
 }

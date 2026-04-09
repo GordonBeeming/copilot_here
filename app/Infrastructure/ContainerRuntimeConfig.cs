@@ -331,6 +331,136 @@ public sealed record ContainerRuntimeConfig
 
     return runtimes;
   }
+
+  /// <summary>
+  /// Resolves the host's Docker-compatible API socket for this runtime, used by
+  /// the brokered Docker socket feature (--dind).
+  ///
+  /// Resolution order:
+  ///   1. $DOCKER_HOST env var (universal override; unix:// or named-pipe forms accepted).
+  ///   2. Per-runtime defaults:
+  ///      - docker / OrbStack: /var/run/docker.sock on Unix, \\.\pipe\docker_engine on Windows.
+  ///      - podman: query `podman info --format '{{.Host.RemoteSocket.Path}}'`,
+  ///                falling back to $XDG_RUNTIME_DIR/podman/podman.sock (rootless)
+  ///                or /var/run/podman/podman.sock (rootful).
+  ///
+  /// Returns null when no usable socket is found, so the caller can produce a
+  /// friendly error explaining how to set DOCKER_HOST.
+  /// </summary>
+  public string? ResolveHostRuntimeSocket()
+  {
+    // 1. DOCKER_HOST environment override.
+    var dockerHost = Environment.GetEnvironmentVariable("DOCKER_HOST");
+    if (!string.IsNullOrWhiteSpace(dockerHost))
+    {
+      var resolved = ParseDockerHost(dockerHost);
+      if (resolved is not null && SocketPathExists(resolved))
+      {
+        return resolved;
+      }
+    }
+
+    // 2. Per-runtime defaults.
+    var normalized = Runtime.ToLowerInvariant();
+    if (normalized == "docker")
+    {
+      var path = OperatingSystem.IsWindows()
+        ? @"\\.\pipe\docker_engine"
+        : "/var/run/docker.sock";
+      return SocketPathExists(path) ? path : null;
+    }
+    if (normalized == "podman")
+    {
+      // Ask podman where its socket lives — covers macOS Podman Machine, rootless,
+      // and rootful in one shot.
+      var fromCli = TryGetPodmanSocketFromCli();
+      if (!string.IsNullOrEmpty(fromCli) && SocketPathExists(fromCli))
+      {
+        return fromCli;
+      }
+
+      // Fall back to conventional rootless and rootful paths.
+      var xdgRuntime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+      if (!string.IsNullOrEmpty(xdgRuntime))
+      {
+        var rootless = Path.Combine(xdgRuntime, "podman", "podman.sock");
+        if (SocketPathExists(rootless)) return rootless;
+      }
+
+      const string rootful = "/var/run/podman/podman.sock";
+      if (SocketPathExists(rootful)) return rootful;
+    }
+
+    return null;
+  }
+
+  private static string? ParseDockerHost(string value)
+  {
+    var trimmed = value.Trim();
+    if (trimmed.StartsWith("unix://", StringComparison.OrdinalIgnoreCase))
+    {
+      return trimmed["unix://".Length..];
+    }
+    if (trimmed.StartsWith("npipe://", StringComparison.OrdinalIgnoreCase))
+    {
+      return trimmed["npipe://".Length..];
+    }
+    if (trimmed.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+    {
+      // The broker doesn't speak TCP upstream in v1.
+      return null;
+    }
+    if (trimmed.StartsWith("/") || trimmed.StartsWith(@"\\"))
+    {
+      return trimmed;
+    }
+    return null;
+  }
+
+  private static bool SocketPathExists(string path)
+  {
+    if (string.IsNullOrEmpty(path)) return false;
+    if (path.StartsWith(@"\\.\pipe\", StringComparison.Ordinal))
+    {
+      // Named pipes don't show up via File.Exists. Listing the pipe directory and
+      // checking for the name is the documented way to test for a named pipe on Windows.
+      try
+      {
+        var pipeName = path[@"\\.\pipe\".Length..];
+        return Directory.GetFiles(@"\\.\pipe\").Any(p => string.Equals(Path.GetFileName(p), pipeName, StringComparison.OrdinalIgnoreCase));
+      }
+      catch
+      {
+        // If we can't enumerate, assume it exists and let the actual connect attempt fail noisily.
+        return true;
+      }
+    }
+    return File.Exists(path);
+  }
+
+  private static string? TryGetPodmanSocketFromCli()
+  {
+    try
+    {
+      var startInfo = new ProcessStartInfo("podman", "info --format {{.Host.RemoteSocket.Path}}")
+      {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      using var process = Process.Start(startInfo);
+      if (process is null) return null;
+
+      var output = process.StandardOutput.ReadToEnd().Trim();
+      process.WaitForExit();
+      return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+    }
+    catch
+    {
+      return null;
+    }
+  }
 }
 
 /// <summary>

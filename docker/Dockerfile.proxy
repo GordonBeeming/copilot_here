@@ -31,9 +31,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Runtime stage - minimal Alpine
 FROM alpine:3.21
 
-# Install only essential runtime dependencies
-# curl is needed for healthcheck
-RUN apk add --no-cache ca-certificates su-exec curl
+# Install only essential runtime dependencies.
+# - curl: healthcheck endpoint
+# - socat: optional Docker broker bridge for --dind in airlock mode
+#   (forwards TCP from the airlock network to the host's broker, since the
+#   airlock network is internal: true and workload containers can't reach
+#   host.docker.internal directly). Started by proxy-entrypoint.sh when
+#   BROKER_BRIDGE_TARGET is set in the environment.
+RUN apk add --no-cache ca-certificates su-exec curl socat
 
 # Create proxy user
 RUN addgroup -S proxy-user && adduser -S -G proxy-user -h /app proxy-user
