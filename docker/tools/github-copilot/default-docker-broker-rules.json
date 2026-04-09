@@ -3,6 +3,13 @@
   "inherit_default_rules": true,
   "mode": "enforce",
   "enable_logging": false,
+  "body_inspection": {
+    "reject_privileged": true,
+    "reject_host_namespaces": true,
+    "reject_forbidden_binds": true,
+    "reject_dangerous_capabilities": true,
+    "allowed_images": []
+  },
   "allowed_endpoints": [
     { "method": "GET",    "path": "/_ping" },
     { "method": "HEAD",   "path": "/_ping" },

@@ -146,6 +146,91 @@ public static class DockerBrokerConfigLoader
   /// <summary>Disables broker in global config.</summary>
   public static void DisableGlobal(AppPaths paths) => SetEnabledInJson(paths.GetGlobalPath(RulesFileName), false);
 
+  /// <summary>
+  /// Adds an image glob pattern to the local config's allowed_images list.
+  /// Idempotent — duplicates are not added. Creates the file from the clean
+  /// overlay shape (empty endpoints, inherit defaults) if it doesn't exist.
+  /// </summary>
+  public static bool AddImageLocal(AppPaths paths, string pattern) =>
+    AddImageInJson(paths.GetLocalPath(RulesFileName), pattern);
+
+  /// <summary>Same as <see cref="AddImageLocal"/> but for the global config file.</summary>
+  public static bool AddImageGlobal(AppPaths paths, string pattern) =>
+    AddImageInJson(paths.GetGlobalPath(RulesFileName), pattern);
+
+  /// <summary>Removes an image glob pattern from the local config's allowed_images list.</summary>
+  public static bool RemoveImageLocal(AppPaths paths, string pattern) =>
+    RemoveImageInJson(paths.GetLocalPath(RulesFileName), pattern);
+
+  /// <summary>Removes an image glob pattern from the global config's allowed_images list.</summary>
+  public static bool RemoveImageGlobal(AppPaths paths, string pattern) =>
+    RemoveImageInJson(paths.GetGlobalPath(RulesFileName), pattern);
+
+  /// <summary>
+  /// Sets the body_inspection.reject_privileged toggle on the local config.
+  /// Creates the file as a clean overlay if it doesn't exist.
+  /// </summary>
+  public static void SetRejectPrivilegedLocal(AppPaths paths, bool reject) =>
+    SetRejectPrivilegedInJson(paths.GetLocalPath(RulesFileName), reject);
+
+  /// <summary>Same as <see cref="SetRejectPrivilegedLocal"/> for the global config file.</summary>
+  public static void SetRejectPrivilegedGlobal(AppPaths paths, bool reject) =>
+    SetRejectPrivilegedInJson(paths.GetGlobalPath(RulesFileName), reject);
+
+  private static DockerBrokerConfig LoadOrCreateOverlay(string path)
+  {
+    if (File.Exists(path))
+    {
+      return ReadConfig(path) ?? CreateOverlay(enabled: true);
+    }
+    return CreateOverlay(enabled: true);
+  }
+
+  private static DockerBrokerConfig CreateOverlay(bool enabled) => new()
+  {
+    Enabled = enabled,
+    EnableLogging = false,
+    InheritDefaultRules = true,
+    Mode = "enforce",
+    AllowedEndpoints = [],
+    BodyInspection = new DockerBrokerBodyInspectionConfig()
+  };
+
+  private static bool AddImageInJson(string path, string pattern)
+  {
+    var config = LoadOrCreateOverlay(path);
+    config.BodyInspection ??= new DockerBrokerBodyInspectionConfig();
+    if (config.BodyInspection.AllowedImages.Contains(pattern, StringComparer.Ordinal))
+    {
+      return false;
+    }
+    config.BodyInspection.AllowedImages.Add(pattern);
+    WriteConfig(path, config);
+    return true;
+  }
+
+  private static bool RemoveImageInJson(string path, string pattern)
+  {
+    if (!File.Exists(path)) return false;
+    var config = ReadConfig(path);
+    if (config?.BodyInspection?.AllowedImages is null) return false;
+    var removed = config.BodyInspection.AllowedImages.RemoveAll(p => string.Equals(p, pattern, StringComparison.Ordinal));
+    if (removed > 0)
+    {
+      WriteConfig(path, config);
+      return true;
+    }
+    return false;
+  }
+
+  private static void SetRejectPrivilegedInJson(string path, bool reject)
+  {
+    var config = LoadOrCreateOverlay(path);
+    config.BodyInspection ??= new DockerBrokerBodyInspectionConfig();
+    config.BodyInspection.RejectPrivileged = reject;
+    WriteConfig(path, config);
+  }
+
   private static void SetEnabledInJson(string path, bool enabled)
   {
     DockerBrokerConfig config;
@@ -156,9 +241,18 @@ public static class DockerBrokerConfigLoader
     }
     else
     {
-      // Seed from embedded defaults so users get a useful starting allowlist.
-      config = LoadDefaultRules() ?? DockerBrokerConfig.CreateDefault(enabled);
-      config.Enabled = enabled;
+      // Seed a clean overlay: empty allowed_endpoints + inherit_default_rules=true.
+      // The user gets a minimal file they can extend without having to delete
+      // every default they don't want to maintain. The embedded defaults still
+      // apply at runtime via inheritance.
+      config = new DockerBrokerConfig
+      {
+        Enabled = enabled,
+        EnableLogging = false,
+        InheritDefaultRules = true,
+        Mode = "enforce",
+        AllowedEndpoints = []
+      };
     }
 
     WriteConfig(path, config);

@@ -18,5 +18,13 @@ public sealed partial class DockerBrokerCommands : ICommand
     root.Add(SetShowDockerBrokerRulesCommand());
     root.Add(SetEditDockerBrokerRulesCommand());
     root.Add(SetEditGlobalDockerBrokerRulesCommand());
+    root.Add(SetAddDockerBrokerImageCommand());
+    root.Add(SetAddGlobalDockerBrokerImageCommand());
+    root.Add(SetRemoveDockerBrokerImageCommand());
+    root.Add(SetRemoveGlobalDockerBrokerImageCommand());
+    root.Add(SetAllowPrivilegedDockerBrokerCommand());
+    root.Add(SetDenyPrivilegedDockerBrokerCommand());
+    root.Add(SetAllowPrivilegedGlobalDockerBrokerCommand());
+    root.Add(SetDenyPrivilegedGlobalDockerBrokerCommand());
   }
 }

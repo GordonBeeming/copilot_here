@@ -119,8 +119,12 @@ public class DockerBrokerConfigTests
   }
 
   [Test]
-  public async Task EnableLocal_CreatesFileFromDefaults()
+  public async Task EnableLocal_CreatesCleanOverlayInheritingDefaults()
   {
+    // The created file should be a minimal overlay: empty AllowedEndpoints +
+    // InheritDefaultRules=true. Users get a clean layer to extend without
+    // having to delete every default they don't want to maintain — the
+    // embedded defaults still apply at runtime via the inheritance merge.
     DockerBrokerConfigLoader.EnableLocal(_paths);
     var localPath = _paths.GetLocalPath("docker-broker.json");
     await Assert.That(File.Exists(localPath)).IsTrue();
@@ -128,7 +132,12 @@ public class DockerBrokerConfigTests
     var cfg = DockerBrokerConfigLoader.ReadConfig(localPath);
     await Assert.That(cfg).IsNotNull();
     await Assert.That(cfg!.Enabled).IsTrue();
-    await Assert.That(cfg.AllowedEndpoints.Count).IsGreaterThan(0);
+    await Assert.That(cfg.InheritDefaultRules).IsTrue();
+    await Assert.That(cfg.AllowedEndpoints.Count).IsEqualTo(0);
+
+    // And the effective config still includes the embedded defaults.
+    var effective = DockerBrokerConfigLoader.LoadEffective(_paths, out _);
+    await Assert.That(effective.AllowedEndpoints.Count).IsGreaterThan(20);
   }
 
   [Test]
