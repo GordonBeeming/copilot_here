@@ -1,4 +1,5 @@
 using CopilotHere.Commands.Airlock;
+using CopilotHere.Commands.DockerBroker;
 using CopilotHere.Commands.Images;
 using CopilotHere.Commands.Model;
 using CopilotHere.Commands.Mounts;
@@ -35,6 +36,16 @@ public sealed record AppContext
   /// <summary>Container runtime configuration (loaded from config files or auto-detected).</summary>
   public required ContainerRuntimeConfig RuntimeConfig { get; init; }
 
+  /// <summary>
+  /// Whether the brokered Docker socket is enabled via persisted config
+  /// (~/.config/copilot_here/docker-broker.json or .copilot_here/docker-broker.json).
+  /// The CLI --dind flag is an additional way to enable it for one session.
+  /// </summary>
+  public required bool DockerBrokerEnabled { get; init; }
+
+  /// <summary>Source of the persisted broker enabled flag (for banner messages).</summary>
+  public required DockerBrokerConfigSource DockerBrokerSource { get; init; }
+
   /// <summary>Creates an AppContext with all state resolved and configs loaded.</summary>
   /// <param name="toolOverride">Optional tool name to override config (from CLI --tool argument)</param>
   public static AppContext Create(string? toolOverride = null)
@@ -50,6 +61,8 @@ public sealed record AppContext
     var toolName = toolOverride ?? GetToolFromConfig(paths) ?? "github-copilot";
     var tool = ToolRegistry.Exists(toolName) ? ToolRegistry.Get(toolName) : ToolRegistry.GetDefault();
 
+    var (brokerEnabled, _, brokerSource) = DockerBrokerConfigLoader.LoadEnabledFlag(paths);
+
     return new AppContext
     {
       Paths = paths,
@@ -59,7 +72,9 @@ public sealed record AppContext
       ModelConfig = ModelConfig.Load(paths),
       MountsConfig = MountsConfig.Load(paths),
       AirlockConfig = AirlockConfig.Load(paths),
-      RuntimeConfig = ContainerRuntimeConfig.Load(paths)
+      RuntimeConfig = ContainerRuntimeConfig.Load(paths),
+      DockerBrokerEnabled = brokerEnabled,
+      DockerBrokerSource = brokerSource
     };
   }
 

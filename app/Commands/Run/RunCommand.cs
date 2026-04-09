@@ -550,8 +550,12 @@ public sealed class RunCommand : ICommand
       // Spin up the brokered Docker socket if requested.
       // The broker lives in this host process; the workload container talks to a
       // session-unique UDS (or TCP loopback on Windows) that we mount in below.
+      // Honor the persisted broker config so users who ran --enable-docker-broker
+      // once don't need to pass --dind on every invocation. The CLI flag remains
+      // a one-shot opt-in for sessions where no config file exists.
+      var brokerActive = dind || ctx.DockerBrokerEnabled;
       DockerSocketBroker? broker = null;
-      if (dind)
+      if (brokerActive)
       {
         broker = StartDockerBroker(ctx, airlock: ctx.AirlockConfig.Enabled);
         if (broker is null)
@@ -710,6 +714,23 @@ public sealed class RunCommand : ICommand
       Console.WriteLine($"   Listen:   {broker.BoundTcpEndpoint}");
     }
     Console.WriteLine("   The host process brokers every Docker API call. Inspect with --show-docker-broker-rules.");
+
+    // Surface the image-allowlist posture. The defaults ship with an empty
+    // list, which means EVERY image the AI asks for can be spawned (subject
+    // to the other policy toggles). For real production use, users should
+    // enumerate the images they expect — that turns "trust whatever the AI
+    // wants" into "trust this exact set". The warning is loud on purpose.
+    var imageCount = brokerCfg.BodyInspection?.AllowedImages?.Count ?? 0;
+    if (imageCount == 0)
+    {
+      Console.WriteLine();
+      Console.WriteLine("⚠️  No trusted images configured — NO sibling containers can be spawned.");
+      Console.WriteLine("   Add patterns with --add-docker-broker-image '<glob>' (e.g. 'mcr.microsoft.com/mssql/server:*').");
+    }
+    else
+    {
+      Console.WriteLine($"   Trusted images: {imageCount} pattern(s) — only matching images may be spawned.");
+    }
 
     if (airlock)
     {
