@@ -567,6 +567,48 @@ jobs:
         working-directory: tests/CopilotHere.IntegrationTests
         run: dotnet run --configuration Release
 
+  # Full airlock + DinD smoke test. Spins up a real airlock compose project,
+  # points the workload at the broker via the proxy bridge, and verifies that
+  # spawned siblings get the airlock NetworkMode injected via Phase 2 body
+  # inspection. This is the unblocker test from issue #20.
+  #
+  # Builds the proxy + default app images LOCALLY via dev-build.sh so the job
+  # can run on every PR without depending on the published ghcr tags (which
+  # are main-only). On the order of ~5 minutes for the image build, plus
+  # ~30 seconds for the test itself.
+  integration-tests-airlock:
+    name: Integration Tests (Airlock)
+    needs: [test-cli]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Pre-pull alpine (sibling target)
+        run: docker pull alpine:3.21
+
+      - name: Build proxy + default app images locally
+        run: |
+          chmod +x ./dev-build.sh
+          ./dev-build.sh
+
+      - name: Run integration tests (airlock + dind)
+        env:
+          RUN_LIVE_DOCKER_TESTS: "1"
+          # dev-build.sh tags the proxy as :proxy and the default app image
+          # as :latest / :copilot-latest. Point the smoke test at those
+          # local tags via the override env vars (the test skips when both
+          # are unset to avoid running against random pulls).
+          COPILOT_HERE_PROXY_IMAGE: ghcr.io/gordonbeeming/copilot_here:proxy
+          COPILOT_HERE_APP_IMAGE: ghcr.io/gordonbeeming/copilot_here:latest
+        working-directory: tests/CopilotHere.IntegrationTests
+        run: dotnet run --configuration Release
+
   # Compute version from VERSION file + run number as revision
   compute-version:
     name: Compute Version

@@ -61,10 +61,16 @@ public class AirlockSmokeTests
     var projectName = $"copilot-airlock-it-{sessionId}";
     var logPath = Path.Combine(Path.GetTempPath(), $"airlock-broker-{sessionId}.jsonl");
 
+    // Bind to IPAddress.Any so the proxy container's socat bridge can reach
+    // the broker. The proxy container resolves host.docker.internal via
+    // host-gateway, which on Linux runners points at the docker bridge IP
+    // (e.g. 172.17.0.1) — a loopback-only listener can't accept connections
+    // from there. macOS / OrbStack would route loopback magically, Linux CI
+    // does not. Same fix as BrokerSmokeTests.
     await using var broker = new DockerSocketBroker(
       rules,
       hostSocket,
-      BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0),
+      BrokerListenEndpoint.Tcp(IPAddress.Any, 0),
       logPath);
     await broker.StartAsync(CancellationToken.None);
 
