@@ -5,7 +5,7 @@ This document lists known issues and limitations. Click the issue title for full
 | Issue | OS | Shell/Terminal | Fix Planned? |
 |-------|----|----|-------------|
 | Brokered Docker socket: chunked-body create requests skip inspection | All | - | Yes |
-| Brokered Docker socket: DinD + airlock mode — Testcontainers cannot reach sibling containers | macOS, Windows | - | Investigating |
+| [Brokered Docker socket: DinD + airlock mode — Testcontainers cannot reach sibling containers](https://github.com/GordonBeeming/copilot_here/issues/101) | macOS, Windows | - | Investigating |
 | Brokered Docker socket: Windows host is best-effort | Windows | - | Investigating |
 
 ## Brokered Docker socket (beta)
