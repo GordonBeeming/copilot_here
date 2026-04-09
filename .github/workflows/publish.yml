@@ -523,50 +523,6 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-${{ matrix.image }},mode=max
           cache-to: type=inline
 
-  # Full airlock + DinD smoke test using the freshly published proxy and
-  # default app images. This is the unblocker test from issue #20: it spins
-  # up a real airlock compose project, points the workload at the broker via
-  # the proxy bridge, and verifies that spawned siblings get the airlock
-  # NetworkMode injected via Phase 2 body inspection.
-  #
-  # Only runs on main because it depends on build-proxy and build-images
-  # having pushed the canonical sha-tagged images. PRs are covered by the
-  # cheaper integration-tests-broker job above.
-  integration-tests-airlock:
-    name: Integration Tests (Airlock)
-    needs: [build-proxy, build-images, prepare-versions]
-    runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          global-json-file: global.json
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pre-pull test images
-        run: |
-          docker pull alpine:3.21
-          docker pull ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:proxy-sha-${{ github.sha }}
-          docker pull ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-default-sha-${{ github.sha }}
-
-      - name: Run integration tests (airlock + dind)
-        env:
-          RUN_LIVE_DOCKER_TESTS: "1"
-          COPILOT_HERE_PROXY_IMAGE: ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:proxy-sha-${{ github.sha }}
-          COPILOT_HERE_APP_IMAGE: ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-default-sha-${{ github.sha }}
-        working-directory: tests/CopilotHere.IntegrationTests
-        run: dotnet run --configuration Release
-
   # Full airlock + DinD smoke test. Spins up a real airlock compose project,
   # points the workload at the broker via the proxy bridge, and verifies that
   # spawned siblings get the airlock NetworkMode injected via Phase 2 body
