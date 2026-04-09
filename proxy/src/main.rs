@@ -97,6 +97,18 @@ fn log_traffic(config: &Config, action: &str, host: &str, path: &str, method: &s
 // Security Check
 // ============================================================================
 
+/// Normalize a hostname for comparison: hostnames are case-insensitive per
+/// RFC 1035 §2.3.3, and DNS allows a trailing dot for fully-qualified names
+/// (e.g. `api.github.com.`) which is semantically identical to the bare form.
+/// Without normalization, a request to `API.GITHUB.COM` or `api.github.com.`
+/// fails to match an allowlisted `api.github.com` and gets rejected with a
+/// confusing `Host Not Allowed`. Lowercase + strip a single trailing `.`
+/// matches what every browser, curl, and the DNS spec do.
+fn normalize_host(host: &str) -> String {
+    let trimmed = host.strip_suffix('.').unwrap_or(host);
+    trimmed.to_ascii_lowercase()
+}
+
 /// Check if a host is allowed and whether insecure is permitted (for CONNECT-level checks, ignores path rules)
 fn check_host_allowed(config: &Config, host: &str) -> (bool, String, bool) {
     if config.mode != "enforce" {
@@ -108,7 +120,15 @@ fn check_host_allowed(config: &Config, host: &str) -> (bool, String, bool) {
     // surprising blocks: a broad parent-domain rule would shadow a more
     // specific subdomain rule listed later in the file. Each subdomain must
     // be allowlisted explicitly.
-    let host_rule = config.allowed_rules.iter().find(|rule| host == rule.host);
+    //
+    // Both sides are normalized (lowercase + strip trailing dot) so the
+    // exact-match comparison still does the right thing for clients that
+    // hand us `API.GITHUB.COM` or `api.github.com.`.
+    let normalized_host = normalize_host(host);
+    let host_rule = config
+        .allowed_rules
+        .iter()
+        .find(|rule| normalize_host(&rule.host) == normalized_host);
 
     match host_rule {
         None => (false, "Host Not Allowed".to_string(), false),
@@ -123,7 +143,12 @@ fn check_request(config: &Config, host: &str, path: &str) -> (bool, String) {
     }
 
     // Strict exact-host match only — see check_host_allowed for rationale.
-    let host_rule = config.allowed_rules.iter().find(|rule| host == rule.host);
+    // Both sides normalized so case and trailing dot don't matter.
+    let normalized_host = normalize_host(host);
+    let host_rule = config
+        .allowed_rules
+        .iter()
+        .find(|rule| normalize_host(&rule.host) == normalized_host);
 
     // Strip the query string before path matching. The HTTP request target
     // can be `/copilot_internal/user?api-version=1`, and rules are written
