@@ -416,7 +416,7 @@ A reasonable question once you've seen [Docker Sandboxes (`sbx`)](https://docs.d
 **Reach for `copilot_here` when:**
 
 - You're focused on the GitHub Copilot CLI today and want tight, Copilot-shaped default network rules rather than broad wildcards. (Other agents are on the roadmap; the scaffolding is in the repo.)
-- You want a small, auditable, open-source sandbox you can fork and tighten further. The Rust proxy lives in [`proxy/`](proxy/) and the broker lives in [`app/Infrastructure/DockerBroker*.cs`](app/Infrastructure/).
+- You want a small, auditable, open-source sandbox you can fork and tighten further. The Rust proxy lives in [`proxy/`](proxy/) and the broker lives in [`DockerSocketBroker.cs`](app/Infrastructure/DockerSocketBroker.cs) and [`DockerBrokerBodyInspector.cs`](app/Infrastructure/DockerBrokerBodyInspector.cs).
 - You want ephemeral, per-run containers that reuse the host `gh` auth rather than long-lived sandbox state.
 - You want explicit per-folder opt-in for anything *beyond* the project dir. Extra mounts default to read-only unless you pass `--mount-rw`.
 - Your container runtime is Podman, rootless Podman, or OrbStack, and you'd rather not install a Docker-authored CLI. `copilot_here` auto-detects Docker, OrbStack, and Podman, and `--set-runtime` pins your choice.

@@ -1,5 +1,5 @@
 # copilot_here shell functions
-# Version: 2026.03.30
+# Version: 2026.04.20
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Configuration
