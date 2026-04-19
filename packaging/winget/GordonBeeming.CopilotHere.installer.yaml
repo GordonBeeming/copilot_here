@@ -1,5 +1,5 @@
 PackageIdentifier: GordonBeeming.CopilotHere
-PackageVersion: 2026.04.09
+PackageVersion: 2026.04.20
 Installers:
   - Architecture: x64
     InstallerType: zip

@@ -16,6 +16,8 @@ The `copilot_here` shell function is a lightweight wrapper around a Docker conta
 - **Persists its configuration**, so it remembers which folders you've trusted across sessions.
 - **Stays up-to-date** by automatically pulling the latest image version on every run.
 
+> Already seen Docker's `sbx`? Jump to [copilot_here vs Docker Sandboxes](#-copilot_here-vs-docker-sandboxes) for the side-by-side.
+
 ## ✅ Prerequisites
 
 Before you start, make sure you have the following installed and configured on your machine:
@@ -384,6 +386,53 @@ copilot_here --edit-docker-broker-rules
 **DinD with airlock:** Allowed, with a loud warning at startup. The broker inspects every `POST /containers/create` body, and in airlock mode it rewrites `HostConfig.NetworkMode` so spawned siblings land on the same internal-only airlock network as the workload. The workload then reaches them by Docker DNS instead of crossing the airlock boundary. This is still beta; check the known issues before relying on it for strict isolation.
 
 **Read this before turning it on:** the broker reads every `POST /containers/create` body and rejects unsafe settings: `Privileged: true`, host network/PID/IPC namespaces, forbidden bind mounts (`/`, `/etc`, `/var`, `/var/run/docker.sock`, and similar), and dangerous Linux capabilities (`SYS_ADMIN`, `SYS_MODULE`, and friends). It also enforces a strict default-deny image allowlist: every image the AI tries to spawn must match an explicit pattern in `body_inspection.allowed_images`, otherwise the call is refused. See [docs/known-issues.md](docs/known-issues.md#brokered-docker-socket-beta) for the remaining limitations and operational caveats.
+
+### 🧭 copilot_here vs Docker Sandboxes
+
+A reasonable question once you've seen [Docker Sandboxes (`sbx`)](https://docs.docker.com/ai/sandboxes/): *which one do I actually pick?* Short answer: both are good, they're tuned for different situations, and they can sit on the same machine without stepping on each other.
+
+#### 📋 The facts
+
+|                       | `copilot_here`                                                                                                   | Docker Sandboxes (`sbx`)                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Isolation model       | Container on your existing runtime (shared kernel)                                                               | microVM per sandbox (its own kernel)                                                  |
+| Container runtime     | Docker, OrbStack, Podman (rootless and rootful), auto-detected                                                   | Docker-authored CLI, ships with its own microVM stack                                 |
+| Workspace mount       | Project directory read/write. Extra folders via `--mount` are read-only by default, `--mount-rw` to opt in       | Workspace read/write. `--branch` puts each agent in its own git worktree under `.sbx/`|
+| Network egress        | Opt-in Airlock: HTTPS-intercepting proxy, strict exact-host + path allowlist, Copilot-shaped defaults            | On by default: HTTP/HTTPS proxy with a domain allowlist. TCP/UDP/ICMP blocked         |
+| Nested Docker         | Opt-in brokered socket (`--dind`). Image allowlist, endpoint allowlist, body inspection                          | Each sandbox has its own isolated Docker engine built in                              |
+| Secrets               | Reuses the host `gh` CLI credentials per run                                                                     | `sbx secret set`; proxy injects headers so values never enter the VM                  |
+| Persistence           | Ephemeral container, persisted *config* in `.copilot_here/` and `~/.config/copilot_here/`                        | Sandboxes persist across runs. Installed packages, images, and history survive restarts|
+| Agents supported today| GitHub Copilot CLI. Multi-tool scaffolding is in-tree (`--set-tool`, `ToolRegistry`), more agents on the roadmap | `claude`, `codex`, `copilot`, `gemini`, `kiro`, `opencode`, `shell`, `docker-agent`   |
+| Platforms             | macOS, Linux, Windows (PowerShell 5.1 and 7+)                                                                    | macOS, Linux, Windows                                                                 |
+| Status                | Open source, .NET 10 Native AOT                                                                                  | Docker-maintained, experimental                                                       |
+
+**Reach for Docker Sandboxes (`sbx`) when:**
+
+- You bounce between Claude, Codex, Gemini and friends today, and want one sandbox tool that already supports all of them out of the box.
+- You want microVM isolation (separate kernel) rather than container isolation.
+- You want long-lived, named sandboxes and parallel agents on the same repo via branch mode.
+- You want nested Docker inside the sandbox with no extra configuration.
+
+**Reach for `copilot_here` when:**
+
+- You're focused on the GitHub Copilot CLI today and want tight, Copilot-shaped default network rules rather than broad wildcards. (Other agents are on the roadmap; the scaffolding is in the repo.)
+- You want a small, auditable, open-source sandbox you can fork and tighten further. The Rust proxy lives in [`proxy/`](proxy/) and the broker lives in [`app/Infrastructure/DockerBroker*.cs`](app/Infrastructure/).
+- You want ephemeral, per-run containers that reuse the host `gh` auth rather than long-lived sandbox state.
+- You want explicit per-folder opt-in for anything *beyond* the project dir. Extra mounts default to read-only unless you pass `--mount-rw`.
+- Your container runtime is Podman, rootless Podman, or OrbStack, and you'd rather not install a Docker-authored CLI. `copilot_here` auto-detects Docker, OrbStack, and Podman, and `--set-runtime` pins your choice.
+
+#### 🧒 Explain it like I'm in 5th grade
+
+Docker Sandboxes (`sbx`) is like renting each AI agent its own tiny apartment. Own front door. Own kitchen. Own phone line. If the agent makes a mess, the mess stays in the apartment. It's great when you hire a bunch of different AI agents and you want strong walls around every one of them.
+
+`copilot_here` is like giving the agent a locked room *inside* your house. The walls are not as thick, but the door is bolted, it can only touch the one drawer you unlocked (your project folder), and there is a bouncer at the front door checking every phone call (the Airlock). It is small, fast to start, and easy to read the source code of.
+
+The everyday version of "when do I pick which?":
+
+- Pick **Docker Sandboxes** when you use lots of different AI agents and you want the strongest walls.
+- Pick **`copilot_here`** when you are mostly using the GitHub Copilot CLI, you want a small inspectable sandbox that reuses your existing GitHub login, and you want strict, Copilot-shaped network rules by default. It's also an easy choice if your container runtime is already Podman or OrbStack rather than Docker.
+
+Both can live on the same machine. Use whichever fits the job.
 
 ### Package Managers
 
