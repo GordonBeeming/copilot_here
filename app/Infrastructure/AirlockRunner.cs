@@ -320,8 +320,8 @@ public static class AirlockRunner
         var mode = mount.IsReadWrite ? "rw" : "ro";
         var containerPath = mount.GetContainerPath(ctx.Paths.UserHome);
         var resolvedPath = mount.ResolveHostPath(ctx.Paths.UserHome);
-        var dockerPath = ConvertToComposePath(resolvedPath);
-        extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
+        var composePath = ConvertToComposePath(resolvedPath);
+        extraMounts.AppendLine($"      - {composePath}:{containerPath}:{mode}");
       }
 
       // Build Docker broker substitutions for DinD on the airlock network.
@@ -391,8 +391,8 @@ public static class AirlockRunner
       if (rulesContent.Contains("\"enable_logging\": true") || rulesContent.Contains("\"mode\": \"monitor\""))
       {
         var logsDir = Path.Combine(ctx.Paths.LocalConfigPath, "logs");
-        var dockerLogsPath = ConvertToComposePath(logsDir);
-        logsMount = $"      - {dockerLogsPath}:/logs";
+        var composeLogsPath = ConvertToComposePath(logsDir);
+        logsMount = $"      - {composeLogsPath}:/logs";
       }
 
       // Convert app sandbox flags to YAML
