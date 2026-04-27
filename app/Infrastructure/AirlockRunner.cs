@@ -320,8 +320,8 @@ public static class AirlockRunner
         var mode = mount.IsReadWrite ? "rw" : "ro";
         var containerPath = mount.GetContainerPath(ctx.Paths.UserHome);
         var resolvedPath = mount.ResolveHostPath(ctx.Paths.UserHome);
-        var dockerPath = ConvertToDockerPath(resolvedPath);
-        extraMounts.AppendLine($"      - {dockerPath}:{containerPath}:{mode}");
+        var composePath = ConvertToComposePath(resolvedPath);
+        extraMounts.AppendLine($"      - {composePath}:{containerPath}:{mode}");
       }
 
       // Build Docker broker substitutions for DinD on the airlock network.
@@ -391,8 +391,8 @@ public static class AirlockRunner
       if (rulesContent.Contains("\"enable_logging\": true") || rulesContent.Contains("\"mode\": \"monitor\""))
       {
         var logsDir = Path.Combine(ctx.Paths.LocalConfigPath, "logs");
-        var dockerLogsPath = ConvertToDockerPath(logsDir);
-        logsMount = $"      - {dockerLogsPath}:/logs";
+        var composeLogsPath = ConvertToComposePath(logsDir);
+        logsMount = $"      - {composeLogsPath}:/logs";
       }
 
       // Convert app sandbox flags to YAML
@@ -457,11 +457,11 @@ public static class AirlockRunner
         .Replace("{{PROJECT_NAME}}", projectName)
         .Replace("{{APP_IMAGE}}", appImage)
         .Replace("{{PROXY_IMAGE}}", proxyImage)
-        .Replace("{{WORK_DIR}}", ConvertToDockerPath(ctx.Paths.CurrentDirectory))
+        .Replace("{{WORK_DIR}}", ConvertToComposePath(ctx.Paths.CurrentDirectory))
         .Replace("{{CONTAINER_WORK_DIR}}", ctx.Paths.ContainerWorkDir)
-        .Replace("{{TOOL_CONFIG}}", ConvertToDockerPath(ctx.ActiveTool.GetHostConfigPath(ctx.Paths)))
+        .Replace("{{TOOL_CONFIG}}", ConvertToComposePath(ctx.ActiveTool.GetHostConfigPath(ctx.Paths)))
         .Replace("{{TOOL_CONFIG_CONTAINER_PATH}}", ctx.ActiveTool.GetContainerConfigPath())
-        .Replace("{{NETWORK_CONFIG}}", ConvertToDockerPath(processedConfigPath))
+        .Replace("{{NETWORK_CONFIG}}", ConvertToComposePath(processedConfigPath))
         .Replace("{{PUID}}", ctx.Environment.UserId.ToString())
         .Replace("{{PGID}}", ctx.Environment.GroupId.ToString())
         .Replace("{{SESSION_INFO}}", sessionInfo)
@@ -774,25 +774,15 @@ public static class AirlockRunner
   }
 
   /// <summary>
-  /// Converts a Windows path to Docker-compatible format.
-  /// On Windows: C:\path -> /c/path
-  /// On Unix: /path -> /path (no change)
+  /// Converts a host path to a Docker Compose-compatible format.
+  /// Compose passes the literal string to the daemon, so on Windows we keep the native
+  /// drive letter (C:\foo -> C:/foo). The /c/foo form used by docker run -v is parsed by
+  /// the CLI but treated as a Linux absolute path when it appears in a compose YAML —
+  /// the daemon then fails with "mkdir /c: permission denied" (see #105).
+  /// On Unix: /path -> /path (no change).
   /// </summary>
-  private static string ConvertToDockerPath(string path)
+  internal static string ConvertToComposePath(string path)
   {
-    // Convert backslashes to forward slashes
-    var normalizedPath = path.Replace("\\", "/");
-    
-    // On Windows, convert drive letter paths (C:/ -> /c/)
-    if (OperatingSystem.IsWindows() && 
-        normalizedPath.Length >= 2 && 
-        normalizedPath[1] == ':')
-    {
-      var driveLetter = char.ToLowerInvariant(normalizedPath[0]);
-      var pathWithoutDrive = normalizedPath.Substring(2);
-      return $"/{driveLetter}{pathWithoutDrive}";
-    }
-    
-    return normalizedPath;
+    return path.Replace("\\", "/");
   }
 }
