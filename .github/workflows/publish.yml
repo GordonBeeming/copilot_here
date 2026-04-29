@@ -976,6 +976,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Sync winget-pkgs fork with upstream
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PAT }}
+        run: |
+          # wingetcreate submits PRs from the fork owned by the WINGET_PAT account.
+          # microsoft/winget-pkgs receives hundreds of commits/day, so the fork
+          # drifts and wingetcreate's built-in sync sometimes refuses (build #560).
+          # Resolve the fork owner from the PAT, then fast-forward — falling back
+          # to a hard reset to upstream/master if fast-forward isn't possible.
+
+          $forkOwner = gh api user --jq .login
+          $fork = "$forkOwner/winget-pkgs"
+          Write-Host "Syncing fork: $fork"
+
+          # Try clean fast-forward first.
+          $sync = gh api -X POST "repos/$fork/merge-upstream" -f branch=master 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Fast-forward sync OK: $sync"
+            exit 0
+          }
+
+          Write-Host "Fast-forward failed ($sync) — hard-resetting fork master to upstream."
+
+          $upstreamSha = gh api repos/microsoft/winget-pkgs/git/refs/heads/master --jq .object.sha
+          if (-not $upstreamSha) { throw "Could not resolve upstream master SHA" }
+
+          gh api -X PATCH "repos/$fork/git/refs/heads/master" -F sha="$upstreamSha" -F force=true
+          if ($LASTEXITCODE -ne 0) { throw "Hard reset of fork master failed" }
+          Write-Host "Hard reset complete: master @ $upstreamSha"
+
       - name: Update WinGet manifest
         shell: pwsh
         env:
