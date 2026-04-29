@@ -579,7 +579,7 @@ public sealed class RunCommand : ICommand
           Console.WriteLine($"🛡️  Airlock: enabled - {sourceDisplay}");
 
           // Run in Airlock mode with Docker Compose
-          return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, _isYolo, allMounts, toolCommand, broker);
+          return AirlockRunner.Run(ctx.RuntimeConfig, ctx, imageTag, imageName, noPull, _isYolo, allMounts, toolCommand, broker);
         }
 
         // Add directories for YOLO mode

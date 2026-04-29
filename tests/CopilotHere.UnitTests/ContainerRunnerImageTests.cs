@@ -44,6 +44,18 @@ public class ContainerRunnerImageTests
   }
 
   [Test]
+  public async Task IsAbsoluteImageReference_WithLocalTaggedImageNoSlash_ReturnsTrue()
+  {
+    await Assert.That(ContainerRunner.IsAbsoluteImageReference("my-local-image:dev")).IsTrue();
+  }
+
+  [Test]
+  public async Task IsAbsoluteImageReference_WithDigestReference_ReturnsTrue()
+  {
+    await Assert.That(ContainerRunner.IsAbsoluteImageReference("my-local-image@sha256:abcdef")).IsTrue();
+  }
+
+  [Test]
   public async Task IsAbsoluteImageReference_WithNestedPath_ReturnsTrue()
   {
     await Assert.That(ContainerRunner.IsAbsoluteImageReference("registry.example.com/org/team/image:tag")).IsTrue();
@@ -89,5 +101,15 @@ public class ContainerRunnerImageTests
 
     // Assert
     await Assert.That(imageName).IsEqualTo("myuser/custom-copilot:latest");
+  }
+
+  [Test]
+  public async Task GetImageName_WithLocalTaggedImageNoSlash_ReturnsAsIs()
+  {
+    // Act
+    var imageName = ContainerRunner.GetImageName("my-local-image:dev");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("my-local-image:dev");
   }
 }

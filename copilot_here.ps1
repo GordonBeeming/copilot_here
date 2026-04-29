@@ -1,17 +1,17 @@
 # copilot_here PowerShell functions
-# Version: 2026.04.27
+# Version: 2026.04.29
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Configuration
-$script:CopilotHereHome = if ($env:USERPROFILE) { 
-    $env:USERPROFILE 
-} elseif ($env:HOME) { 
-    $env:HOME 
-} else { 
-    [Environment]::GetFolderPath('UserProfile') 
+$script:CopilotHereHome = if ($env:USERPROFILE) {
+    $env:USERPROFILE
+} elseif ($env:HOME) {
+    $env:HOME
+} else {
+    [Environment]::GetFolderPath('UserProfile')
 }
 
 $script:CopilotHereScriptPath = Join-Path $script:CopilotHereHome ".copilot_here.ps1"
@@ -23,7 +23,7 @@ $script:DefaultCopilotHereBin = Join-Path $script:DefaultCopilotHereBinDir $scri
 
 $script:CopilotHereBin = if ($env:COPILOT_HERE_BIN) { $env:COPILOT_HERE_BIN } else { $script:DefaultCopilotHereBin }
 $script:CopilotHereReleaseUrl = "https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest"
-$script:CopilotHereVersion = "2026.04.27"
+$script:CopilotHereVersion = "2026.04.29"
 
 # Debug logging function
 function Write-CopilotDebug {
@@ -36,7 +36,7 @@ function Write-CopilotDebug {
 # Helper function to stop running containers with confirmation
 function Stop-CopilotContainers {
     $runningContainers = docker ps --filter "name=copilot_here-" -q 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { docker ps --filter "name=copilot_here-" -q }
-    
+
     if ($runningContainers) {
         Write-Host "[WARNING]  copilot_here is currently running in Docker" -ForegroundColor Yellow
         $response = Read-Host "   Stop running containers to continue? [y/N]"
@@ -57,20 +57,20 @@ function Stop-CopilotContainers {
 function Download-CopilotHereBinary {
     # Detect architecture using environment variable (works in all PowerShell versions)
     $procArch = $env:PROCESSOR_ARCHITECTURE
-    $arch = if ($procArch -eq "ARM64" -or $procArch -eq "ARM") { 
-        "arm64" 
+    $arch = if ($procArch -eq "ARM64" -or $procArch -eq "ARM") {
+        "arm64"
     } elseif ($procArch -eq "AMD64" -or $procArch -eq "x64") {
         "x64"
-    } else { 
+    } else {
         "x64"  # Default fallback
     }
-    
+
     # Create bin directory
     $binDir = Split-Path $script:CopilotHereBin
     if (-not (Test-Path $binDir)) {
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
-    
+
     # Detect OS: Windows has USERPROFILE, macOS has specific uname, Linux is the rest
     $os = if ($env:USERPROFILE) {
         "win"
@@ -90,7 +90,7 @@ function Download-CopilotHereBinary {
     $tmpBase = [System.IO.Path]::GetTempFileName()
     Remove-Item -Path $tmpBase -ErrorAction SilentlyContinue
     $tmpArchive = $tmpBase + ".${ext}"
-    
+
     Write-Host "[DOWNLOAD] Downloading binary from: $downloadUrl"
     try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpArchive -UseBasicParsing
@@ -99,7 +99,7 @@ function Download-CopilotHereBinary {
         Write-Host "[ERROR] Failed to download binary: $_" -ForegroundColor Red
         return $false
     }
-    
+
     # Extract binary from archive
     try {
         if ($env:USERPROFILE) {
@@ -128,33 +128,33 @@ function Ensure-CopilotHereBinary {
         Write-Host "[INSTALL] copilot_here binary not found. Installing..."
         return Download-CopilotHereBinary
     }
-    
+
     return $true
 }
 
 # Helper function to update profile with marker blocks
 function Update-ProfileWithMarkers {
     param([string]$ProfilePath)
-    
+
     # Create profile directory if needed
     $profileDir = Split-Path $ProfilePath
     if (-not (Test-Path $profileDir)) {
         New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
     }
-    
+
     # Create profile if it doesn't exist
     if (-not (Test-Path $ProfilePath)) {
         New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
     }
-    
+
     $markerStart = "# >>> copilot_here >>>"
     $markerEnd = "# <<< copilot_here <<<"
-    
+
     $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
     if ([string]::IsNullOrEmpty($profileContent)) {
         $profileContent = ""
     }
-    
+
     # Remove old marker block and rebuild fresh
     if ($profileContent.Contains($markerStart)) {
         $startIndex = $profileContent.IndexOf($markerStart)
@@ -163,11 +163,11 @@ function Update-ProfileWithMarkers {
             $endIndex += $markerEnd.Length
             $beforeBlock = $profileContent.Substring(0, $startIndex)
             $afterBlock = if ($endIndex -lt $profileContent.Length) { $profileContent.Substring($endIndex) } else { "" }
-            
+
             # Remove rogue entries
             $beforeBlock = $beforeBlock -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
             $afterBlock = $afterBlock -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
-            
+
             $profileContent = $beforeBlock.TrimEnd()
         } else {
             # Malformed markers
@@ -179,15 +179,15 @@ function Update-ProfileWithMarkers {
         $profileContent = $profileContent -replace '(?m)^.*copilot_here\.ps1.*$[\r\n]*', ''
         $profileContent = $profileContent.TrimEnd()
     }
-    
+
     # Add fresh marker block
     $scriptPath = $script:CopilotHereScriptPath
     $scriptPathEscaped = $scriptPath.Replace("'", "''")
     $markerStart = "# >>> copilot_here >>>"
     $markerEnd = "# <<< copilot_here <<<"
-    
+
     $block = "`n`n$markerStart`nif (Test-Path '$scriptPathEscaped') {`n    . '$scriptPathEscaped'`n}`n$markerEnd`n"
-    
+
     $profileContent = $profileContent + $block
     # Resolve symlink target to preserve symlinks (e.g. GNU Stow)
     # Use PS 5.1-compatible null handling (no ?. or ?? operators)
@@ -201,17 +201,17 @@ function Update-ProfileWithMarkers {
 # Update function - downloads fresh binary and script
 function Update-CopilotHere {
     Write-Host "[RELOAD] Updating copilot_here..."
-    
+
     # Check and stop running containers
     if (-not (Stop-CopilotContainers)) {
         return $false
     }
-    
+
     # Remove existing binary
     if (Test-Path $script:CopilotHereBin) {
         Remove-Item -Path $script:CopilotHereBin -Force
     }
-    
+
     # Download fresh binary
     Write-Host ""
     Write-Host "[INSTALL] Downloading latest binary..."
@@ -219,24 +219,24 @@ function Update-CopilotHere {
         Write-Host "[ERROR] Failed to download binary" -ForegroundColor Red
         return $false
     }
-    
+
     # Download and persist fresh PowerShell script
     Write-Host ""
     Write-Host "[INSTALL] Downloading latest PowerShell script..."
     try {
         # GitHub release assets may come back as bytes; using -OutFile prevents Set-Content writing byte values line-by-line
         Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing -OutFile $script:CopilotHereScriptPath
-        
+
         # Update PowerShell profiles with marker blocks
         Write-Host ""
         Write-Host "[PROFILE] Updating PowerShell profiles..."
-        
+
         $pwshProfile = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
         Update-ProfileWithMarkers -ProfilePath $pwshProfile
-        
+
         $winPsProfile = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
         Update-ProfileWithMarkers -ProfilePath $winPsProfile
-        
+
         Write-Host "[OK] Profiles updated"
         Write-Host "[OK] Update complete! Reloading PowerShell functions..."
         $null = . $script:CopilotHereScriptPath
@@ -272,27 +272,27 @@ function Test-CopilotHereUpdates {
         # Fetch remote script with 2 second timeout
         $ProgressPreference = 'SilentlyContinue'
         $remoteScript = (Invoke-WebRequest -Uri "$script:CopilotHereReleaseUrl/copilot_here.ps1" -UseBasicParsing -TimeoutSec 2).Content
-        
+
         # Extract version from remote script
         $remoteVersion = $null
         if ($remoteScript -match '\$script:CopilotHereVersion\s*=\s*"(.+?)"') {
             $remoteVersion = $matches[1]
         }
-        
+
         if (-not $remoteVersion) {
             return $false  # Couldn't parse version
         }
-        
+
         if ($script:CopilotHereVersion -ne $remoteVersion) {
             # Compare versions - convert to comparable format
             $currentParts = $script:CopilotHereVersion.Split('.')
             $remoteParts = $remoteVersion.Split('.')
-            
+
             # Pad arrays to same length
             $maxLen = [Math]::Max($currentParts.Length, $remoteParts.Length)
             while ($currentParts.Length -lt $maxLen) { $currentParts += "0" }
             while ($remoteParts.Length -lt $maxLen) { $remoteParts += "0" }
-            
+
             # Compare each part
             $isNewer = $false
             for ($i = 0; $i -lt $maxLen; $i++) {
@@ -305,7 +305,7 @@ function Test-CopilotHereUpdates {
                     break
                 }
             }
-            
+
             if ($isNewer) {
                 Write-Host "[UPDATE] Update available: $script:CopilotHereVersion -> $remoteVersion"
                 $confirmation = Read-Host "Would you like to update now? [y/N]"
@@ -340,7 +340,7 @@ function copilot_here {
     $Arguments = @($args)
 
     Write-CopilotDebug "=== copilot_here called with args: $Arguments"
-    
+
     # Check if script file version differs from in-memory version
     $scriptPath = $script:CopilotHereScriptPath
     if (Test-Path $scriptPath) {
@@ -381,28 +381,28 @@ function copilot_here {
             # Ignore errors reading file
         }
     }
-    
+
     # Handle --update before binary check
     if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
-    
+
     # Handle --reset before binary check
     if ($Arguments | Where-Object { Test-ResetArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return
     }
-    
+
     # Check for updates at startup
     Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }
-    
+
     Write-CopilotDebug "Ensuring binary is installed..."
     if (-not (Ensure-CopilotHereBinary)) { return }
-    
+
     Write-CopilotDebug "Executing binary: $script:CopilotHereBin $Arguments"
     & $script:CopilotHereBin @Arguments
     $exitCode = $LASTEXITCODE
@@ -416,7 +416,7 @@ function copilot_yolo {
     $Arguments = @($args)
 
     Write-CopilotDebug "=== copilot_yolo called with args: $Arguments"
-    
+
     # Check if script file version differs from in-memory version
     $scriptPath = $script:CopilotHereScriptPath
     if (Test-Path $scriptPath) {
@@ -457,28 +457,28 @@ function copilot_yolo {
             # Ignore errors reading file
         }
     }
-    
+
     # Handle --update before binary check
     if ($Arguments | Where-Object { Test-UpdateArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Update argument detected"
         Update-CopilotHere
         return
     }
-    
+
     # Handle --reset before binary check
     if ($Arguments | Where-Object { Test-ResetArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Reset argument detected"
         Reset-CopilotHere
         return
     }
-    
+
     # Check for updates at startup
     Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }
-    
+
     Write-CopilotDebug "Ensuring binary is installed..."
     if (-not (Ensure-CopilotHereBinary)) { return }
-    
+
     Write-CopilotDebug "Executing binary in YOLO mode: $script:CopilotHereBin --yolo $Arguments"
     & $script:CopilotHereBin --yolo @Arguments
     $exitCode = $LASTEXITCODE

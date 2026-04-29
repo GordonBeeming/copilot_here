@@ -73,6 +73,16 @@ public class GitHubCopilotToolTests
   }
 
   [Test]
+  public async Task GetImageName_WithLocalTaggedImageNoSlash_ReturnsAsIs()
+  {
+    // Act
+    var imageName = _tool.GetImageName("my-local-image:dev");
+
+    // Assert
+    await Assert.That(imageName).IsEqualTo("my-local-image:dev");
+  }
+
+  [Test]
   public async Task GetDockerfile_ReturnsCorrectPath()
   {
     // Act

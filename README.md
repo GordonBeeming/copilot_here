@@ -51,7 +51,7 @@ All functions support switching between Docker image variants using flags:
 - **`--dotnet-rust`** (`-dr`) - .NET + Rust image
 - **`--golang`** (`-go`) - Golang image (includes Go toolchain)
 - **`--java`** (`-j`) - Java image (includes JDK 25, Maven, Gradle, PlantUML)
-- **`--image <name>`** (`-i`) - Use any custom Docker image (e.g., `my-image:tag`, `registry.io/org/image:v1`)
+- **`--image <name>`** (`-i`) - Use any custom Docker image (e.g., `my-image:tag`, `registry.io/org/image:v1`, `image@sha256:<digest>`)
 
 ### Additional Options
 
@@ -112,6 +112,11 @@ You can configure the default image tag to use (e.g., `dotnet`, `dotnet-playwrig
 **Configuration Files:**
 - Global: `~/.config/copilot_here/image.conf`
 - Local: `.copilot_here/image.conf`
+
+**Custom image behavior:**
+- Custom image refs are accepted for CLI/config values, including local refs like `my-local-image:dev`
+- Default behavior is to pull before run
+- Use `--no-pull` to force local-only execution
 
 ### Model Management
 
@@ -687,7 +692,7 @@ This project provides multiple Docker image variants for different development s
 - Use **`dotnet-rust`** for projects combining .NET and Rust
 - Use **`golang`** for Go development
 - Use **`java`** for Java development with Maven or Gradle
-- Use **`--image`** to bring your own custom Docker image with additional tools
+- Use **`--image`** to bring your own custom Docker image with additional tools (including local tags like `my-local-image:dev`)
 
 ## 💻 Supported Systems
 

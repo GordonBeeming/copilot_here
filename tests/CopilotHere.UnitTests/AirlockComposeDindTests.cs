@@ -77,6 +77,7 @@ public class AirlockComposeDindTests
       appSandboxFlags: [],
       mounts: [],
       toolArgs: ["copilot"],
+      imageTag: "latest",
       isYolo: false,
       broker: broker)
       ?? throw new InvalidOperationException("GenerateComposeFile returned null");

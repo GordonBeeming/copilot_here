@@ -24,10 +24,20 @@ public static class ContainerRunner
   }
 
   /// <summary>
-  /// Determines whether a value is an absolute image reference (e.g., "myregistry.io/myimage:v1")
-  /// rather than a simple tag (e.g., "dotnet-rust").
+  /// Determines whether a value is an explicit image reference (e.g., "myregistry.io/myimage:v1")
+  /// rather than a simple variant tag (e.g., "dotnet-rust").
   /// </summary>
-  public static bool IsAbsoluteImageReference(string value) => value.Contains('/');
+  public static bool IsAbsoluteImageReference(string value)
+  {
+    if (string.IsNullOrWhiteSpace(value))
+      return false;
+
+    // Explicit image references commonly include:
+    // - repository path separator (/), e.g. "user/image:tag"
+    // - tag separator (:), e.g. "my-local-image:dev"
+    // - digest separator (@), e.g. "image@sha256:..."
+    return value.Contains('/') || value.Contains(':') || value.Contains('@');
+  }
 
   /// <summary>
   /// Runs a container command with the given arguments.
@@ -124,6 +134,37 @@ public static class ContainerRunner
 
     Console.WriteLine("❌ Failed to pull image");
     return false;
+  }
+
+  /// <summary>
+  /// Checks whether an image is already available locally.
+  /// </summary>
+  public static bool ImageExists(ContainerRuntimeConfig runtimeConfig, string imageName)
+  {
+    try
+    {
+      var startInfo = new ProcessStartInfo
+      {
+        FileName = runtimeConfig.Runtime,
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true
+      };
+      startInfo.ArgumentList.Add("image");
+      startInfo.ArgumentList.Add("inspect");
+      startInfo.ArgumentList.Add(imageName);
+
+      using var process = Process.Start(startInfo);
+      if (process is null) return false;
+
+      process.WaitForExit();
+      return process.ExitCode == 0;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   /// <summary>
