@@ -1000,7 +1000,7 @@ jobs:
 
           Write-Host "Fast-forward failed ($sync) — hard-resetting fork master to upstream."
 
-          $upstreamSha = gh api repos/microsoft/winget-pkgs/git/refs/heads/master --jq .object.sha
+          $upstreamSha = gh api repos/microsoft/winget-pkgs/git/ref/heads/master --jq .object.sha
           if (-not $upstreamSha) { throw "Could not resolve upstream master SHA" }
 
           gh api -X PATCH "repos/$fork/git/refs/heads/master" -F sha="$upstreamSha" -F force=true
