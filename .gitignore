@@ -5556,3 +5556,8 @@ pbi.md
 
 # Claude scheduled tasks lock
 .claude/scheduled_tasks.lock
+
+# WinGet manifests live in microsoft/winget-pkgs after the first manual
+# `wingetcreate new` submission. Local copies are bootstrap-only and would
+# otherwise drift / cause merge conflicts on every release.
+packaging/winget/*.yaml

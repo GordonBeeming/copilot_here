@@ -70,12 +70,5 @@ stamp_file "$REPO_ROOT/app/Infrastructure/BuildInfo.cs" \
   "(BuildDate = \")${VERSION_REGEX}(\")" \
   "\1${NEW_VERSION}\3"
 
-# packaging/winget/*.yaml — PackageVersion lines
-for yaml in "$REPO_ROOT"/packaging/winget/*.yaml; do
-  stamp_file "$yaml" \
-    "^(PackageVersion: )${VERSION_REGEX}" \
-    "\1${NEW_VERSION}"
-done
-
 echo ""
 echo "Done."

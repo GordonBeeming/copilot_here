@@ -1,5 +1,5 @@
 # copilot_here PowerShell functions
-# Version: 2026.04.27
+# Version: 2026.04.30
 # Repository: https://github.com/GordonBeeming/copilot_here
 
 # Set console output encoding to UTF-8 for Unicode character support
