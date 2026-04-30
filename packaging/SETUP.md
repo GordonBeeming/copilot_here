@@ -66,7 +66,8 @@ The CI workflow auto-submits manifest updates to the `microsoft/winget-pkgs` rep
 ### Setup steps
 
 - [ ] Generate a Personal Access Token (classic) at https://github.com/settings/tokens
-  - Scope: `public_repo` (needs to submit PRs to `microsoft/winget-pkgs`)
+  - Scopes: `repo` **and** `workflow`
+  - `repo` is needed to PATCH refs on the fork during the pre-submit fork sync. `workflow` is needed because upstream `microsoft/winget-pkgs` regularly pushes commits that touch workflow files, and the merge-upstream API refuses to fast-forward through them without it.
 - [ ] Add GitHub Actions secret on the `copilot_here` repo:
   - Name: `WINGET_PAT`
   - Value: the PAT
@@ -75,6 +76,8 @@ The CI workflow auto-submits manifest updates to the `microsoft/winget-pkgs` rep
   2. Run `wingetcreate.exe new <installer-url-x64> <installer-url-arm64>` and follow the prompts
   3. This creates a PR to `microsoft/winget-pkgs` — initial review by Microsoft takes 1-3 days
   4. Once the first manifest is merged, the CI `wingetcreate update` step will handle all future versions automatically
+
+> Local manifests under `packaging/winget/` are gitignored — `wingetcreate update` reads from `microsoft/winget-pkgs` upstream after the first submission, so tracking local copies just causes merge conflicts. Drop scratch yaml files there during a manual `wingetcreate new` run if you ever need to bootstrap a new package id.
 
 ### Usage
 
@@ -91,4 +94,4 @@ copilot_here --version
 |---|---|---|
 | `NUGET_API_KEY` | Push .NET tool to nuget.org | https://www.nuget.org/account/apikeys |
 | `HOMEBREW_TAP_DEPLOY_KEY` | Update Homebrew formula | SSH deploy key (write access) on `homebrew-tap` repo |
-| `WINGET_PAT` | Submit WinGet manifest PRs | https://github.com/settings/tokens (scope: `public_repo`) |
+| `WINGET_PAT` | Submit WinGet manifest PRs | https://github.com/settings/tokens (scopes: `repo` + `workflow`) |
