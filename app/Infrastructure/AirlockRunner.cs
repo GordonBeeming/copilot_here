@@ -45,6 +45,8 @@ public static class AirlockRunner
     ContainerRuntimeConfig runtimeConfig,
     AppContext ctx,
     string imageTag,
+    string imageName,
+    bool noPull,
     bool isYolo,
     List<MountEntry> mounts,
     List<string> toolArgs,
@@ -72,7 +74,7 @@ public static class AirlockRunner
         DebugLogger.Log($"Using external network: {externalNetwork}");
     }
 
-    var appImage = ContainerRunner.GetImageName(imageTag);
+    var appImage = imageName;
     // COPILOT_HERE_PROXY_IMAGE lets CI smoke tests point at an ephemeral
     // proxy-st:<sha> tag that was just built in a previous job. Falls back
     // to the canonical tag for normal use.
@@ -80,6 +82,23 @@ public static class AirlockRunner
       is { Length: > 0 } overrideImage
       ? overrideImage
       : $"{ImagePrefix}:proxy";
+
+    if (noPull)
+    {
+      if (!ContainerRunner.ImageExists(runtimeConfig, appImage))
+      {
+        Console.WriteLine($"❌ --no-pull: app image not found locally: {appImage}");
+        Console.WriteLine("   Build or pull the image first, or rerun without --no-pull.");
+        return 1;
+      }
+
+      if (!ContainerRunner.ImageExists(runtimeConfig, proxyImage))
+      {
+        Console.WriteLine($"❌ --no-pull: proxy image not found locally: {proxyImage}");
+        Console.WriteLine("   Build or pull the proxy image first, or rerun without --no-pull.");
+        return 1;
+      }
+    }
 
     Console.WriteLine("🛡️  Starting in Airlock mode...");
     Console.WriteLine($"   App image: {appImage}");
@@ -129,7 +148,7 @@ public static class AirlockRunner
     // Generate compose file
     var composeFile = GenerateComposeFile(
       runtimeConfig, ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, isYolo, broker);
+      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, imageTag, isYolo, broker);
 
     if (composeFile is null)
     {
@@ -308,6 +327,7 @@ public static class AirlockRunner
     List<string> appSandboxFlags,
     List<MountEntry> mounts,
     List<string> toolArgs,
+    string imageTag,
     bool isYolo,
     DockerSocketBroker? broker)
   {
@@ -444,7 +464,7 @@ public static class AirlockRunner
       // Generate session info JSON for Airlock mode
       var sessionInfo = SessionInfo.GenerateWithNetworkConfig(
         ctx, 
-        appImage.Split(':')[1], // Extract tag from full image name
+        imageTag,
         appImage, 
         mounts, 
         isYolo, 

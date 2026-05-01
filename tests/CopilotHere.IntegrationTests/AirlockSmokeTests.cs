@@ -111,6 +111,7 @@ public class AirlockSmokeTests
         appSandboxFlags: [],
         mounts: [],
         toolArgs: ["sleep", "3600"],
+        imageTag: "latest",
         isYolo: false,
         broker)
         ?? throw new InvalidOperationException("compose generation failed");

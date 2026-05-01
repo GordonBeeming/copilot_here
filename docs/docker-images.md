@@ -138,6 +138,9 @@ IMAGE MANAGEMENT:
 You can use any custom Docker image with the `--image` flag:
 
 ```bash
+# Use a local image reference
+copilot_here --image my-local-image:dev
+
 # Use a custom image from a registry
 copilot_here --image my-registry.io/my-image:v1
 
@@ -149,3 +152,9 @@ copilot_here --set-image my-registry.io/my-image:v1
 ```
 
 The `--image` flag takes the highest priority, overriding all variant flags and configuration.
+
+Custom image refs support common forms including local tags (`name:tag`), repository paths (`user/image:tag`), registry paths (`registry/org/image:tag`), and digest refs (`image@sha256:...`).
+
+Pull behavior:
+- Default: image is pulled before run
+- `--no-pull`: no pull is attempted (local image must already exist)
