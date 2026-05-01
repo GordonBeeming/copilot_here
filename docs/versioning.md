@@ -21,9 +21,10 @@ Takes a version argument and stamps it into all locations that contain version s
 - `copilot_here.sh` (comment + variable)
 - `copilot_here.ps1` (comment + variable)
 - `app/Infrastructure/BuildInfo.cs` (BuildDate constant)
-- `packaging/winget/*.yaml` (PackageVersion)
 
 Files keep real versions in source (not placeholders) so local dev works without stamping.
+
+WinGet manifests are not stamped — `wingetcreate update` reads them from `microsoft/winget-pkgs` and writes new ones there using the `--version` flag. Local copies under `packaging/winget/` are gitignored and used only for the first manual submission.
 
 ### scripts/bump-version.sh
 Convenience wrapper: updates the VERSION file and runs stamp-version.sh.
