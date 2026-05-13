@@ -658,10 +658,12 @@ public sealed class RunCommand : ICommand
       // the container fails because the file-sharing layer doesn't proxy UDS
       // connections through to the macOS/Windows host. (The host's own
       // /var/run/docker.sock works only because the runtime has special-case
-      // handling for it.) TCP loopback sidesteps the entire VM filesystem
-      // layer: the broker listens on 127.0.0.1:<ephemeral>, the container
-      // reaches it via host.docker.internal:<port>.
-      listen = BrokerListenEndpoint.Tcp(IPAddress.Loopback, 0);
+      // handling for it.) TCP sidesteps the entire VM filesystem layer: the
+      // broker listens on <bind>:<ephemeral>, the container reaches it via
+      // host.docker.internal:<port>. Default bind is IPAddress.Any so Podman's
+      // gvproxy (which forwards host.docker.internal to the host's regular
+      // interface, not loopback) can reach us; see BrokerBindResolver.
+      listen = BrokerListenEndpoint.Tcp(BrokerBindResolver.ResolveTcpBindAddress(), 0);
     }
 
     var logPath = brokerCfg.EnableLogging
@@ -714,6 +716,13 @@ public sealed class RunCommand : ICommand
       Console.WriteLine($"   Listen:   {broker.BoundTcpEndpoint}");
     }
     Console.WriteLine("   The host process brokers every Docker API call. Inspect with --show-docker-broker-rules.");
+
+    if (broker.BoundTcpEndpoint is not null && !IPAddress.IsLoopback(broker.BoundTcpEndpoint.Address))
+    {
+      Console.WriteLine();
+      Console.WriteLine("⚠️  Broker reachable on local network interfaces (required for Podman gvproxy).");
+      Console.WriteLine($"   Set {BrokerBindResolver.BindLoopbackEnvVar}=1 to restrict to 127.0.0.1 if you don't trust your LAN.");
+    }
 
     // Surface the image-allowlist posture. The defaults ship with an empty
     // list, which means EVERY image the AI asks for can be spawned (subject

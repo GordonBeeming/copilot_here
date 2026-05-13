@@ -16,6 +16,7 @@ public sealed partial class DockerBrokerCommands : ICommand
     root.Add(SetDisableDockerBrokerCommand());
     root.Add(SetDisableGlobalDockerBrokerCommand());
     root.Add(SetShowDockerBrokerRulesCommand());
+    root.Add(SetShowDockerBrokerStatusCommand());
     root.Add(SetEditDockerBrokerRulesCommand());
     root.Add(SetEditGlobalDockerBrokerRulesCommand());
     root.Add(SetAddDockerBrokerImageCommand());

@@ -63,11 +63,11 @@ public class DindArgsTests
     return new DockerSocketBroker(cfg, "/var/run/docker.sock", BrokerListenEndpoint.Unix(sockPath));
   }
 
-  private static async Task<DockerSocketBroker> MakeStartedTcpBrokerAsync()
+  private static async Task<DockerSocketBroker> MakeStartedTcpBrokerAsync(System.Net.IPAddress? bindAddress = null)
   {
     var cfg = DockerBrokerConfig.CreateDefault(enabled: true);
     var broker = new DockerSocketBroker(cfg, "/var/run/docker.sock",
-      BrokerListenEndpoint.Tcp(System.Net.IPAddress.Loopback, 0));
+      BrokerListenEndpoint.Tcp(bindAddress ?? System.Net.IPAddress.Loopback, 0));
     // Start so the OS assigns a port we can read via BoundTcpEndpoint.
     await broker.StartAsync(CancellationToken.None);
     return broker;
@@ -189,6 +189,24 @@ public class DindArgsTests
     var hostIdx = args.FindIndex(a => a == "host.docker.internal:host-gateway");
     await Assert.That(hostIdx).IsGreaterThanOrEqualTo(0);
     await Assert.That(args[hostIdx - 1]).IsEqualTo("--add-host");
+  }
+
+  [Test]
+  public async Task BuildDockerArgs_WithAnyBoundBroker_StillUsesHostDockerInternal()
+  {
+    // Regression guard for #111: binding the broker on 0.0.0.0 (the new default
+    // on non-Linux to fix Podman gvproxy reachability) must not change the
+    // DOCKER_HOST string the workload sees — host.docker.internal is correct
+    // for both Docker Desktop and Podman.
+    var ctx = AppContext.Create();
+    await using var broker = await MakeStartedTcpBrokerAsync(System.Net.IPAddress.Any);
+    var port = broker.BoundTcpEndpoint!.Port;
+
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker);
+
+    var expected = $"DOCKER_HOST=tcp://host.docker.internal:{port}";
+    await Assert.That(args.Any(a => a == expected)).IsTrue();
   }
 
   [Test]
