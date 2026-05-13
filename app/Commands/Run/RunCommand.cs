@@ -725,10 +725,11 @@ public sealed class RunCommand : ICommand
     }
 
     // Surface the image-allowlist posture. The defaults ship with an empty
-    // list, which means EVERY image the AI asks for can be spawned (subject
-    // to the other policy toggles). For real production use, users should
-    // enumerate the images they expect — that turns "trust whatever the AI
-    // wants" into "trust this exact set". The warning is loud on purpose.
+    // list, which is interpreted as default-deny: nothing can be spawned
+    // until the user enumerates trusted patterns. For real production use,
+    // users should explicitly list the images they expect — that turns
+    // "trust nothing" into "trust this exact set". The warning is loud on
+    // purpose.
     var imageCount = brokerCfg.BodyInspection?.AllowedImages?.Count ?? 0;
     if (imageCount == 0)
     {

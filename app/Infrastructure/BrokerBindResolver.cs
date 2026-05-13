@@ -9,8 +9,9 @@ namespace CopilotHere.Infrastructure;
 /// regular interface IP, not loopback — a 127.0.0.1-only listener is invisible
 /// from inside the workload container. Docker Desktop's host.docker.internal
 /// forwarding works with either bind, so Any is the safe cross-runtime default.
-/// Users on untrusted networks who'd rather rely solely on the broker's rule
-/// engine for safety can opt back into loopback via the env var below.
+/// Users on untrusted networks who'd rather not rely solely on the rule engine
+/// and body inspector — i.e. want kernel-level loopback isolation as a second
+/// safety layer — can opt back into 127.0.0.1 via the env var below.
 /// </summary>
 internal static class BrokerBindResolver
 {

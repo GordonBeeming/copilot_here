@@ -10,19 +10,20 @@ public sealed partial class DockerBrokerCommands
 {
   private static Command SetShowDockerBrokerStatusCommand()
   {
-    var command = new Command("--show-docker-broker-status", "Show Docker broker runtime status (bind address, reachability, tips)");
+    var command = new Command("--show-docker-broker-status", "Show Docker broker runtime config (bind address, local IPs, troubleshooting tips)");
     command.SetAction(_ =>
     {
       var paths = AppPaths.Resolve();
       var runtimeConfig = ContainerRuntimeConfig.Load(paths);
       var bindAddress = BrokerBindResolver.ResolveTcpBindAddress();
       var hostSocket = runtimeConfig.ResolveHostRuntimeSocket();
+      var dockerHostEnv = Environment.GetEnvironmentVariable("DOCKER_HOST");
 
       Console.WriteLine("🔎 Docker Broker Status [BETA]");
       Console.WriteLine("===============================");
       Console.WriteLine();
       Console.WriteLine($"  Runtime:        {runtimeConfig.RuntimeFlavor} ({DescribePlatform()})");
-      Console.WriteLine($"  Upstream:       {hostSocket ?? "<not detected — set DOCKER_HOST or start your runtime>"}");
+      Console.WriteLine($"  Upstream:       {hostSocket ?? DescribeMissingUpstream(dockerHostEnv)}");
 
       if (OperatingSystem.IsLinux())
       {
@@ -67,6 +68,16 @@ public sealed partial class DockerBrokerCommands
       return 0;
     });
     return command;
+  }
+
+  private static string DescribeMissingUpstream(string? dockerHostEnv)
+  {
+    if (!string.IsNullOrWhiteSpace(dockerHostEnv) &&
+        dockerHostEnv.TrimStart().StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+    {
+      return $"<DOCKER_HOST={dockerHostEnv} — tcp:// upstream is not supported by the broker; use unix:// or npipe://>";
+    }
+    return "<not detected — set DOCKER_HOST or start your runtime>";
   }
 
   private static string DescribePlatform()
