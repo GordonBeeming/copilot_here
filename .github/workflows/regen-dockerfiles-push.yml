@@ -37,7 +37,11 @@ jobs:
 
       - name: Commit and push if drift
         run: |
-          if git diff --quiet -- docker/generated; then
+          # git diff alone misses untracked files — if images.json adds a new
+          # image, the generator creates a brand-new Dockerfile.* that doesn't
+          # yet exist in the index. git status --porcelain catches modified,
+          # deleted, AND untracked entries in one shot.
+          if [ -z "$(git status --porcelain -- docker/generated)" ]; then
             echo "No drift."
             exit 0
           fi
