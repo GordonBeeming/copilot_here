@@ -1,6 +1,6 @@
 # Install Go
 # Using official Go installation method
-ENV GOLANG_VERSION=1.25.5
+ENV GOLANG_VERSION=1.26.3
 ENV GOPATH=/usr/local/go-workspace
 ENV PATH="/usr/local/go/bin:${GOPATH}/bin:${PATH}"
 
