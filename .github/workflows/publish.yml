@@ -83,7 +83,7 @@ jobs:
   # Test shell function scripts can be sourced and call the native binary
   test-shell-functions:
     name: Shell Functions (${{ matrix.os }})
-    needs: [test-cli]
+    needs: [test-cli, compute-version]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -98,8 +98,17 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Stamp the in-memory `0.0.0-dev` sentinel to the computed version so the
+      # update-check inside copilot_here.sh / .ps1 doesn't compare against a
+      # remote-newer release and prompt during the --version test.
+      - name: Stamp version into shell scripts
+        shell: bash
+        run: |
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
+
       - name: Build CLI binary
-        run: dotnet publish app/CopilotHere.csproj -c Release -o publish/shell-test --nologo
+        run: dotnet publish app/CopilotHere.csproj -c Release -p:CopilotHereVersion=${{ needs.compute-version.outputs.version }} -o publish/shell-test --nologo
 
       - name: Test Bash script syntax
         if: runner.os != 'Windows'
@@ -565,7 +574,16 @@ jobs:
         working-directory: tests/CopilotHere.IntegrationTests
         run: dotnet run --configuration Release
 
-  # Compute version from VERSION file + run number as revision
+  # Compute version: today's UTC date + iteration-of-the-day.
+  #
+  # `Release` mode (main + push OR workflow_dispatch) → iteration =
+  #   (count of cli-v$DATE.* releases) + 1, matching the schema in
+  #   docs/versioning.md.
+  # `Dev-stamp` mode (everything else) → iteration = COUNT (the latest
+  #   already-released number for today). PR / scheduled / branch builds
+  #   need to match-or-beat the cli-latest version so the shell wrappers'
+  #   startup update-check doesn't fire during test-shell-functions; if no
+  #   release exists yet today, COUNT is 0 and we stamp `$DATE.0`.
   compute-version:
     name: Compute Version
     runs-on: ubuntu-24.04
@@ -573,18 +591,35 @@ jobs:
       version: ${{ steps.compute.outputs.version }}
       short_sha: ${{ steps.compute.outputs.short_sha }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Compute version with revision
+      - name: Compute version
         id: compute
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          BASE_VERSION=$(cat VERSION | tr -d '[:space:]')
-          VERSION="${BASE_VERSION}.${{ github.run_number }}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          DATE=$(date -u +%Y.%m.%d)
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "Computed version: $VERSION (run_number=${{ github.run_number }})"
+
+          COUNT=$(gh release list --limit 200 --json tagName \
+            --jq "[.[] | select(.tagName | startswith(\"cli-v${DATE}.\"))] | length")
+
+          IS_RELEASE=false
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] && \
+             { [[ "${{ github.event_name }}" == "push" ]] || \
+               [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; }; then
+            IS_RELEASE=true
+          fi
+
+          if [[ "$IS_RELEASE" == "true" ]]; then
+            N=$((COUNT + 1))
+            VERSION="${DATE}.${N}"
+            echo "Release version: ${VERSION} (release #${N} for ${DATE})"
+          else
+            VERSION="${DATE}.${COUNT}"
+            echo "Dev-stamp version: ${VERSION} (event=${{ github.event_name }}, ref=${{ github.ref }}, existing releases today=${COUNT})"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
   # Publish .NET Tool to NuGet
   publish-nuget:
@@ -741,6 +776,15 @@ jobs:
         with:
           path: artifacts
 
+      # Stamp the source-of-truth scripts before copying them into release/.
+      # Earlier this ran *after* the copy and silently left the released
+      # copilot_here.sh / .ps1 at whatever the sentinel value was, breaking
+      # users' auto-update check.
+      - name: Stamp version into shell scripts
+        run: |
+          chmod +x scripts/stamp-version.sh
+          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
+
       - name: Prepare release assets
         run: |
           mkdir -p release
@@ -750,7 +794,7 @@ jobs:
             else
               binary="copilot_here"
             fi
-            
+
             # Create archive
             cd artifacts/copilot_here-$rid
             if [[ "$rid" == win-* ]]; then
@@ -769,11 +813,6 @@ jobs:
           cp install.ps1 release/
 
           ls -la release/
-
-      - name: Stamp version into release shell scripts
-        run: |
-          chmod +x scripts/stamp-version.sh
-          ./scripts/stamp-version.sh "${{ needs.compute-version.outputs.version }}"
 
       - name: Create versioned release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2

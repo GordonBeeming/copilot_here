@@ -14,69 +14,14 @@ You can also use the command `session-info` for more info on mounts for this pro
 
 ## Script Versioning
 
-**CRITICAL RULE**: ALL VERSION NUMBERS MUST BE IDENTICAL ACROSS ALL FILES. No exceptions.
+Don't edit version strings by hand. CI sets them.
 
-### Version Format
+- Format: `YYYY.MM.DD.N`. `N` is the Nth release of that day.
+- `copilot_here.sh`, `copilot_here.ps1`, and `app/Infrastructure/BuildInfo.cs` all carry the literal placeholder `0.0.0-dev` in source. They stay that way.
+- The `compute-version` job in `.github/workflows/publish.yml` picks today's UTC date and the daily iteration. `scripts/stamp-version.sh` then writes the real string into the shell scripts before tests and packaging. The .NET binary's version comes from `Directory.Build.props` (local default: `today.0`) or from `-p:CopilotHereVersion=...` in CI. `BuildInfo.BuildDate` reads back from the assembly's `AssemblyInformationalVersion` at runtime.
+- There is no `VERSION` file and no `bump-version.sh`. If you're reaching for one of those, stop. Open a PR with the code change and let CI pick the next number on merge.
 
-- **Primary version**: Use current date in format `YYYY.MM.DD` (e.g., `2025.12.02`)
-- **Same-day updates**: If the version date already matches today's date, append `.1`, `.2`, `.3`, etc.
-  - Example: `2025.12.02` → `2025.12.02.1` → `2025.12.02.2`
-- **CRITICAL**: Always increment the version when making changes - this triggers re-download for users
-
-### Where to Update Versions (ALL MUST MATCH)
-
-**EVERY TIME** you modify shell functions, CLI binary code, or any functionality, update ALL FOUR version locations to the SAME version:
-
-1. **Bash/Zsh script**: `copilot_here.sh`
-
-   - Line 2: `# Version: YYYY.MM.DD`
-   - Line 8: `COPILOT_HERE_VERSION="YYYY.MM.DD"`
-
-2. **PowerShell script**: `copilot_here.ps1`
-
-   - Line 2: `# Version: YYYY.MM.DD`
-   - Line 8: `$script:CopilotHereVersion = "YYYY.MM.DD"`
-
-3. **Build properties**: `Directory.Build.props`
-
-   - Reads `CopilotHereVersion` from the `VERSION` file automatically (no manual edit needed)
-
-4. **Build info**: `app/Infrastructure/BuildInfo.cs`
-
-   - Line 13: `public const string BuildDate = "YYYY.MM.DD";`
-
-### Verification Checklist
-
-Before committing, verify all 5 locations have the EXACT SAME version:
-
-```bash
-# Quick check - all should show the same version
-cat VERSION
-grep "Version: " copilot_here.sh
-grep "Version: " copilot_here.ps1
-grep "COPILOT_HERE_VERSION=" copilot_here.sh
-grep "CopilotHereVersion =" copilot_here.ps1
-grep "BuildDate = " app/Infrastructure/BuildInfo.cs
-```
-
-Use `scripts/bump-version.sh YYYY.MM.DD` to update all locations at once.
-
-### When to Update Version
-
-- Any modification to shell function code
-- Adding new features or options
-- Bug fixes in the scripts or CLI binary
-- Changes to the CLI binary code
-- **Any commit that affects functionality should increment the version**
-- **When in doubt, increment the version**
-
-### Script File Synchronization
-
-**CRITICAL**: The standalone script files (`copilot_here.sh` and `copilot_here.ps1`) are the source of truth.
-
-- The README.md uses `curl` commands to download these files directly from the repository.
-- Ensure both scripts are kept in sync regarding functionality and version numbers.
-- Both scripts MUST have identical version numbers at all times.
+See `docs/versioning.md` for the full flow.
 
 ## Technology Stack
 
@@ -707,7 +652,6 @@ git commit --no-gpg-sign -m "feat: Add multi-image build pipeline" \
 2. Review documentation in `/docs` for requirements
 3. Ensure changes align with project goals
 4. Consider impact on both native binary and shell wrappers
-5. Check if version numbers need updating
 
 ### Making Changes
 
@@ -715,7 +659,6 @@ git commit --no-gpg-sign -m "feat: Add multi-image build pipeline" \
 2. Follow existing code patterns and conventions
 3. Update relevant documentation if making structural changes
 4. Test changes locally before committing
-5. Update version numbers if changing functionality (see Script Versioning section)
 
 ### After Making Changes
 
@@ -807,7 +750,6 @@ docker run --rm -it copilot_here:test copilot --version
 - Test affected functionality
 - Review file changes with `git diff`
 - Ensure documentation is updated
-- Check version numbers are updated if functionality changed
 
 ### Edge Cases to Consider
 
@@ -869,9 +811,8 @@ Each image variant gets multiple tags:
 9. **Minor tasks update existing files** - Don't create duplicate task files
 10. **Document major changes** - Create task files for significant work
 11. **Test before committing** - Build binary and verify functionality
-12. **Update versions** - Increment version numbers when changing functionality
-13. **Stop containers before updating** - dev-build.sh will prompt to stop running containers
-14. **Debug logging** - Use `COPILOT_HERE_DEBUG=1` to enable detailed logging
+12. **Stop containers before updating** - dev-build.sh will prompt to stop running containers
+13. **Debug logging** - Use `COPILOT_HERE_DEBUG=1` to enable detailed logging
 
 ### When to Update These Instructions
 
