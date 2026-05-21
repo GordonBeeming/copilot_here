@@ -1,0 +1,121 @@
+name: Regenerate Dockerfiles (fork comment)
+
+# For fork PRs: pull_request_target runs in base context with pull-requests
+# write, so we can comment. Head code is never executed — we run the base
+# branch's trusted generator against the head's snippet data, and refuse
+# entirely if the generator script itself was modified in the PR.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "docker/snippets/**"
+      - "docker/images.json"
+      - "docker/generate-dockerfiles.ps1"
+
+permissions: {}
+
+concurrency:
+  group: regen-dockerfiles-comment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    name: Diff and comment
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout base (trusted generator)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Checkout PR head into ./pr (data only, never executed)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: Detect generator-script modification
+        id: gen
+        run: |
+          if ! diff -q docker/generate-dockerfiles.ps1 pr/docker/generate-dockerfiles.ps1 >/dev/null 2>&1; then
+            echo "generator_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Use PR's data inputs with base's generator
+        if: steps.gen.outputs.generator_changed != 'true'
+        run: |
+          rsync -a --delete pr/docker/snippets/ docker/snippets/
+          cp pr/docker/images.json docker/images.json
+
+      - name: Run trusted generator
+        if: steps.gen.outputs.generator_changed != 'true'
+        run: pwsh docker/generate-dockerfiles.ps1
+
+      - name: Detect drift
+        if: steps.gen.outputs.generator_changed != 'true'
+        id: drift
+        run: |
+          # git diff alone misses untracked files — a new image in images.json
+          # produces a brand-new Dockerfile.* that's untracked, not "modified".
+          # git status --porcelain covers modified, deleted, AND untracked in
+          # one shot.
+          if [ -z "$(git status --porcelain -- docker/generated)" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            git diff --stat docker/generated > /tmp/diffstat.txt
+            untracked=$(git ls-files --others --exclude-standard -- docker/generated)
+            if [ -n "$untracked" ]; then
+              echo "" >> /tmp/diffstat.txt
+              echo "Untracked new generated files:" >> /tmp/diffstat.txt
+              echo "$untracked" >> /tmp/diffstat.txt
+            fi
+          fi
+
+      - name: Comment (drift)
+        if: steps.drift.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "<!-- regen-dockerfiles-bot -->"
+            echo "Generated Dockerfiles in this PR are out of date with the snippet config."
+            echo ""
+            echo "Please run:"
+            echo ""
+            echo '```'
+            echo "pwsh docker/generate-dockerfiles.ps1"
+            echo '```'
+            echo ""
+            echo "and commit \`docker/generated/\` to your branch."
+            echo ""
+            echo "<details><summary>What's stale</summary>"
+            echo ""
+            echo '```'
+            cat /tmp/diffstat.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } > /tmp/body.md
+          "${GITHUB_WORKSPACE}/.github/scripts/sticky-pr-comment.sh" \
+            "${{ github.repository }}" \
+            "${{ github.event.pull_request.number }}" \
+            /tmp/body.md
+
+      - name: Comment (generator changed)
+        if: steps.gen.outputs.generator_changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "<!-- regen-dockerfiles-bot -->"
+            echo "This PR modifies \`docker/generate-dockerfiles.ps1\`. Auto-regeneration is skipped for safety — please run \`pwsh docker/generate-dockerfiles.ps1\` locally and commit any changes under \`docker/generated/\`."
+          } > /tmp/body.md
+          "${GITHUB_WORKSPACE}/.github/scripts/sticky-pr-comment.sh" \
+            "${{ github.repository }}" \
+            "${{ github.event.pull_request.number }}" \
+            /tmp/body.md
