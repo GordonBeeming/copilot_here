@@ -575,10 +575,15 @@ jobs:
         run: dotnet run --configuration Release
 
   # Compute version: today's UTC date + iteration-of-the-day.
-  # On main pushes, iteration = (count of cli-v$DATE.* releases) + 1, matching
-  # the schema documented in docs/versioning.md. PR / scheduled / branch
-  # workflow_dispatch builds stamp `$DATE.0` so the version-format tests pass
-  # without consuming a release slot.
+  #
+  # `Release` mode (main + push OR workflow_dispatch) → iteration =
+  #   (count of cli-v$DATE.* releases) + 1, matching the schema in
+  #   docs/versioning.md.
+  # `Dev-stamp` mode (everything else) → iteration = COUNT (the latest
+  #   already-released number for today). PR / scheduled / branch builds
+  #   need to match-or-beat the cli-latest version so the shell wrappers'
+  #   startup update-check doesn't fire during test-shell-functions; if no
+  #   release exists yet today, COUNT is 0 and we stamp `$DATE.0`.
   compute-version:
     name: Compute Version
     runs-on: ubuntu-24.04
@@ -596,15 +601,23 @@ jobs:
           SHORT_SHA="${GITHUB_SHA:0:7}"
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            COUNT=$(gh release list --limit 200 --json tagName \
-              --jq "[.[] | select(.tagName | startswith(\"cli-v${DATE}.\"))] | length")
+          COUNT=$(gh release list --limit 200 --json tagName \
+            --jq "[.[] | select(.tagName | startswith(\"cli-v${DATE}.\"))] | length")
+
+          IS_RELEASE=false
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] && \
+             { [[ "${{ github.event_name }}" == "push" ]] || \
+               [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; }; then
+            IS_RELEASE=true
+          fi
+
+          if [[ "$IS_RELEASE" == "true" ]]; then
             N=$((COUNT + 1))
             VERSION="${DATE}.${N}"
             echo "Release version: ${VERSION} (release #${N} for ${DATE})"
           else
-            VERSION="${DATE}.0"
-            echo "Dev-stamp version: ${VERSION} (event=${{ github.event_name }}, ref=${{ github.ref }})"
+            VERSION="${DATE}.${COUNT}"
+            echo "Dev-stamp version: ${VERSION} (event=${{ github.event_name }}, ref=${{ github.ref }}, existing releases today=${COUNT})"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
