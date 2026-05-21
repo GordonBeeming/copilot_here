@@ -1,0 +1,48 @@
+name: Regenerate Dockerfiles (push)
+
+# Auto-regenerates docker/generated/* when a same-repo PR changes snippet
+# inputs or the generator script, and pushes the result back to the PR
+# branch. Fork PRs are handled by regen-dockerfiles-comment.yml because
+# pull_request's GITHUB_TOKEN is read-only for forks.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "docker/snippets/**"
+      - "docker/images.json"
+      - "docker/generate-dockerfiles.ps1"
+
+permissions: {}
+
+concurrency:
+  group: regen-dockerfiles-push-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  push:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Regenerate and push
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Regenerate
+        run: pwsh docker/generate-dockerfiles.ps1
+
+      - name: Commit and push if drift
+        run: |
+          if git diff --quiet -- docker/generated; then
+            echo "No drift."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docker/generated
+          git commit -m "chore(docker): regenerate Dockerfiles after snippet/config change"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
