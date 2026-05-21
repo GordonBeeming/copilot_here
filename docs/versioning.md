@@ -1,52 +1,36 @@
 # Versioning
 
-## Single Source of Truth
-
-The `VERSION` file in the repository root contains the base version. All other version references are derived from it.
-
 ## Format
 
-`YYYY.MM.DD.N` where `.N` is the GitHub Actions run number (e.g., `2026.03.08.42`).
+`YYYY.MM.DD.N`. Date plus iteration. `N` is the Nth release of that day, so the first release on a given day is `.1`, the second is `.2`, and so on.
 
-- The **date portion** is manually maintained by developers.
-- The **revision** is the GitHub Actions `run_number`, which auto-increments on every workflow run, ensuring every build has a unique version.
+## Releasing a new version
 
-## How It Works
+Open a PR. Merge it to `main`. That's the whole process.
 
-### VERSION file
-Contains a single line with the base version (e.g., `2026.03.08`).
+There is no version to bump and no file to edit. When the merge lands, the `compute-version` job in `.github/workflows/publish.yml` reads today's UTC date, counts the existing `cli-v$DATE.*` releases, picks the next number, and runs `scripts/stamp-version.sh` to write it into the shell scripts before they get packaged. The .NET binary picks up the same version through `-p:CopilotHereVersion=...` on the `dotnet` command line.
 
-### scripts/stamp-version.sh
-Takes a version argument and stamps it into all locations that contain version strings:
-- `copilot_here.sh` (comment + variable)
-- `copilot_here.ps1` (comment + variable)
-- `app/Infrastructure/BuildInfo.cs` (BuildDate constant)
+## Where the version lives
 
-Files keep real versions in source (not placeholders) so local dev works without stamping.
+| Path | Source value | Stamped to |
+| --- | --- | --- |
+| `copilot_here.sh` (2 lines) | `0.0.0-dev` | real version, in CI only |
+| `copilot_here.ps1` (2 lines) | `0.0.0-dev` | real version, in CI only |
+| `app/Infrastructure/BuildInfo.cs` | derives at runtime from the assembly | n/a |
+| `Directory.Build.props` | falls back to `today.0` if `-p:CopilotHereVersion` isn't passed | overridden in CI |
 
-WinGet manifests are not stamped — `wingetcreate update` reads them from `microsoft/winget-pkgs` and writes new ones there using the `--version` flag. Local copies under `packaging/winget/` are gitignored and used only for the first manual submission.
+The `0.0.0-dev` placeholder stays in source forever. Stamping happens on a fresh checkout in CI and is never committed back.
 
-### scripts/bump-version.sh
-Convenience wrapper: updates the VERSION file and runs stamp-version.sh.
+## CI behaviour
+
+- Push to `main`: `N` = `gh release list` count of `cli-v$DATE.*` + 1. Real release.
+- Pull request, schedule, manual dispatch from a branch: `N` = `0`. The dev stamp keeps the version-format tests passing without consuming a release slot.
+
+## Local development
+
+`dotnet run --project app -- --version` prints today's date with `.0` because `Directory.Build.props` falls back to that when no version override is passed. To preview what a real stamp would look like, pass it explicitly:
 
 ```bash
-./scripts/bump-version.sh 2026.03.08
+dotnet publish app/CopilotHere.csproj -c Release -p:CopilotHereVersion=2099.01.02.7 -o /tmp/preview
+./scripts/stamp-version.sh 2099.01.02.7   # stamps the shell scripts; revert with `git restore`
 ```
-
-### Directory.Build.props
-Reads the version from the VERSION file at build time. CI can override with `-p:CopilotHereVersion=X.Y.Z.N`.
-
-### CI (publish.yml)
-The `compute-version` job runs on every workflow trigger and:
-1. Reads the base version from `VERSION`
-2. Appends `github.run_number` as the revision
-3. Outputs the full version: `YYYY.MM.DD.N` (e.g., `2026.03.08.42`)
-
-The `build-cli` job runs `stamp-version.sh` before building, so all artifacts contain the computed version.
-
-## Releasing a New Version
-
-1. Update the date in `VERSION`
-2. Run `./scripts/bump-version.sh YYYY.MM.DD`
-3. Commit and push to `main`
-4. CI auto-computes the revision and publishes

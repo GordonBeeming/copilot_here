@@ -1,6 +1,11 @@
 <Project>
   <PropertyGroup>
-    <!-- Central version: read from VERSION file. Override via -p:CopilotHereVersion=X.Y.Z -->
-    <CopilotHereVersion Condition="'$(CopilotHereVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</CopilotHereVersion>
+    <!--
+      Local builds default to today's date with iteration .0 so the binary still
+      reports a YYYY.MM.DD.N version (matches the format tests). CI overrides via
+      -p:CopilotHereVersion=YYYY.MM.DD.N where N is the Nth release of the day,
+      computed by the `compute-version` job in .github/workflows/publish.yml.
+    -->
+    <CopilotHereVersion Condition="'$(CopilotHereVersion)' == ''">$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd')).0</CopilotHereVersion>
   </PropertyGroup>
 </Project>
