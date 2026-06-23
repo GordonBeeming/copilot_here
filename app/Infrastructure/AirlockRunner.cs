@@ -135,7 +135,7 @@ public static class AirlockRunner
     // needs host.docker.internal in the airlock allowlist: it talks to
     // tcp://proxy:2375 directly, and the proxy container forwards to the
     // host broker via its own external network leg (see proxy-entrypoint.sh).
-    var processedConfigPath = ProcessNetworkConfig(rulesPath, ctx.Paths);
+    var processedConfigPath = ProcessNetworkConfig(rulesPath, ctx.Paths, ctx.ActiveTool);
     if (processedConfigPath is null)
     {
       Console.WriteLine("❌ Failed to process network config");
@@ -210,15 +210,22 @@ public static class AirlockRunner
   }
 
   /// <summary>
-  /// Gets the embedded default airlock rules from assembly resources.
+  /// Gets the embedded default airlock rules for the active tool. Each provider
+  /// allows a different set of hosts (GitHub for Copilot, Anthropic for Claude),
+  /// so the inherited defaults must follow the active tool — otherwise switching
+  /// tools leaves the wrong allowlist and the API host is rejected.
   /// </summary>
-  private static NetworkConfig? GetDefaultRules()
+  private static NetworkConfig? GetDefaultRules(ICliTool tool)
   {
     try
     {
       var assembly = Assembly.GetExecutingAssembly();
-      var resourceName = "CopilotHere.Resources.github-copilot-default-airlock-rules.json";
-      
+      var resourceName = tool.Name switch
+      {
+        "claude" => "CopilotHere.Resources.claude-default-airlock-rules.json",
+        _ => "CopilotHere.Resources.github-copilot-default-airlock-rules.json",
+      };
+
       using var stream = assembly.GetManifestResourceStream(resourceName);
       if (stream is null) return null;
       
@@ -232,7 +239,7 @@ public static class AirlockRunner
     }
   }
 
-  private static string? ProcessNetworkConfig(string rulesPath, AppPaths paths)
+  private static string? ProcessNetworkConfig(string rulesPath, AppPaths paths, ICliTool tool)
   {
     try
     {
@@ -244,7 +251,7 @@ public static class AirlockRunner
       // If inherit_default_rules is true, merge with default rules
       if (userConfig.InheritDefaultRules)
       {
-        var defaultRules = GetDefaultRules();
+        var defaultRules = GetDefaultRules(tool);
         if (defaultRules is not null)
         {
           // Add default rules that don't conflict with user rules
@@ -345,6 +352,12 @@ public static class AirlockRunner
         var resolvedPath = mount.ResolveHostPath(ctx.Paths.UserHome);
         var composePath = ConvertToComposePath(resolvedPath);
         extraMounts.AppendLine($"      - {composePath}:{containerPath}:{mode}");
+      }
+
+      // Tool-specific extra config mounts (e.g. Claude Code's ~/.claude.json).
+      foreach (var (hostPath, containerPath) in ctx.ActiveTool.GetAdditionalConfigMounts(ctx.Paths))
+      {
+        extraMounts.AppendLine($"      - {ConvertToComposePath(hostPath)}:{containerPath}");
       }
 
       // Build Docker broker substitutions for DinD on the airlock network.

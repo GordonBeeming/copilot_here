@@ -31,6 +31,7 @@ public class ContainerRuntimeConfigTests
       CurrentDirectory = _projectDir,
       UserHome = _tempDir,
       CopilotConfigPath = Path.Combine(_tempDir, ".config", "copilot-cli-docker"),
+      ClaudeConfigPath = Path.Combine(_tempDir, ".claude"),
       LocalConfigPath = localConfigPath,
       GlobalConfigPath = globalConfigPath,
       ContainerWorkDir = "/workspace"

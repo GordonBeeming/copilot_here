@@ -18,6 +18,18 @@ public class ToolRegistryTests
   }
   
   [Test]
+  public async Task Get_ValidTool_Claude_ReturnsCorrectTool()
+  {
+    // Act
+    var tool = ToolRegistry.Get("claude");
+
+    // Assert
+    await Assert.That(tool).IsNotNull();
+    await Assert.That(tool.Name).IsEqualTo("claude");
+    await Assert.That(tool.DisplayName).IsEqualTo("Claude Code");
+  }
+
+  [Test]
   public async Task Get_ValidTool_Echo_ReturnsCorrectTool()
   {
     // Act

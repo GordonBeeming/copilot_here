@@ -15,6 +15,13 @@ public sealed record AppPaths
   /// <summary>Path to copilot CLI config directory (~/.config/copilot-cli-docker).</summary>
   public required string CopilotConfigPath { get; init; }
 
+  /// <summary>
+  /// Path to the host's Claude Code config directory (~/.claude). Unlike the
+  /// Copilot path, this is the user's real Claude directory, so an existing
+  /// `claude` login carries into the sandbox via the bind mount.
+  /// </summary>
+  public required string ClaudeConfigPath { get; init; }
+
   /// <summary>Path to local .copilot_here config directory.</summary>
   public required string LocalConfigPath { get; init; }
 
@@ -37,6 +44,7 @@ public sealed record AppPaths
     
     var globalConfigPath = Path.Combine(userHome, ".config", "copilot_here");
     var copilotConfigPath = Path.Combine(userHome, ".config", "copilot-cli-docker");
+    var claudeConfigPath = Path.Combine(userHome, ".claude");
 
     // Ensure config directories exist
     try 
@@ -59,6 +67,17 @@ public sealed record AppPaths
       Console.Error.WriteLine($"⚠️  Warning: Cannot create Copilot config directory: {copilotConfigPath}");
       Console.Error.WriteLine($"   {ex.Message}");
       Console.Error.WriteLine($"   Copilot session data may not persist.");
+    }
+
+    try
+    {
+      Directory.CreateDirectory(claudeConfigPath);
+    }
+    catch (Exception ex)
+    {
+      Console.Error.WriteLine($"⚠️  Warning: Cannot create Claude config directory: {claudeConfigPath}");
+      Console.Error.WriteLine($"   {ex.Message}");
+      Console.Error.WriteLine($"   Claude Code session data may not persist.");
     }
 
     // Calculate container work directory
@@ -86,6 +105,7 @@ public sealed record AppPaths
       CurrentDirectory = currentDir,
       UserHome = userHome,
       CopilotConfigPath = copilotConfigPath,
+      ClaudeConfigPath = claudeConfigPath,
       LocalConfigPath = Path.Combine(currentDir, ".copilot_here"),
       GlobalConfigPath = globalConfigPath,
       ContainerWorkDir = containerWorkDir

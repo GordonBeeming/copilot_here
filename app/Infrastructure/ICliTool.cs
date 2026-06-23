@@ -74,6 +74,14 @@ public interface ICliTool
     string GetContainerConfigPath();
 
     /// <summary>
+    /// Additional host→container bind mounts beyond the primary config directory
+    /// (e.g. Claude Code's ~/.claude.json, which lives in HOME rather than inside
+    /// ~/.claude). Only existing host paths are returned, so a missing file is
+    /// skipped instead of being mounted as an empty directory.
+    /// </summary>
+    IReadOnlyList<(string HostPath, string ContainerPath)> GetAdditionalConfigMounts(AppPaths paths);
+
+    /// <summary>
     /// Gets the authentication provider for this tool
     /// </summary>
     IAuthProvider GetAuthProvider();
@@ -99,6 +107,14 @@ public interface ICliTool
     /// Indicates if the tool supports model selection
     /// </summary>
     bool SupportsModels { get; }
+
+    /// <summary>
+    /// Indicates the tool keeps its own persistent model preference (e.g. Claude
+    /// Code's own config and /model picker). When true, the shared model.conf is
+    /// NOT auto-passed as --model — its values are oriented at another provider
+    /// and would be rejected. An explicit per-run --model still applies.
+    /// </summary>
+    bool ManagesOwnModelSelection { get; }
 
     /// <summary>
     /// Indicates if the tool supports YOLO mode (unrestricted access)

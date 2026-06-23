@@ -407,7 +407,7 @@ A reasonable question once you've seen [Docker Sandboxes (`sbx`)](https://docs.d
 | Nested Docker         | Opt-in brokered socket (`--dind`). Image allowlist, endpoint allowlist, body inspection                          | Each sandbox has its own isolated Docker engine built in                              |
 | Secrets               | Reuses the host `gh` CLI credentials per run                                                                     | `sbx secret set`; proxy injects headers so values never enter the VM                  |
 | Persistence           | Ephemeral container, persisted *config* in `.copilot_here/` and `~/.config/copilot_here/`                        | Sandboxes persist across runs. Installed packages, images, and history survive restarts|
-| Agents supported today| GitHub Copilot CLI. Multi-tool scaffolding is in-tree (`--set-tool`, `ToolRegistry`), more agents on the roadmap | `claude`, `codex`, `copilot`, `gemini`, `kiro`, `opencode`, `shell`, `docker-agent`   |
+| Agents supported today| GitHub Copilot CLI and Claude Code, switchable with `--set-tool`; more agents on the roadmap                     | `claude`, `codex`, `copilot`, `gemini`, `kiro`, `opencode`, `shell`, `docker-agent`   |
 | Platforms             | macOS, Linux, Windows (PowerShell 5.1 and 7+)                                                                    | macOS, Linux, Windows                                                                 |
 | Status                | Open source, .NET 10 Native AOT                                                                                  | Docker-maintained, experimental                                                       |
 
@@ -713,9 +713,38 @@ copilot_yolo --no-cleanup "generate a README for this project"
 ```
 
 
+## 🤖 Choosing a CLI Provider
+
+`copilot_here` runs more than one AI coding CLI inside the sandbox. GitHub Copilot CLI is the default; Claude Code (`@anthropic-ai/claude-code`) is also built in. Switch between them with `--set-tool`:
+
+```bash
+copilot_here --list-tools            # list the installed providers
+copilot_here --set-tool claude       # switch globally
+copilot_here --set-tool-local claude # switch for the current project only
+copilot_here --show-tool             # show the active provider
+```
+
+The active provider decides which image family runs and how your arguments reach the underlying CLI.
+
+### Authenticating Claude Code
+
+Claude Code reuses your host login, the way Copilot reuses your `gh` token. Log in once on your machine:
+
+```bash
+claude   # complete the OAuth login
+```
+
+`copilot_here` mounts `~/.claude` into the container so Claude Code reads your `~/.claude/.credentials.json` and refreshes the token in place, which means sessions run as long as your login stays valid. On Linux the host app already uses that file, so it's shared directly. macOS keeps the login in the Keychain instead, so each run re-seeds `~/.claude/.credentials.json` from the Keychain (full credentials including the refresh token, written `0600`) before launching. It re-seeds every run on purpose: your host app rotates the refresh token when it refreshes, and a one-time seed would quickly go stale and fail with a 401. Your host Claude app keeps using the Keychain throughout.
+
+There's one trade-off to know about: because the sandbox and your host share the same login, a refresh triggered inside a long sandbox session rotates the token server-side and can leave the Keychain copy stale, so your host Claude occasionally needs a one-off `claude` re-login. To sidestep all of that, set `ANTHROPIC_API_KEY` in your environment; it takes precedence and never expires. A long-lived `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` is also honored if set.
+
+Your `~/.claude.json` (model preference, MCP servers, settings) is mounted too, so the sandbox runs with your real Claude setup. Claude Code manages its own model through that config and its `/model` picker, so it ignores the shared `--set-model`/`model.conf` value. Pick a Claude model with `/model` inside a session, or pass `--model <id>` for a single run.
+
+Under airlock, Claude's default rules allow `api.anthropic.com`, `console.anthropic.com`, and `statsig.anthropic.com`. These are a starting point and may need tweaking with `--edit-airlock-rules` for MCP servers or other hosts your workflow reaches.
+
 ## 🐳 Docker Image Variants
 
-This project provides multiple Docker image variants for different development scenarios. All images include the GitHub Copilot CLI and inherit the base security and authentication features.
+This project provides multiple Docker image variants for different development scenarios. Each variant is published for both providers: the `copilot-*` family ships the GitHub Copilot CLI, and the matching `claude-*` family ships Claude Code. The variant you select stays the same; the active provider picks the right family. All images inherit the base security and authentication features.
 
 ### Available Images
 

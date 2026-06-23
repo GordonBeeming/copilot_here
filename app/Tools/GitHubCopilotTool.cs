@@ -112,13 +112,20 @@ public sealed class GitHubCopilotTool : ICliTool
     return "/home/appuser/.copilot";
   }
 
+  public IReadOnlyList<(string HostPath, string ContainerPath)> GetAdditionalConfigMounts(AppPaths paths)
+  {
+    return [];
+  }
+
   public string GetDefaultNetworkRulesPath()
   {
     return "docker/tools/github-copilot/default-airlock-rules.json";
   }
 
   public bool SupportsModels => true;
-  
+
+  public bool ManagesOwnModelSelection => false;
+
   public bool SupportsYoloMode => true;
   
   public bool SupportsInteractiveMode => true;

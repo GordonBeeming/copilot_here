@@ -2,6 +2,15 @@
 
 This repository publishes multiple Docker image variants to optimize for size and functionality:
 
+## Provider Image Families
+
+Every variant below is published twice — once per CLI provider:
+
+- **`copilot-*`** (and the unprefixed `latest`/`dotnet`/`rust`/… shorthands) ship the GitHub Copilot CLI. This is the default provider.
+- **`claude-*`** ship Claude Code (`@anthropic-ai/claude-code`). The default Claude image is `claude-latest`.
+
+The variants are otherwise identical: same base, same toolchains, and the same security features. The tag prefix is what swaps the CLI. `copilot_here` selects the right family from the active provider (`--set-tool`); you choose the *variant* the same way regardless of provider. The examples below use the Copilot family; substitute the `claude-` prefix for the Claude equivalents (`claude-dotnet`, `claude-rust`, …).
+
 ## Base Image: `latest`
 **Tag:** `ghcr.io/gordonbeeming/copilot_here:latest`
 

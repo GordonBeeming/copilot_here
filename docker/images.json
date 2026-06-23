@@ -43,6 +43,50 @@
     "java": {
       "base": "node:20-slim",
       "snippets": ["system-packages", "docker-cli", "powershell", "java", "lsp-typescript", "lsp-java", "copilot-cli", "entrypoint"]
+    },
+    "claude-default": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "lsp-typescript", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "lsp-typescript", "lsp-csharp", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet-8": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "lsp-typescript", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet-9": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet9", "lsp-typescript", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet-10": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet10", "lsp-typescript", "lsp-csharp", "claude-cli", "entrypoint"]
+    },
+    "claude-playwright": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "playwright", "lsp-typescript", "claude-cli", "entrypoint"]
+    },
+    "claude-rust": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "rust", "lsp-typescript", "lsp-rust", "claude-cli", "entrypoint"]
+    },
+    "claude-golang": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "golang", "lsp-typescript", "lsp-golang", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet-playwright": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "playwright", "lsp-typescript", "lsp-csharp", "claude-cli", "entrypoint"]
+    },
+    "claude-dotnet-rust": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "dotnet-prereqs", "dotnet8", "dotnet9", "dotnet10", "rust", "lsp-typescript", "lsp-csharp", "lsp-rust", "claude-cli", "entrypoint"]
+    },
+    "claude-java": {
+      "base": "node:20-slim",
+      "snippets": ["system-packages", "docker-cli", "powershell", "java", "lsp-typescript", "lsp-java", "claude-cli", "entrypoint"]
     }
   }
 }

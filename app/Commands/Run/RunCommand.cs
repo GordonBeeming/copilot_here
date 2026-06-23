@@ -369,8 +369,12 @@ public sealed class RunCommand : ICommand
       var imageName = ctx.ActiveTool.GetImageName(imageTag);
       DebugLogger.Log($"Selected image: {imageName}");
 
-      // Determine model (CLI overrides config)
-      var effectiveModel = model ?? ctx.ModelConfig.Model;
+      // Determine model (CLI overrides config). Tools that keep their own model
+      // preference (e.g. Claude Code) ignore the persisted model.conf — its
+      // values target another provider and would be rejected — but an explicit
+      // per-run --model still applies.
+      var configModel = ctx.ActiveTool.ManagesOwnModelSelection ? null : ctx.ModelConfig.Model;
+      var effectiveModel = model ?? configModel;
       if (!string.IsNullOrEmpty(effectiveModel))
       {
         if (!ctx.ActiveTool.SupportsModels)
@@ -839,6 +843,13 @@ public sealed class RunCommand : ICommand
       "-e", $"PGID={ctx.Environment.GroupId}",
       "-e", $"COPILOT_HERE_SESSION_INFO={sessionInfo}"
     };
+
+    // Tool-specific extra config mounts (e.g. Claude Code's ~/.claude.json).
+    foreach (var (hostPath, containerPath) in ctx.ActiveTool.GetAdditionalConfigMounts(ctx.Paths))
+    {
+      args.Add("-v");
+      args.Add($"{ConvertToDockerPath(hostPath)}:{containerPath}");
+    }
 
     // Brokered Docker socket: mount the host-side broker UDS into the container,
     // or expose it via host.docker.internal on Windows where TCP is the only option.

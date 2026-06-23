@@ -1,0 +1,26 @@
+{
+  "enabled": true,
+  "enable_logging": false,
+  "allowed_rules": [
+    {
+      "host": "api.anthropic.com",
+      "allowed_paths": [
+        "/v1/*",
+        "/api/*"
+      ]
+    },
+    {
+      "host": "console.anthropic.com",
+      "allowed_paths": [
+        "/v1/oauth/token",
+        "/api/*"
+      ]
+    },
+    {
+      "host": "statsig.anthropic.com",
+      "allowed_paths": [
+        "/v1/*"
+      ]
+    }
+  ]
+}
