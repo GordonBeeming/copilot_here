@@ -7,6 +7,7 @@ This repository publishes multiple Docker image variants to optimize for size an
 
 The standard copilot_here image with:
 - Node.js 20
+- Python 3 with pip & pipx (Debian 12 enforces PEP 668, so `pipx install <tool>` is the supported path for pip-distributed CLIs)
 - GitHub Copilot CLI
 - Git, curl, gpg, gosu
 

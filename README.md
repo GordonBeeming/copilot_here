@@ -40,7 +40,7 @@ Choose your platform below. The scripts include both **Safe Mode** (asks for con
 All images support both **AMD64** (x86_64) and **ARM64** (Apple Silicon, etc.) architectures.
 
 All functions support switching between Docker image variants using flags:
-- **No flag** - Base image (Node.js, Git, basic tools)
+- **No flag** - Base image (Node.js, Python with pip & pipx, Git, basic tools)
 - **`--dotnet`** (`-d`) - .NET image (includes .NET 8, 9 & 10 SDKs)
 - **`--dotnet8`** (`-d8`) - .NET 8 image (includes .NET 8 SDK)
 - **`--dotnet9`** (`-d9`) - .NET 9 image (includes .NET 9 SDK)
@@ -669,7 +669,7 @@ This project provides multiple Docker image variants for different development s
 
 | Tag | Flag | Description |
 |-----|------|-------------|
-| `latest` | *(default)* | Base image with Node.js 20, Git, and essential tools |
+| `latest` | *(default)* | Base image with Node.js 20, Python (pip & pipx), Git, and essential tools |
 | `dotnet` | `--dotnet` | .NET 8, 9 & 10 SDKs |
 | `dotnet-8` | `--dotnet8` | .NET 8 SDK only |
 | `dotnet-9` | `--dotnet9` | .NET 9 SDK only |
