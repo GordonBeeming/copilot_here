@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
   gpg \
   nano \
   pipx \
+  python3 \
   python3-pip \
   python3-venv \
   software-properties-common \
@@ -34,7 +35,7 @@ RUN apt-get update && apt-get install -y \
 # ENV covers the exec'd command and non-login shells; the profile.d drop-in re-adds it for
 # login shells, which otherwise reset PATH via /etc/profile (Debian zsh sources it too).
 ENV PATH="/home/appuser/.local/bin:${PATH}"
-RUN echo 'case ":${PATH}:" in *:/home/appuser/.local/bin:*) ;; *) PATH="/home/appuser/.local/bin:${PATH}" ;; esac' \
+RUN echo 'case ":${PATH}:" in *:/home/appuser/.local/bin:*) ;; *) PATH="/home/appuser/.local/bin${PATH:+:${PATH}}" ;; esac' \
   > /etc/profile.d/copilot-local-bin.sh
 
 # --- snippet: docker-cli ---
