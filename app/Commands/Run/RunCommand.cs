@@ -599,7 +599,8 @@ public sealed class RunCommand : ICommand
         // Build Docker args for standard mode
         var sessionId = GenerateSessionId();
         var containerName = $"copilot_here-{sessionId}";
-        var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull, broker);
+        var rootlessPodman = ContainerRuntimeConfig.IsRootlessPodman(ctx.RuntimeConfig);
+        var dockerArgs = BuildDockerArgs(ctx, imageName, containerName, allMounts, toolCommand, _isYolo, imageTag, noPull, broker, rootlessPodman);
         DebugLogger.Log($"docker args: {string.Join(" | ", dockerArgs.Select(a => a.Length > 80 ? a[..80] + "..." : a))}");
 
         // Set terminal title
@@ -791,7 +792,8 @@ public sealed class RunCommand : ICommand
     bool isYolo,
     string imageTag,
     bool noPull,
-    DockerSocketBroker? broker)
+    DockerSocketBroker? broker,
+    bool rootlessPodman = false)
   {
     // Generate session info JSON
     var sessionInfo = SessionInfo.Generate(ctx, imageTag, imageName, mounts, isYolo);
@@ -869,6 +871,19 @@ public sealed class RunCommand : ICommand
     {
       DebugLogger.Log($"Adding {sandboxFlags.Count} sandbox flags from SANDBOX_FLAGS");
       args.AddRange(sandboxFlags);
+    }
+
+    // Rootless Podman maps the host user to container root, so bind-mounted host
+    // files land as root-owned and the workload's appuser can't write them.
+    // keep-id remaps the host UID/GID to the same values inside the container so
+    // appuser (PUID/PGID) owns the mounts. We still start as root (--user 0:0) so
+    // the entrypoint can run useradd/chown before gosu-dropping to appuser.
+    if (rootlessPodman)
+    {
+      args.Add("--user");
+      args.Add("0:0");
+      args.Add("--userns");
+      args.Add($"keep-id:uid={ctx.Environment.UserId},gid={ctx.Environment.GroupId}");
     }
 
     // Add image name
