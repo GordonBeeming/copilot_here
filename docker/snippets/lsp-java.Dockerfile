@@ -1,8 +1,11 @@
 # Install Eclipse JDT Language Server for Java code intelligence
-ARG JDTLS_VERSION=1.43.0
-ARG JDTLS_TIMESTAMP=202412191447
+# Resolve the latest build at image-build time. Eclipse only retains the most
+# recent milestone, so any pinned milestone URL eventually 404s; the snapshots
+# `-latest.tar.gz` symlink always points at the current build. Set JDTLS_URL to
+# a specific versioned tarball to pin.
+ARG JDTLS_URL=https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
 RUN mkdir -p /usr/local/share/jdtls \
-  && curl -fsSL "https://download.eclipse.org/jdtls/milestones/${JDTLS_VERSION}/jdt-language-server-${JDTLS_VERSION}-${JDTLS_TIMESTAMP}.tar.gz" -o jdtls.tar.gz \
+  && curl -fsSL "${JDTLS_URL}" -o jdtls.tar.gz \
   && tar -C /usr/local/share/jdtls -xzf jdtls.tar.gz \
   && rm jdtls.tar.gz
 

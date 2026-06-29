@@ -76,12 +76,15 @@ RUN ARCH=$(dpkg --print-architecture) \
 # --- snippet: golang ---
 # Install Go
 # Using official Go installation method
-ENV GOLANG_VERSION=1.26.3
 ENV GOPATH=/usr/local/go-workspace
 ENV PATH="/usr/local/go/bin:${GOPATH}/bin:${PATH}"
 
-# Install Go from official tarball
-RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-$(dpkg --print-architecture).tar.gz" -o go.tar.gz \
+# Resolve the latest stable Go at image-build time (go.dev/VERSION returns the
+# current release, e.g. "go1.26.4"). Set GOLANG_VERSION (same "goX.Y.Z" form) to pin.
+ARG GOLANG_VERSION
+RUN ver="${GOLANG_VERSION:-$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)}" \
+  && test -n "$ver" \
+  && curl -fsSL "https://go.dev/dl/${ver}.linux-$(dpkg --print-architecture).tar.gz" -o go.tar.gz \
   && tar -C /usr/local -xzf go.tar.gz \
   && rm go.tar.gz
 
