@@ -133,7 +133,7 @@ public sealed class RunCommand : ICommand
     _installShellsOption = new Option<bool>("--install-shells") { Description = "Install shell integrations (bash/zsh/fish + PowerShell/cmd)" };
 
     _uninstallOption = new Option<bool>("--uninstall") { Description = "Remove copilot_here (binary, scripts, shell integration). Add --purge to also delete config and pulled images" };
-    _purgeOption = new Option<bool>("--purge") { Description = "With --uninstall: also delete config dirs and pulled Docker images (never touches ~/.claude)" };
+    _purgeOption = new Option<bool>("--purge") { Description = "With --uninstall: also delete config dirs and pulled Docker images" };
     _yesOption = new Option<bool>("--yes") { Description = "Skip confirmation prompts (for --uninstall)" };
     _yesOption.Aliases.Add("-y");
 

@@ -7,8 +7,6 @@
 #   bash <(curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/uninstall.sh)
 #   bash <(curl -fsSL .../uninstall.sh) --purge   # also delete config dirs
 #   bash <(curl -fsSL .../uninstall.sh) --yes      # skip the confirmation prompt
-#
-# Never touches ~/.claude (your real Claude Code config).
 
 __copilot_uninstall_main() {
   local purge=0
@@ -32,7 +30,6 @@ __copilot_uninstall_main() {
   if [ "$purge" -eq 1 ]; then
     echo "   --purge: also deleting ~/.config/copilot_here and ~/.config/copilot-cli-docker"
   fi
-  echo "   Your Claude config (~/.claude) is left untouched."
 
   if [ "$assume_yes" -ne 1 ]; then
     printf "   Continue? [y/N]: "

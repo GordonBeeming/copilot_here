@@ -6,8 +6,6 @@
 #   iex ([System.Text.Encoding]::UTF8.GetString((iwr -UseBasicParsing 'https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/uninstall.ps1').Content))
 #   Add -Purge to also delete config dirs, -Yes to skip the confirmation prompt:
 #   & ([scriptblock]::Create((iwr -UseBasicParsing '.../uninstall.ps1').Content)) -Purge -Yes
-#
-# Never touches ~/.claude (your real Claude Code config).
 
 [CmdletBinding()]
 param(
@@ -31,7 +29,6 @@ Write-Host "   This removes the binary, PowerShell script, cmd wrappers, and she
 if ($Purge) {
     Write-Host "   -Purge: also deleting ~/.config/copilot_here and ~/.config/copilot-cli-docker"
 }
-Write-Host "   Your Claude config (~/.claude) is left untouched."
 
 if (-not $Yes) {
     $response = Read-Host "   Continue? [y/N]"

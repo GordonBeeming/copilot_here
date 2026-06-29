@@ -24,8 +24,6 @@ bash <(curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/downloa
 
 Both take `--purge` / `-Purge` and `--yes` / `-Yes`.
 
-> **`~/.claude` is never removed.** That directory is your real Claude Code config and login, shared with Claude Code itself, and no uninstall mode touches it.
-
 ## What the install creates
 
 ### Linux/macOS
