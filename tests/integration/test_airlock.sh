@@ -324,6 +324,10 @@ EOF
         gsub(/\{\{LOGS_MOUNT\}\}/, logs_mount);
         gsub(/\{\{PUID\}\}/, puid);
         gsub(/\{\{PGID\}\}/, pgid);
+        # User-namespace remap (rootless Podman keep-id). The integration test
+        # runs under Docker, so this stays empty and the line collapses to a
+        # blank line, which docker compose tolerates.
+        gsub(/\{\{USERNS\}\}/, "");
         gsub(/\{\{EXTRA_MOUNTS\}\}/, extra_mounts);
         gsub(/\{\{EXTRA_SANDBOX_FLAGS\}\}/, extra_sandbox_flags);
         gsub(/\{\{TOOL_ARGS\}\}/, copilot_args);

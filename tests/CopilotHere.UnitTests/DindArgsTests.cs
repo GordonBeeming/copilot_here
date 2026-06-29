@@ -222,4 +222,38 @@ public class DindArgsTests
     await Assert.That(hostIdx).IsGreaterThanOrEqualTo(0);
     await Assert.That(args[hostIdx - 1]).IsEqualTo("--add-host");
   }
+
+  [Test]
+  public async Task BuildDockerArgs_RootlessPodman_AddsKeepIdUserns()
+  {
+    // #119: rootless Podman maps the host user to container root, so bind mounts
+    // land root-owned and appuser can't write them. keep-id remaps the host
+    // UID/GID into the container; --user 0:0 keeps the entrypoint running as root.
+    var ctx = AppContext.Create();
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker: null,
+      rootlessPodman: true);
+
+    var usernsIdx = args.FindIndex(a => a == "--userns");
+    await Assert.That(usernsIdx).IsGreaterThanOrEqualTo(0);
+    await Assert.That(args[usernsIdx + 1])
+      .IsEqualTo($"keep-id:uid={ctx.Environment.UserId},gid={ctx.Environment.GroupId}");
+
+    var userIdx = args.FindIndex(a => a == "--user");
+    await Assert.That(userIdx).IsGreaterThanOrEqualTo(0);
+    await Assert.That(args[userIdx + 1]).IsEqualTo("0:0");
+  }
+
+  [Test]
+  public async Task BuildDockerArgs_NotRootless_NoUserns()
+  {
+    // Docker / OrbStack / Podman Machine / rootful Podman: no keep-id remap.
+    var ctx = AppContext.Create();
+    var args = RunCommand.BuildDockerArgs(
+      ctx, "img", "name", [], ["copilot"], false, "latest", false, broker: null);
+
+    var joined = string.Join(" ", args);
+    await Assert.That(joined).DoesNotContain("--userns");
+    await Assert.That(joined).DoesNotContain("keep-id");
+  }
 }

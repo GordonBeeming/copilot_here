@@ -35,6 +35,7 @@ services:
   app:
     image: {{APP_IMAGE}}
     container_name: "{{PROJECT_NAME}}-app"
+{{USERNS}}
     networks:
       - airlock  # ONLY on airlock - cannot reach external network directly
     environment:

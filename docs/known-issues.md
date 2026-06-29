@@ -30,6 +30,10 @@ The `--dind` flag enables Testcontainers and sibling-container workflows by rout
 - **OrbStack:** Works without configuration. OrbStack exposes the standard `/var/run/docker.sock` on macOS, so the broker connects to it the same way as Docker Desktop.
 - **DinD + airlock (macOS / Windows):** The Docker API path works (workload → `proxy:2375` → socat → host broker), and sibling containers are created on the airlock compose network. However, **Testcontainers data-plane connections fail**: the workload sets `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`, but `host.docker.internal` is unreachable via raw TCP from the `internal: true` airlock network. Testcontainers tries to connect to `<host>:<random_mapped_port>` and times out. **Workaround:** use `--dind` without `--airlock` until a fix lands. See [#101](https://github.com/GordonBeeming/copilot_here/issues/101) for potential solutions and discussion.
 
+## Rootless Podman file ownership
+
+- **Rootless Podman can't write bind-mounted host files — fixed automatically.** Rootless Podman runs inside a user namespace that maps your host user to `root` inside the container. A bind-mounted file you own on the host therefore shows up as `root`-owned inside, while the workload runs as `appuser` (your host UID, which maps to a subordinate UID). The result: `appuser` can't write the files you mounted in, so the CLI tool fails to make changes. See [#119](https://github.com/GordonBeeming/copilot_here/issues/119). `copilot_here` detects rootless Podman via `podman info --format '{{.Host.Security.Rootless}}'` and adds `--userns=keep-id:uid=<PUID>,gid=<PGID>` (plus `--user 0:0` so the entrypoint still starts as root for its user setup). keep-id maps your host UID/GID to the same values inside the container, so the mounts show up owned by `appuser` and stay writable. Docker, OrbStack, and Podman Machine already expose the real host UID, so they're left untouched; rootful Podman is skipped because keep-id is rootless-only.
+
 ## Reporting New Issues
 
 Found a new issue? Please report it on our [GitHub Issues](https://github.com/GordonBeeming/copilot_here/issues) page with:

@@ -438,6 +438,50 @@ public sealed record ContainerRuntimeConfig
     return File.Exists(path);
   }
 
+  /// <summary>
+  /// Reports whether the active runtime is rootless Podman.
+  /// Only rootless Podman needs the keep-id user-namespace remap: its default
+  /// userns maps the host user to container root, so bind-mounted host files
+  /// appear root-owned and the workload's non-root appuser can't write them.
+  /// Docker/OrbStack/Podman-Machine show the real host UID and need no remap;
+  /// rootful Podman rejects keep-id outright. Any detection failure → false.
+  /// </summary>
+  public static bool IsRootlessPodman(ContainerRuntimeConfig config)
+  {
+    if (config.Runtime != "podman")
+      return false;
+
+    try
+    {
+      var startInfo = new ProcessStartInfo("podman", "info --format {{.Host.Security.Rootless}}")
+      {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      using var process = Process.Start(startInfo);
+      if (process is null) return false;
+
+      // Bound the wait so an unresponsive Podman VM can't hang the CLI. The
+      // output is a single token, well under the pipe buffer, so waiting before
+      // reading can't deadlock on a full stdout buffer.
+      if (!process.WaitForExit(5000))
+      {
+        try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+        return false;
+      }
+
+      var output = process.StandardOutput.ReadToEnd().Trim();
+      return process.ExitCode == 0
+        && string.Equals(output, "true", StringComparison.OrdinalIgnoreCase);
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
   private static string? TryGetPodmanSocketFromCli()
   {
     try
