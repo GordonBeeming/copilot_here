@@ -98,6 +98,16 @@ Remove-CopilotItem -Path $psScript -Label "PowerShell script (~/.copilot_here.ps
 Remove-CopilotItem -Path $bin -Label "binary ($bin)"
 
 if ($Purge) {
+    # Best-effort: remove copilot_here containers and pulled images so -Purge
+    # matches the CLI's --purge. Skipped silently when docker isn't available.
+    try {
+        if (Get-Command docker -ErrorAction SilentlyContinue) {
+            $containers = docker ps -aq --filter "name=copilot_here-" 2>$null
+            if ($containers) { docker rm -f $containers 2>&1 | Out-Null; Write-Host "✓ Removed copilot_here containers" }
+            $images = docker images --filter=reference='ghcr.io/gordonbeeming/copilot_here*' -q 2>$null | Select-Object -Unique
+            if ($images) { docker rmi -f $images 2>&1 | Out-Null; Write-Host "✓ Removed copilot_here images" }
+        }
+    } catch { }
     Remove-CopilotItem -Path (Join-Path $home_ ".config/copilot_here") -Label "config (~/.config/copilot_here)"
     Remove-CopilotItem -Path (Join-Path $home_ ".config/copilot-cli-docker") -Label "config (~/.config/copilot-cli-docker)"
 } else {

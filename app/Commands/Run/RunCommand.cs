@@ -1024,8 +1024,18 @@ public sealed class RunCommand : ICommand
   /// </summary>
   private static int RunUninstall(bool purge, bool assumeYes, ContainerRuntimeConfig runtimeConfig)
   {
-    if (!assumeYes && !Console.IsInputRedirected && !Console.IsOutputRedirected)
+    if (!assumeYes)
     {
+      // Destructive op: never proceed without an explicit acknowledgement. In a
+      // non-interactive context (piped/redirected stdio, CI) we can't reliably read
+      // a prompt, so refuse and require --yes rather than silently uninstalling.
+      if (Console.IsInputRedirected || Console.IsOutputRedirected)
+      {
+        Console.Error.WriteLine("❌ Refusing to uninstall non-interactively without confirmation.");
+        Console.Error.WriteLine("   Re-run with --yes to confirm: copilot_here --uninstall --yes");
+        return 1;
+      }
+
       Console.WriteLine("⚠️  This removes the copilot_here binary, scripts, and shell integration.");
       if (purge)
       {

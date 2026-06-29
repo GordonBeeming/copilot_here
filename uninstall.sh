@@ -57,7 +57,7 @@ __copilot_uninstall_main() {
   __copilot_strip_profile() {
     local profile="$1"
     [ -f "$profile" ] || return 0
-    grep -qF "$marker_start" "$profile" 2>/dev/null || grep -q "copilot_here.sh" "$profile" 2>/dev/null || return 0
+    grep -qF "$marker_start" "$profile" 2>/dev/null || grep -qF "copilot_here.sh" "$profile" 2>/dev/null || return 0
 
     # Only strip a fenced block when both markers are present. With a start marker
     # but no matching end marker, treating everything after the start as in-block
@@ -102,6 +102,20 @@ __copilot_uninstall_main() {
   __copilot_rm "$bin" "binary ($bin)"
 
   if [ "$purge" -eq 1 ]; then
+    # Best-effort: remove copilot_here containers and pulled images so --purge
+    # matches the CLI's --purge. Skipped silently when docker isn't available.
+    if command -v docker >/dev/null 2>&1; then
+      local containers
+      containers=$(docker ps -aq --filter "name=copilot_here-" 2>/dev/null)
+      if [ -n "$containers" ]; then
+        docker rm -f $containers >/dev/null 2>&1 && echo "✓ Removed copilot_here containers"
+      fi
+      local images
+      images=$(docker images --filter=reference='ghcr.io/gordonbeeming/copilot_here*' -q 2>/dev/null | sort -u)
+      if [ -n "$images" ]; then
+        docker rmi -f $images >/dev/null 2>&1 && echo "✓ Removed copilot_here images"
+      fi
+    fi
     if [ -d "$HOME/.config/copilot_here" ]; then
       rm -rf "$HOME/.config/copilot_here" && echo "✓ Removed config (~/.config/copilot_here)"
     fi
