@@ -10,6 +10,7 @@ public static class ToolRegistry
     private static readonly Dictionary<string, Lazy<ICliTool>> _tools = new()
     {
         ["github-copilot"] = new Lazy<ICliTool>(() => new GitHubCopilotTool()),
+        ["claude"] = new Lazy<ICliTool>(() => new ClaudeCodeTool()),
         ["echo"] = new Lazy<ICliTool>(() => new EchoTool()),
     };
 

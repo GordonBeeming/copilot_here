@@ -171,6 +171,11 @@ public class EchoTool : Infrastructure.ICliTool
         return "/home/appuser/.copilot";
     }
 
+    public IReadOnlyList<(string HostPath, string ContainerPath)> GetAdditionalConfigMounts(Infrastructure.AppPaths paths)
+    {
+        return [];
+    }
+
     public Infrastructure.IAuthProvider GetAuthProvider()
     {
         return new EchoAuthProvider();
@@ -192,6 +197,7 @@ public class EchoTool : Infrastructure.ICliTool
     }
 
     public bool SupportsModels => true;
+    public bool ManagesOwnModelSelection => false;
     public bool SupportsYoloMode => true;
     public bool SupportsInteractiveMode => true;
 }

@@ -393,6 +393,7 @@ jobs:
     outputs:
       repo_name: ${{ steps.repo.outputs.name }}
       copilot_version: ${{ steps.versions.outputs.copilot_version }}
+      claude_version: ${{ steps.versions.outputs.claude_version }}
       playwright_version: ${{ steps.versions.outputs.playwright_version }}
       csharp_ls_version: ${{ steps.versions.outputs.csharp_ls_version }}
       dotnet_8_version: ${{ steps.versions.outputs.dotnet_8_version }}
@@ -408,6 +409,9 @@ jobs:
         run: |
           COPILOT_VERSION=$(npm view @github/copilot version)
           echo "copilot_version=$COPILOT_VERSION" >> $GITHUB_OUTPUT
+
+          CLAUDE_VERSION=$(npm view @anthropic-ai/claude-code version)
+          echo "claude_version=$CLAUDE_VERSION" >> $GITHUB_OUTPUT
 
           PLAYWRIGHT_VERSION=$(npm view playwright version)
           echo "playwright_version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
@@ -469,6 +473,41 @@ jobs:
           - image: java
             dockerfile: ./docker/generated/Dockerfile.java
             build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+          - image: claude-default
+            dockerfile: ./docker/generated/Dockerfile.claude-default
+            tags_extra: |
+              ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:claude-latest
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION"
+          - image: claude-rust
+            dockerfile: ./docker/generated/Dockerfile.claude-rust
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION"
+          - image: claude-golang
+            dockerfile: ./docker/generated/Dockerfile.claude-golang
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION"
+          - image: claude-playwright
+            dockerfile: ./docker/generated/Dockerfile.claude-playwright
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+          - image: claude-dotnet-8
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet-8
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
+          - image: claude-dotnet-9
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet-9
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
+          - image: claude-dotnet-10
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet-10
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+          - image: claude-dotnet
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+          - image: claude-dotnet-playwright
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet-playwright
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+          - image: claude-dotnet-rust
+            dockerfile: ./docker/generated/Dockerfile.claude-dotnet-rust
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+          - image: claude-java
+            dockerfile: ./docker/generated/Dockerfile.claude-java
+            build_args: "CLAUDE_VERSION=$CLAUDE_VERSION"
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -491,6 +530,7 @@ jobs:
         run: |
           ARGS='${{ matrix.build_args }}'
           ARGS="${ARGS//\$COPILOT_VERSION/${{ needs.prepare-versions.outputs.copilot_version }}}"
+          ARGS="${ARGS//\$CLAUDE_VERSION/${{ needs.prepare-versions.outputs.claude_version }}}"
           ARGS="${ARGS//\$PLAYWRIGHT_VERSION/${{ needs.prepare-versions.outputs.playwright_version }}}"
           ARGS="${ARGS//\$DOTNET_8_VERSION/${{ needs.prepare-versions.outputs.dotnet_8_version }}}"
           ARGS="${ARGS//\$DOTNET_9_VERSION/${{ needs.prepare-versions.outputs.dotnet_9_version }}}"
@@ -507,21 +547,34 @@ jobs:
           IMAGE="${{ matrix.image }}"
           SHA="${{ github.sha }}"
 
-          TAGS="ghcr.io/${REPO}:copilot-${IMAGE}
-          ghcr.io/${REPO}:copilot-${IMAGE}-sha-${SHA}"
+          # Claude images carry the tool in their matrix key (claude-<variant>);
+          # Copilot images use the bare variant (default, rust, …). Derive the
+          # published tag prefix and the variant from that.
+          if [[ "$IMAGE" == claude-* ]]; then
+            PRIMARY="claude-${IMAGE#claude-}"
+          else
+            PRIMARY="copilot-${IMAGE}"
+          fi
 
-          # Add variant shorthand tag (e.g., :rust, :dotnet)
-          if [[ "$IMAGE" != "default" ]]; then
+          TAGS="ghcr.io/${REPO}:${PRIMARY}
+          ghcr.io/${REPO}:${PRIMARY}-sha-${SHA}"
+
+          # Add variant shorthand tag (e.g., :rust, :dotnet) for Copilot only.
+          # The bare :variant tags point at the Copilot images, so Claude does
+          # not claim them.
+          if [[ "$IMAGE" != "default" && "$IMAGE" != claude-* ]]; then
             TAGS="${TAGS}
           ghcr.io/${REPO}:${IMAGE}"
           fi
 
-          # Add extra tags (e.g., :latest for the default image)
+          # Add extra tags (e.g., :latest / :claude-latest for the default images)
           EXTRA_TAGS="${{ matrix.tags_extra }}"
           if [[ -n "$EXTRA_TAGS" ]]; then
             TAGS="${TAGS}
           ${EXTRA_TAGS}"
           fi
+
+          echo "cache_ref=ghcr.io/${REPO}:${PRIMARY}" >> $GITHUB_OUTPUT
 
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "$TAGS" >> $GITHUB_OUTPUT
@@ -537,7 +590,7 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           labels: project=copilot_here
           build-args: ${{ steps.args.outputs.build_args }}
-          cache-from: type=registry,ref=ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-${{ matrix.image }},mode=max
+          cache-from: type=registry,ref=${{ steps.tags.outputs.cache_ref }},mode=max
           cache-to: type=inline
 
   # Full airlock + DinD smoke test. Spins up a real airlock compose project,
@@ -689,6 +742,12 @@ jobs:
             echo "- \`dotnet-playwright\`, \`copilot-dotnet-playwright\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`dotnet-rust\`, \`copilot-dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
             echo "- \`java\`, \`copilot-java\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Claude Code variants (claude- prefix):**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`claude-latest\` (default)" >> $GITHUB_STEP_SUMMARY
+            echo "- \`claude-rust\`, \`claude-golang\`, \`claude-playwright\`, \`claude-java\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`claude-dotnet\`, \`claude-dotnet-8\`, \`claude-dotnet-9\`, \`claude-dotnet-10\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`claude-dotnet-playwright\`, \`claude-dotnet-rust\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Images:** No changes or skipped publishing" >> $GITHUB_STEP_SUMMARY
           fi

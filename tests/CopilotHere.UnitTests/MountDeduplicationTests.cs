@@ -28,7 +28,8 @@ public class MountDeduplicationTests
       LocalConfigPath = localConfigPath,
       CurrentDirectory = _tempDir,
       ContainerWorkDir = "/work",
-      CopilotConfigPath = Path.Combine(_tempDir, ".copilot")
+      CopilotConfigPath = Path.Combine(_tempDir, ".copilot"),
+      ClaudeConfigPath = Path.Combine(_tempDir, ".claude")
     };
   }
 

@@ -86,6 +86,8 @@ All images are published to GitHub Container Registry (`ghcr.io`):
    - .NET image + Chromium browser dependencies
    - Tags: `dotnet-playwright`, `dotnet-playwright-sha-<commit>`
 
+Each variant is built once per provider. The `copilot-*` tags ship the GitHub Copilot CLI (pinned to the version from `npm view @github/copilot version`); the matching `claude-*` tags ship Claude Code (pinned to `npm view @anthropic-ai/claude-code version`), with `claude-latest` as the default Claude image. The `build-images` matrix carries one entry per variant per provider, so adding a variant means adding both rows.
+
 ## Running Tests Locally
 
 ### All Tests (Recommended)

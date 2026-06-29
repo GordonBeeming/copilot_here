@@ -336,6 +336,7 @@ public class GitHubCopilotToolTests
       CurrentDirectory = "/tmp/project",
       UserHome = "/tmp/home",
       CopilotConfigPath = "/tmp/home/.config/copilot-cli-docker",
+      ClaudeConfigPath = "/tmp/home/.claude",
       LocalConfigPath = "/tmp/project/.copilot_here",
       GlobalConfigPath = "/tmp/home/.config/copilot_here",
       ContainerWorkDir = "/work/tmp/project"
