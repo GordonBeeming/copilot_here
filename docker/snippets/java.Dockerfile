@@ -13,23 +13,33 @@ RUN ln -s /usr/lib/jvm/temurin-25-jdk-$(dpkg --print-architecture) /usr/lib/jvm/
 ENV JAVA_HOME=/usr/lib/jvm/temurin-25-jdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Install Maven
-ARG MAVEN_VERSION=3.9.9
-RUN curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" -o maven.tar.gz \
+# Install Maven. Resolve the latest stable 3.9.x from the dlcdn mirror listing
+# (the maven-metadata <release> tag points at Maven 4 RCs, which we don't want),
+# but download from archive.apache.org, which keeps every historical release —
+# dlcdn prunes old versions, so a pinned older MAVEN_VERSION would 404 there.
+# Set MAVEN_VERSION to pin a specific 3.x release.
+ARG MAVEN_VERSION
+RUN ver="${MAVEN_VERSION:-$(curl -fsSL https://dlcdn.apache.org/maven/maven-3/ | grep -oE '3\.[0-9]+\.[0-9]+/' | tr -d / | sort -uV | tail -1)}" \
+  && test -n "$ver" \
+  && curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${ver}/binaries/apache-maven-${ver}-bin.tar.gz" -o maven.tar.gz \
   && tar -C /usr/local -xzf maven.tar.gz \
-  && ln -s /usr/local/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn \
+  && ln -s "/usr/local/apache-maven-${ver}/bin/mvn" /usr/local/bin/mvn \
   && rm maven.tar.gz
 
-# Install Gradle
-ARG GRADLE_VERSION=8.12
-RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip \
+# Install Gradle. Resolve the current release at build time from the Gradle
+# version API. Set GRADLE_VERSION to pin a specific release.
+ARG GRADLE_VERSION
+RUN ver="${GRADLE_VERSION:-$(curl -fsSL https://services.gradle.org/versions/current | grep -oP '"version"\s*:\s*"\K[^"]+')}" \
+  && test -n "$ver" \
+  && curl -fsSL "https://services.gradle.org/distributions/gradle-${ver}-bin.zip" -o gradle.zip \
   && unzip -d /usr/local gradle.zip \
-  && ln -s /usr/local/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle \
+  && ln -s "/usr/local/gradle-${ver}/bin/gradle" /usr/local/bin/gradle \
   && rm gradle.zip
 
-# Install PlantUML
-ARG PLANTUML_VERSION=1.2025.2
-RUN curl -fsSL "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar" -o /usr/local/lib/plantuml.jar \
+# Install PlantUML. The GitHub "latest release" exposes a stable unversioned
+# asset URL, and the jar lands at a version-free path. Set PLANTUML_URL to pin.
+ARG PLANTUML_URL=https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+RUN curl -fsSL "${PLANTUML_URL}" -o /usr/local/lib/plantuml.jar \
   && echo '#!/bin/sh\nexec java -jar /usr/local/lib/plantuml.jar "$@"' > /usr/local/bin/plantuml \
   && chmod +x /usr/local/bin/plantuml
 
