@@ -55,7 +55,7 @@ public class AirlockComposeDindTests
       Directory.Delete(_tempDir, recursive: true);
   }
 
-  private string GenerateCompose(DockerSocketBroker? broker)
+  private string GenerateCompose(DockerSocketBroker? broker, bool rootlessPodman = false)
   {
     var ctx = AppContext.Create();
     var runtimeConfig = ContainerRuntimeConfig.CreateConfig("docker");
@@ -79,7 +79,8 @@ public class AirlockComposeDindTests
       toolArgs: ["copilot"],
       imageTag: "latest",
       isYolo: false,
-      broker: broker)
+      broker: broker,
+      rootlessPodman: rootlessPodman)
       ?? throw new InvalidOperationException("GenerateComposeFile returned null");
 
     var content = File.ReadAllText(composePath);
@@ -171,5 +172,29 @@ public class AirlockComposeDindTests
     // No raw placeholders left over.
     await Assert.That(content).DoesNotContain("{{PROXY_BROKER_ENV}}");
     await Assert.That(content).DoesNotContain("{{PROXY_BROKER_EXTRA_HOSTS}}");
+  }
+
+  [Test]
+  public async Task GenerateComposeFile_NotRootless_RemovesUsernsPlaceholder()
+  {
+    var content = GenerateCompose(broker: null);
+
+    await Assert.That(content).DoesNotContain("{{USERNS}}");
+    await Assert.That(content).DoesNotContain("userns_mode");
+    await Assert.That(content).DoesNotContain("keep-id");
+  }
+
+  [Test]
+  public async Task GenerateComposeFile_RootlessPodman_AddsKeepIdUserns()
+  {
+    // #119: keep-id remaps the host UID/GID into the rootless-Podman container so
+    // appuser owns the bind mounts; user 0:0 keeps the entrypoint running as root.
+    var ctx = AppContext.Create();
+    var content = GenerateCompose(broker: null, rootlessPodman: true);
+
+    await Assert.That(content).DoesNotContain("{{USERNS}}");
+    await Assert.That(content).Contains("user: \"0:0\"");
+    await Assert.That(content)
+      .Contains($"userns_mode: \"keep-id:uid={ctx.Environment.UserId},gid={ctx.Environment.GroupId}\"");
   }
 }

@@ -146,9 +146,11 @@ public static class AirlockRunner
     SetupLogsDirectory(ctx.Paths, rulesPath);
 
     // Generate compose file
+    var rootlessPodman = ContainerRuntimeConfig.IsRootlessPodman(runtimeConfig);
     var composeFile = GenerateComposeFile(
       runtimeConfig, ctx, templateContent, projectName, appImage, proxyImage,
-      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, imageTag, isYolo, broker);
+      processedConfigPath, externalNetwork, appFlags, mounts, toolArgs, imageTag, isYolo, broker,
+      rootlessPodman);
 
     if (composeFile is null)
     {
@@ -329,7 +331,8 @@ public static class AirlockRunner
     List<string> toolArgs,
     string imageTag,
     bool isYolo,
-    DockerSocketBroker? broker)
+    DockerSocketBroker? broker,
+    bool rootlessPodman = false)
   {
     try
     {
@@ -401,6 +404,18 @@ public static class AirlockRunner
         }
         brokerEnv.Append("      - TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal");
         brokerExtraHosts.Append("    extra_hosts:\n      - \"host.docker.internal:host-gateway\"");
+      }
+
+      // Rootless Podman maps the host user to container root, so bind-mounted
+      // host files land as root-owned and the workload's appuser can't write
+      // them. keep-id remaps the host UID/GID to the same values inside the
+      // container; user 0:0 keeps the entrypoint running as root so it can run
+      // useradd/chown before gosu-dropping to appuser. Empty otherwise.
+      var usernsBlock = new StringBuilder();
+      if (rootlessPodman)
+      {
+        usernsBlock.AppendLine("    user: \"0:0\"");
+        usernsBlock.Append($"    userns_mode: \"keep-id:uid={ctx.Environment.UserId},gid={ctx.Environment.GroupId}\"");
       }
 
       // Build logs mount if logging enabled
@@ -495,6 +510,13 @@ public static class AirlockRunner
         {
           if (extraMounts.Length > 0)
             lines[i] = extraMounts.ToString().TrimEnd();
+          else
+            lines.RemoveAt(i);
+        }
+        else if (lines[i].Contains("{{USERNS}}"))
+        {
+          if (usernsBlock.Length > 0)
+            lines[i] = usernsBlock.ToString().TrimEnd();
           else
             lines.RemoveAt(i);
         }
