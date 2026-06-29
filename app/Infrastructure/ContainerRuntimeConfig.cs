@@ -463,8 +463,16 @@ public sealed record ContainerRuntimeConfig
       using var process = Process.Start(startInfo);
       if (process is null) return false;
 
+      // Bound the wait so an unresponsive Podman VM can't hang the CLI. The
+      // output is a single token, well under the pipe buffer, so waiting before
+      // reading can't deadlock on a full stdout buffer.
+      if (!process.WaitForExit(5000))
+      {
+        try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+        return false;
+      }
+
       var output = process.StandardOutput.ReadToEnd().Trim();
-      process.WaitForExit();
       return process.ExitCode == 0
         && string.Equals(output, "true", StringComparison.OrdinalIgnoreCase);
     }
