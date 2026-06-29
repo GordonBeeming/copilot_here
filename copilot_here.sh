@@ -270,6 +270,30 @@ __copilot_reset() {
   __copilot_update
 }
 
+# Uninstall function - delegates surgical removal to the binary, then removes the
+# sourced script and binary last (the binary can't reliably delete the file it's
+# running from, and this function deletes its own source). Passthrough args carry
+# --purge / --yes to the binary.
+__copilot_uninstall() {
+  if [ -x "$COPILOT_HERE_BIN" ]; then
+    "$COPILOT_HERE_BIN" --uninstall "$@"
+    local rc=$?
+    # Non-zero means the user declined the confirmation - leave everything in place.
+    if [ "$rc" -ne 0 ]; then
+      return "$rc"
+    fi
+  else
+    echo "⚠️  Binary not found at $COPILOT_HERE_BIN; removing scripts only."
+  fi
+
+  rm -f "$HOME/.copilot_here.sh"
+  rm -f "$COPILOT_HERE_BIN"
+
+  echo ""
+  echo "✅ copilot_here uninstalled. Restart your shell to clear the loaded function."
+  return 0
+}
+
 # Check for updates (called at startup)
 __copilot_check_for_updates() {
   __copilot_debug "Checking for updates..."
@@ -328,6 +352,18 @@ __copilot_is_reset_arg() {
   esac
 }
 
+# Check if argument is an uninstall command
+__copilot_is_uninstall_arg() {
+  case "$1" in
+    --uninstall)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Safe Mode: Asks for confirmation before executing
 copilot_here() {
   __copilot_debug "=== copilot_here called with args: $*"
@@ -364,7 +400,21 @@ copilot_here() {
       return $?
     fi
   done
-  
+
+  # Handle --uninstall before binary check. Stop at "--" so a passthrough like
+  # `copilot_here -- --uninstall` targets the underlying tool, not the wrapper —
+  # uninstall is destructive, so it must only fire from a real wrapper-level flag.
+  for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+      break
+    fi
+    if __copilot_is_uninstall_arg "$arg"; then
+      __copilot_debug "Uninstall argument detected"
+      __copilot_uninstall "$@"
+      return $?
+    fi
+  done
+
   # Check for updates at startup
   __copilot_debug "Checking for updates..."
   __copilot_check_for_updates || return 0
@@ -415,7 +465,21 @@ copilot_yolo() {
       return $?
     fi
   done
-  
+
+  # Handle --uninstall before binary check. Stop at "--" so a passthrough like
+  # `copilot_here -- --uninstall` targets the underlying tool, not the wrapper —
+  # uninstall is destructive, so it must only fire from a real wrapper-level flag.
+  for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+      break
+    fi
+    if __copilot_is_uninstall_arg "$arg"; then
+      __copilot_debug "Uninstall argument detected"
+      __copilot_uninstall "$@"
+      return $?
+    fi
+  done
+
   # Check for updates at startup
   __copilot_debug "Checking for updates..."
   __copilot_check_for_updates || return 0

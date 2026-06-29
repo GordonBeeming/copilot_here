@@ -112,7 +112,9 @@ jobs:
 
       - name: Test Bash script syntax
         if: runner.os != 'Windows'
-        run: bash -n copilot_here.sh
+        run: |
+          bash -n copilot_here.sh
+          bash -n uninstall.sh
 
       - name: Test Bash source and copilot_here --help
         if: runner.os != 'Windows'
@@ -155,6 +157,12 @@ jobs:
           $null = [System.Management.Automation.Language.Parser]::ParseFile("$PWD/copilot_here.ps1", [ref]$null, [ref]$errors)
           if ($errors.Count -gt 0) {
             $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          $uninstallErrors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile("$PWD/uninstall.ps1", [ref]$null, [ref]$uninstallErrors)
+          if ($uninstallErrors.Count -gt 0) {
+            $uninstallErrors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
           Write-Host "✓ PowerShell syntax is valid"
@@ -811,6 +819,8 @@ jobs:
           cp copilot_here.ps1 release/
           cp install.sh release/
           cp install.ps1 release/
+          cp uninstall.sh release/
+          cp uninstall.ps1 release/
 
           ls -la release/
 

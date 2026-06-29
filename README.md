@@ -559,6 +559,58 @@ If you prefer not to use the quick install method, you can manually copy the scr
 
 
 
+## 🧹 Uninstalling
+
+No digging through the install script to figure out what to undo. Pick whichever method matches how you installed.
+
+### Quick (if the CLI still works)
+
+```bash
+copilot_here --uninstall
+```
+
+That removes the binary, the sourced script, and the shell integration from your profiles, and stops any running containers. Your config and pulled Docker images stay put. To wipe those too:
+
+```bash
+copilot_here --uninstall --purge   # also deletes config dirs + pulled images
+```
+
+Add `--yes` to skip the confirmation prompt. The uninstall never touches `~/.claude`, your real Claude Code config.
+
+### Remote script (if the install is broken or already half-gone)
+
+Self-contained, so it cleans up even when the binary won't run.
+
+**Linux/macOS (Bash/Zsh):**
+
+```bash
+bash <(curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/uninstall.sh)
+# add --purge to also delete config dirs, --yes to skip the prompt
+```
+
+**Windows (PowerShell):**
+
+```powershell
+& ([scriptblock]::Create((iwr -UseBasicParsing 'https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/uninstall.ps1').Content))
+# add -Purge to also delete config dirs, -Yes to skip the prompt
+```
+
+### Installed via a package manager?
+
+Remove it the same way you added it:
+
+```bash
+brew uninstall --cask copilot-here      # Homebrew (macOS)
+brew uninstall copilot_here             # Homebrew (Linux)
+winget uninstall GordonBeeming.CopilotHere   # WinGet (Windows)
+dotnet tool uninstall -g copilot_here   # .NET global tool
+```
+
+For the full list of every file and directory the install touches — handy if you'd rather remove things by hand — see [docs/uninstall.md](docs/uninstall.md).
+
+
+
+
 ## Usage
 
 Once set up, using it is simple on any platform. All commands work identically on Linux, macOS, and Windows.
