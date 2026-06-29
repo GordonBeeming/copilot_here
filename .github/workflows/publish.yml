@@ -398,6 +398,11 @@ jobs:
       dotnet_8_version: ${{ steps.versions.outputs.dotnet_8_version }}
       dotnet_9_version: ${{ steps.versions.outputs.dotnet_9_version }}
       dotnet_10_version: ${{ steps.versions.outputs.dotnet_10_version }}
+      golang_version: ${{ steps.versions.outputs.golang_version }}
+      maven_version: ${{ steps.versions.outputs.maven_version }}
+      gradle_version: ${{ steps.versions.outputs.gradle_version }}
+      jdtls_url: ${{ steps.versions.outputs.jdtls_url }}
+      plantuml_url: ${{ steps.versions.outputs.plantuml_url }}
     steps:
       - name: Set lowercase repository name
         id: repo
@@ -424,6 +429,26 @@ jobs:
           CSHARP_LS_VERSION=$(curl -s https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json | jq -r '.versions[-1]')
           echo "csharp_ls_version=$CSHARP_LS_VERSION" >> $GITHUB_OUTPUT
 
+          # Toolchains pinned per-build so the resolved version is the layer cache
+          # key: passing it as a build-arg busts the image cache when it changes.
+          # The snippets resolve these themselves when the arg is empty (local dev
+          # builds), but CI must resolve here or the registry layer cache freezes
+          # the version. Go strips the "go" prefix; the snippet re-adds it.
+          GOLANG_VERSION=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)
+          echo "golang_version=${GOLANG_VERSION#go}" >> $GITHUB_OUTPUT
+
+          MAVEN_VERSION=$(curl -fsSL https://dlcdn.apache.org/maven/maven-3/ | grep -oE '3\.[0-9]+\.[0-9]+/' | tr -d / | sort -uV | tail -1)
+          echo "maven_version=$MAVEN_VERSION" >> $GITHUB_OUTPUT
+
+          GRADLE_VERSION=$(curl -fsSL https://services.gradle.org/versions/current | jq -r '.version')
+          echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
+
+          JDTLS_FILE=$(curl -fsSL https://download.eclipse.org/jdtls/snapshots/latest.txt)
+          echo "jdtls_url=https://download.eclipse.org/jdtls/snapshots/${JDTLS_FILE}" >> $GITHUB_OUTPUT
+
+          PLANTUML_TAG=$(curl -fsSL https://api.github.com/repos/plantuml/plantuml/releases/latest | jq -r '.tag_name')
+          echo "plantuml_url=https://github.com/plantuml/plantuml/releases/download/${PLANTUML_TAG}/plantuml-${PLANTUML_TAG#v}.jar" >> $GITHUB_OUTPUT
+
   # Build all container images in parallel (each builds independently from node:20-slim)
   build-images:
     name: Build ${{ matrix.image }}
@@ -438,37 +463,71 @@ jobs:
             tags_extra: |
               ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:latest
               ghcr.io/${{ needs.prepare-versions.outputs.repo_name }}:copilot-latest
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
           - image: rust
             dockerfile: ./docker/generated/Dockerfile.rust
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
           - image: golang
             dockerfile: ./docker/generated/Dockerfile.golang
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              GOLANG_VERSION=$GOLANG_VERSION
           - image: playwright
             dockerfile: ./docker/generated/Dockerfile.playwright
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION
           - image: dotnet-8
             dockerfile: ./docker/generated/Dockerfile.dotnet-8
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_8_VERSION=$DOTNET_8_VERSION
           - image: dotnet-9
             dockerfile: ./docker/generated/Dockerfile.dotnet-9
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_9_VERSION=$DOTNET_9_VERSION
           - image: dotnet-10
             dockerfile: ./docker/generated/Dockerfile.dotnet-10
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_10_VERSION=$DOTNET_10_VERSION
+              CSHARP_LS_VERSION=$CSHARP_LS_VERSION
           - image: dotnet
             dockerfile: ./docker/generated/Dockerfile.dotnet
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_8_VERSION=$DOTNET_8_VERSION
+              DOTNET_SDK_9_VERSION=$DOTNET_9_VERSION
+              DOTNET_SDK_10_VERSION=$DOTNET_10_VERSION
+              CSHARP_LS_VERSION=$CSHARP_LS_VERSION
           - image: dotnet-playwright
             dockerfile: ./docker/generated/Dockerfile.dotnet-playwright
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nPLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_8_VERSION=$DOTNET_8_VERSION
+              DOTNET_SDK_9_VERSION=$DOTNET_9_VERSION
+              DOTNET_SDK_10_VERSION=$DOTNET_10_VERSION
+              PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION
+              CSHARP_LS_VERSION=$CSHARP_LS_VERSION
           - image: dotnet-rust
             dockerfile: ./docker/generated/Dockerfile.dotnet-rust
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION\nDOTNET_SDK_8_VERSION=$DOTNET_8_VERSION\nDOTNET_SDK_9_VERSION=$DOTNET_9_VERSION\nDOTNET_SDK_10_VERSION=$DOTNET_10_VERSION\nCSHARP_LS_VERSION=$CSHARP_LS_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              DOTNET_SDK_8_VERSION=$DOTNET_8_VERSION
+              DOTNET_SDK_9_VERSION=$DOTNET_9_VERSION
+              DOTNET_SDK_10_VERSION=$DOTNET_10_VERSION
+              CSHARP_LS_VERSION=$CSHARP_LS_VERSION
           - image: java
             dockerfile: ./docker/generated/Dockerfile.java
-            build_args: "COPILOT_VERSION=$COPILOT_VERSION"
+            build_args: |
+              COPILOT_VERSION=$COPILOT_VERSION
+              MAVEN_VERSION=$MAVEN_VERSION
+              GRADLE_VERSION=$GRADLE_VERSION
+              JDTLS_URL=$JDTLS_URL
+              PLANTUML_URL=$PLANTUML_URL
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -496,6 +555,11 @@ jobs:
           ARGS="${ARGS//\$DOTNET_9_VERSION/${{ needs.prepare-versions.outputs.dotnet_9_version }}}"
           ARGS="${ARGS//\$DOTNET_10_VERSION/${{ needs.prepare-versions.outputs.dotnet_10_version }}}"
           ARGS="${ARGS//\$CSHARP_LS_VERSION/${{ needs.prepare-versions.outputs.csharp_ls_version }}}"
+          ARGS="${ARGS//\$GOLANG_VERSION/${{ needs.prepare-versions.outputs.golang_version }}}"
+          ARGS="${ARGS//\$MAVEN_VERSION/${{ needs.prepare-versions.outputs.maven_version }}}"
+          ARGS="${ARGS//\$GRADLE_VERSION/${{ needs.prepare-versions.outputs.gradle_version }}}"
+          ARGS="${ARGS//\$JDTLS_URL/${{ needs.prepare-versions.outputs.jdtls_url }}}"
+          ARGS="${ARGS//\$PLANTUML_URL/${{ needs.prepare-versions.outputs.plantuml_url }}}"
           echo "build_args<<EOF" >> $GITHUB_OUTPUT
           echo -e "$ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
