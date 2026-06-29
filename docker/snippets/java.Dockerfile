@@ -13,13 +13,15 @@ RUN ln -s /usr/lib/jvm/temurin-25-jdk-$(dpkg --print-architecture) /usr/lib/jvm/
 ENV JAVA_HOME=/usr/lib/jvm/temurin-25-jdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Install Maven. Resolve the latest stable 3.9.x at build time from the Apache
-# mirror listing (the maven-metadata <release> tag points at Maven 4 RCs, which
-# we don't want). Set MAVEN_VERSION to pin a specific 3.x release.
+# Install Maven. Resolve the latest stable 3.9.x from the dlcdn mirror listing
+# (the maven-metadata <release> tag points at Maven 4 RCs, which we don't want),
+# but download from archive.apache.org, which keeps every historical release —
+# dlcdn prunes old versions, so a pinned older MAVEN_VERSION would 404 there.
+# Set MAVEN_VERSION to pin a specific 3.x release.
 ARG MAVEN_VERSION
 RUN ver="${MAVEN_VERSION:-$(curl -fsSL https://dlcdn.apache.org/maven/maven-3/ | grep -oE '3\.[0-9]+\.[0-9]+/' | tr -d / | sort -uV | tail -1)}" \
   && test -n "$ver" \
-  && curl -fsSL "https://dlcdn.apache.org/maven/maven-3/${ver}/binaries/apache-maven-${ver}-bin.tar.gz" -o maven.tar.gz \
+  && curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${ver}/binaries/apache-maven-${ver}-bin.tar.gz" -o maven.tar.gz \
   && tar -C /usr/local -xzf maven.tar.gz \
   && ln -s "/usr/local/apache-maven-${ver}/bin/mvn" /usr/local/bin/mvn \
   && rm maven.tar.gz
@@ -27,8 +29,7 @@ RUN ver="${MAVEN_VERSION:-$(curl -fsSL https://dlcdn.apache.org/maven/maven-3/ |
 # Install Gradle. Resolve the current release at build time from the Gradle
 # version API. Set GRADLE_VERSION to pin a specific release.
 ARG GRADLE_VERSION
-RUN ver="${GRADLE_VERSION}" \
-  && if [ -z "$ver" ]; then ver="$(curl -fsSL https://services.gradle.org/versions/current | grep -oP '"version"\s*:\s*"\K[^"]+')"; fi \
+RUN ver="${GRADLE_VERSION:-$(curl -fsSL https://services.gradle.org/versions/current | grep -oP '"version"\s*:\s*"\K[^"]+')}" \
   && test -n "$ver" \
   && curl -fsSL "https://services.gradle.org/distributions/gradle-${ver}-bin.zip" -o gradle.zip \
   && unzip -d /usr/local gradle.zip \
