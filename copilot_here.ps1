@@ -266,6 +266,31 @@ function Reset-CopilotHere {
     Update-CopilotHere
 }
 
+# Uninstall function - delegates surgical removal to the binary, then removes the
+# sourced script and binary last (the binary can't reliably delete the file it's
+# running from on Windows, and this function deletes its own source). Passthrough
+# args carry --purge / --yes to the binary.
+function Uninstall-CopilotHere {
+    param([string[]]$PassthroughArgs = @())
+
+    if (Test-Path $script:CopilotHereBin) {
+        & $script:CopilotHereBin --uninstall @PassthroughArgs
+        $rc = $LASTEXITCODE
+        # Non-zero means the user declined the confirmation - leave everything in place.
+        if ($rc -ne 0) {
+            return
+        }
+    } else {
+        Write-Host "[WARNING]  Binary not found at $script:CopilotHereBin; removing scripts only." -ForegroundColor Yellow
+    }
+
+    Remove-Item -Path $script:CopilotHereScriptPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $script:CopilotHereBin -Force -ErrorAction SilentlyContinue
+
+    Write-Host ""
+    Write-Host "[OK] copilot_here uninstalled. Restart PowerShell to clear the loaded function." -ForegroundColor Green
+}
+
 # Check for updates (called at startup)
 function Test-CopilotHereUpdates {
     try {
@@ -335,6 +360,12 @@ function Test-ResetArg {
     return $resetArgs -contains $Arg
 }
 
+# Check if argument is an uninstall command
+function Test-UninstallArg {
+    param([string]$Arg)
+    return $Arg -eq "--uninstall"
+}
+
 # Safe Mode: Asks for confirmation before executing
 function copilot_here {
     $Arguments = @($args)
@@ -395,7 +426,14 @@ function copilot_here {
         Reset-CopilotHere
         return
     }
-    
+
+    # Handle --uninstall before binary check
+    if ($Arguments | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
+        Write-CopilotDebug "Uninstall argument detected"
+        Uninstall-CopilotHere -PassthroughArgs $Arguments
+        return
+    }
+
     # Check for updates at startup
     Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }
@@ -471,7 +509,14 @@ function copilot_yolo {
         Reset-CopilotHere
         return
     }
-    
+
+    # Handle --uninstall before binary check
+    if ($Arguments | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
+        Write-CopilotDebug "Uninstall argument detected"
+        Uninstall-CopilotHere -PassthroughArgs $Arguments
+        return
+    }
+
     # Check for updates at startup
     Write-CopilotDebug "Checking for updates..."
     if (Test-CopilotHereUpdates) { return }

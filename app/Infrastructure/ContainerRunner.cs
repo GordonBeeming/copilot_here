@@ -7,7 +7,8 @@ namespace CopilotHere.Infrastructure;
 /// </summary>
 public static class ContainerRunner
 {
-  private const string ImagePrefix = "ghcr.io/gordonbeeming/copilot_here";
+  /// <summary>Registry/repository prefix for all official copilot_here images.</summary>
+  public const string ImagePrefix = "ghcr.io/gordonbeeming/copilot_here";
 
   /// <summary>
   /// Gets the full image name for a given tag.

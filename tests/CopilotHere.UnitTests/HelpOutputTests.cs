@@ -77,6 +77,9 @@ public class HelpOutputTests
   [Arguments("--yolo")]
   [Arguments("--update")]
   [Arguments("--install-shells")]
+  [Arguments("--uninstall")]
+  [Arguments("--purge")]
+  [Arguments("--yes")]
   [Arguments("--help2")]
   public async Task RootCommand_HasOption(string option)
   {

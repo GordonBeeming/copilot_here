@@ -52,6 +52,11 @@ public sealed class RunCommand : ICommand
   // === SHELL INTEGRATION INSTALL (handled by native binary) ===
   private readonly Option<bool> _installShellsOption;
 
+  // === UNINSTALL (handled by native binary) ===
+  private readonly Option<bool> _uninstallOption;
+  private readonly Option<bool> _purgeOption;
+  private readonly Option<bool> _yesOption;
+
   // === YOLO MODE (handled in Program.cs but shown in help) ===
   private readonly Option<bool> _yoloOption;
 
@@ -127,6 +132,11 @@ public sealed class RunCommand : ICommand
 
     _installShellsOption = new Option<bool>("--install-shells") { Description = "Install shell integrations (bash/zsh/fish + PowerShell/cmd)" };
 
+    _uninstallOption = new Option<bool>("--uninstall") { Description = "Remove copilot_here (binary, scripts, shell integration). Add --purge to also delete config and pulled images" };
+    _purgeOption = new Option<bool>("--purge") { Description = "With --uninstall: also delete config dirs and pulled Docker images (never touches ~/.claude)" };
+    _yesOption = new Option<bool>("--yes") { Description = "Skip confirmation prompts (for --uninstall)" };
+    _yesOption.Aliases.Add("-y");
+
     // Yolo mode - passes --yolo to Copilot (equivalent to --allow-all-tools --allow-all-paths --allow-all-urls)
     // Note: This is handled in Program.cs for app name, but we add it here so it shows in --help
     _yoloOption = new Option<bool>("--yolo") { Description = "Enable YOLO mode (allow all tools, paths, and URLs)" };
@@ -179,6 +189,9 @@ public sealed class RunCommand : ICommand
     root.Add(_help2Option);
     root.Add(_updateScriptsOption);
     root.Add(_installShellsOption);
+    root.Add(_uninstallOption);
+    root.Add(_purgeOption);
+    root.Add(_yesOption);
     root.Add(_yoloOption);
 
     // Copilot passthrough options
@@ -236,6 +249,9 @@ public sealed class RunCommand : ICommand
       var help2 = parseResult.GetValue(_help2Option);
       var updateScripts = parseResult.GetValue(_updateScriptsOption);
       var installShells = parseResult.GetValue(_installShellsOption);
+      var uninstall = parseResult.GetValue(_uninstallOption);
+      var purge = parseResult.GetValue(_purgeOption);
+      var assumeYes = parseResult.GetValue(_yesOption);
 
       // Copilot passthrough options
       var prompt = parseResult.GetValue(_promptOption);
@@ -260,6 +276,13 @@ public sealed class RunCommand : ICommand
       {
         DebugLogger.Log("--install-shells flag detected");
         return ShellIntegration.InstallAll();
+      }
+
+      // Handle --uninstall
+      if (uninstall)
+      {
+        DebugLogger.Log($"--uninstall flag detected (purge={purge}, yes={assumeYes})");
+        return RunUninstall(purge, assumeYes, ctx.RuntimeConfig);
       }
 
       // Handle --update - show message that it's handled by shell wrapper
@@ -992,6 +1015,88 @@ public sealed class RunCommand : ICommand
     
     // Remove trailing slashes/backslashes
     return path.TrimEnd('/', '\\');
+  }
+
+  /// <summary>
+  /// Removes copilot_here from the machine: confirms (unless assumeYes), delegates the
+  /// file/shell-integration removal to <see cref="ShellIntegration.UninstallAll"/>, and
+  /// — when purge is set — stops/removes copilot_here containers and pulled images.
+  /// </summary>
+  private static int RunUninstall(bool purge, bool assumeYes, ContainerRuntimeConfig runtimeConfig)
+  {
+    if (!assumeYes && !Console.IsInputRedirected && !Console.IsOutputRedirected)
+    {
+      Console.WriteLine("⚠️  This removes the copilot_here binary, scripts, and shell integration.");
+      if (purge)
+      {
+        Console.WriteLine("   --purge will also delete config (~/.config/copilot_here, ~/.config/copilot-cli-docker)");
+        Console.WriteLine("   and stop/remove copilot_here containers and pulled images.");
+      }
+      Console.Write("   Continue? [y/N]: ");
+      var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+      if (response is not ("y" or "yes"))
+      {
+        Console.WriteLine("❌ Uninstall cancelled.");
+        return 1;
+      }
+    }
+
+    if (purge)
+    {
+      PurgeContainersAndImages(runtimeConfig);
+    }
+
+    return ShellIntegration.UninstallAll(purge);
+  }
+
+  /// <summary>
+  /// Best-effort removal of running copilot_here containers and pulled images. Never
+  /// throws: if the container runtime is missing or a command fails, it is reported
+  /// and skipped so the rest of the uninstall still completes.
+  /// </summary>
+  private static void PurgeContainersAndImages(ContainerRuntimeConfig runtimeConfig)
+  {
+    if (!ContainerRuntimeConfig.IsCommandAvailable(runtimeConfig.Runtime))
+    {
+      Console.WriteLine($"• Skipped container/image cleanup ({runtimeConfig.Runtime} not available)");
+      return;
+    }
+
+    try
+    {
+      // Stop and remove containers named copilot_here-*.
+      var (psCode, psOut, _) = ContainerRunner.RunAndCapture(
+        runtimeConfig, ["ps", "-aq", "--filter", "name=copilot_here-"]);
+      if (psCode == 0)
+      {
+        var ids = psOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ids.Length > 0)
+        {
+          ContainerRunner.RunAndCapture(runtimeConfig, ["rm", "-f", .. ids]);
+          Console.WriteLine($"✓ Removed {ids.Length} copilot_here container(s)");
+        }
+      }
+
+      // Remove pulled images whose reference starts with the copilot_here prefix.
+      var (imgCode, imgOut, _) = ContainerRunner.RunAndCapture(
+        runtimeConfig, ["images", "--format", "{{.Repository}}:{{.Tag}}"]);
+      if (imgCode == 0)
+      {
+        var images = imgOut
+          .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+          .Where(r => r.StartsWith(ContainerRunner.ImagePrefix, StringComparison.Ordinal))
+          .ToArray();
+        if (images.Length > 0)
+        {
+          ContainerRunner.RunAndCapture(runtimeConfig, ["rmi", "-f", .. images]);
+          Console.WriteLine($"✓ Removed {images.Length} copilot_here image(s)");
+        }
+      }
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"• Container/image cleanup skipped: {ex.Message}");
+    }
   }
 
   /// <summary>

@@ -93,6 +93,221 @@ public static class ShellIntegration
     }
   }
 
+  /// <summary>
+  /// Reverses <see cref="InstallAll"/>: removes the binary, sourced script, shell
+  /// integration marker blocks, fish wrapper, and (Windows) cmd wrappers. When
+  /// <paramref name="purge"/> is true it also deletes the config directories.
+  /// The user's real Claude directory (~/.claude) is never touched.
+  /// </summary>
+  public static int UninstallAll(bool purge = false)
+  {
+    var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    try
+    {
+      if (OperatingSystem.IsWindows())
+      {
+        UninstallWindows(userHome);
+      }
+      else
+      {
+        UninstallUnix(userHome);
+      }
+
+      if (purge)
+      {
+        PurgeConfig(userHome);
+      }
+      else
+      {
+        Console.WriteLine($"• Kept config: {Path.Combine(userHome, ".config", "copilot_here")} (use --purge to remove)");
+        Console.WriteLine($"• Kept config: {Path.Combine(userHome, ".config", "copilot-cli-docker")} (use --purge to remove)");
+      }
+
+      Console.WriteLine();
+      Console.WriteLine("✅ copilot_here removed.");
+      Console.WriteLine("   The shell function stays loaded until you restart your shell or open a new terminal.");
+      Console.WriteLine("   Installed via Homebrew, WinGet, or dotnet tool? Remove it with that package manager.");
+      Console.WriteLine("   Your Claude config (~/.claude) was left untouched.");
+      return 0;
+    }
+    catch (Exception ex)
+    {
+      Console.Error.WriteLine($"❌ Failed to uninstall: {ex.Message}");
+      return 1;
+    }
+  }
+
+  private static void UninstallUnix(string userHome)
+  {
+    // The sourced-script filename, used to scrub stray lines outside the marker block.
+    const string shToken = ".copilot_here.sh";
+
+    string[] profiles = [".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile"];
+    foreach (var name in profiles)
+    {
+      if (RemoveBlock(Path.Combine(userHome, name), ShMarkerStart, ShMarkerEnd, shToken))
+      {
+        Console.WriteLine($"✓ Cleaned shell integration from {name}");
+      }
+    }
+
+    DeleteFileIfExists(Path.Combine(userHome, ".config", "fish", "conf.d", "copilot_here.fish"), "fish wrapper");
+    DeleteFileIfExists(Path.Combine(userHome, ".copilot_here.sh"), "shell script (~/.copilot_here.sh)");
+    DeleteFileIfExists(Path.Combine(userHome, ".local", "bin", "copilot_here"), "binary (~/.local/bin/copilot_here)");
+  }
+
+  private static void UninstallWindows(string userHome)
+  {
+    const string psToken = ".copilot_here.ps1";
+
+    var pwshProfile = Path.Combine(userHome, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1");
+    var winPsProfile = Path.Combine(userHome, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1");
+
+    if (RemoveBlock(pwshProfile, PsMarkerStart, PsMarkerEnd, psToken))
+    {
+      Console.WriteLine("✓ Cleaned shell integration from PowerShell profile");
+    }
+    if (RemoveBlock(winPsProfile, PsMarkerStart, PsMarkerEnd, psToken))
+    {
+      Console.WriteLine("✓ Cleaned shell integration from Windows PowerShell profile");
+    }
+
+    var binDir = Path.Combine(userHome, ".local", "bin");
+    DeleteFileIfExists(Path.Combine(binDir, "copilot_here.cmd"), "cmd wrapper (copilot_here.cmd)");
+    DeleteFileIfExists(Path.Combine(binDir, "copilot_yolo.cmd"), "cmd wrapper (copilot_yolo.cmd)");
+    DeleteFileIfExists(Path.Combine(userHome, ".copilot_here.ps1"), "PowerShell script (~/.copilot_here.ps1)");
+    // The running copilot_here.exe is locked on Windows, so this best-effort delete may
+    // fail here; the shell wrapper removes it once the process has exited.
+    DeleteFileIfExists(Path.Combine(binDir, "copilot_here.exe"), "binary (~/.local/bin/copilot_here.exe)");
+
+    Console.WriteLine("• Left ~/.local/bin on your user PATH (harmless; remove it manually if you want).");
+  }
+
+  private static void PurgeConfig(string userHome)
+  {
+    DeleteDirIfExists(Path.Combine(userHome, ".config", "copilot_here"), "config (~/.config/copilot_here)");
+    DeleteDirIfExists(Path.Combine(userHome, ".config", "copilot-cli-docker"), "config (~/.config/copilot-cli-docker)");
+  }
+
+  /// <summary>
+  /// Inverse of <see cref="EnsureBlock"/>: strips the marker-fenced region from a
+  /// profile while preserving everything around it. Also drops stray lines that
+  /// reference the sourced script outside the block (matching the cleanup the shell
+  /// updater does in __copilot_update_profile). Symlinked profiles (e.g. GNU Stow)
+  /// are written through to their resolved target. Returns true if the file changed.
+  /// </summary>
+  internal static bool RemoveBlock(string filePath, string markerStart, string markerEnd, string strayLineToken)
+  {
+    string original;
+    try
+    {
+      if (!File.Exists(filePath))
+      {
+        return false;
+      }
+      original = File.ReadAllText(filePath);
+    }
+    catch
+    {
+      return false;
+    }
+
+    if (!original.Contains(markerStart, StringComparison.Ordinal) &&
+        !original.Contains(strayLineToken, StringComparison.Ordinal))
+    {
+      return false;
+    }
+
+    // Preserve the file's dominant line ending.
+    var newline = original.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+    var lines = original.Replace("\r\n", "\n").Split('\n');
+
+    var kept = new List<string>(lines.Length);
+    var inBlock = false;
+    foreach (var line in lines)
+    {
+      if (!inBlock && line.Contains(markerStart, StringComparison.Ordinal))
+      {
+        inBlock = true;
+        continue;
+      }
+      if (inBlock)
+      {
+        if (line.Contains(markerEnd, StringComparison.Ordinal))
+        {
+          inBlock = false;
+        }
+        continue;
+      }
+      // Outside the block: drop any leftover line that sources our script.
+      if (line.Contains(strayLineToken, StringComparison.Ordinal))
+      {
+        continue;
+      }
+      kept.Add(line);
+    }
+
+    // Trim trailing blank lines, then end with a single newline (unless empty).
+    while (kept.Count > 0 && kept[^1].Trim().Length == 0)
+    {
+      kept.RemoveAt(kept.Count - 1);
+    }
+    var rebuilt = kept.Count == 0 ? string.Empty : string.Join(newline, kept) + newline;
+
+    var target = ResolveSymlinkTarget(filePath);
+    File.WriteAllText(target, rebuilt);
+    return true;
+  }
+
+  private static string ResolveSymlinkTarget(string path)
+  {
+    try
+    {
+      var info = new FileInfo(path);
+      var resolved = info.ResolveLinkTarget(returnFinalTarget: true);
+      return resolved?.FullName ?? path;
+    }
+    catch
+    {
+      return path;
+    }
+  }
+
+  private static void DeleteFileIfExists(string path, string label)
+  {
+    if (!File.Exists(path))
+    {
+      return;
+    }
+    try
+    {
+      File.Delete(path);
+      Console.WriteLine($"✓ Removed {label}");
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"• Could not remove {label}: {ex.Message}");
+    }
+  }
+
+  private static void DeleteDirIfExists(string path, string label)
+  {
+    if (!Directory.Exists(path))
+    {
+      return;
+    }
+    try
+    {
+      Directory.Delete(path, recursive: true);
+      Console.WriteLine($"✓ Removed {label}");
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"• Could not remove {label}: {ex.Message}");
+    }
+  }
+
   private static IReadOnlyList<string> GetMissingTargetsUnix(string userHome)
   {
     var missing = new List<string>();
