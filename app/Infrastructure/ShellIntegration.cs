@@ -97,7 +97,6 @@ public static class ShellIntegration
   /// Reverses <see cref="InstallAll"/>: removes the binary, sourced script, shell
   /// integration marker blocks, fish wrapper, and (Windows) cmd wrappers. When
   /// <paramref name="purge"/> is true it also deletes the config directories.
-  /// The user's real Claude directory (~/.claude) is never touched.
   /// </summary>
   public static int UninstallAll(bool purge = false)
   {
@@ -128,7 +127,6 @@ public static class ShellIntegration
       Console.WriteLine("✅ copilot_here removed.");
       Console.WriteLine("   The shell function stays loaded until you restart your shell or open a new terminal.");
       Console.WriteLine("   Installed via Homebrew, WinGet, or dotnet tool? Remove it with that package manager.");
-      Console.WriteLine("   Your Claude config (~/.claude) was left untouched.");
       return 0;
     }
     catch (Exception ex)

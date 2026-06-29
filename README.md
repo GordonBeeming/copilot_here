@@ -575,7 +575,7 @@ That removes the binary, the sourced script, and the shell integration from your
 copilot_here --uninstall --purge   # also deletes config dirs + pulled images
 ```
 
-Add `--yes` to skip the confirmation prompt. The uninstall never touches `~/.claude`, your real Claude Code config.
+Add `--yes` to skip the confirmation prompt.
 
 ### Remote script (if the install is broken or already half-gone)
 
