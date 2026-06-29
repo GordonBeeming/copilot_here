@@ -223,13 +223,26 @@ public static class ShellIntegration
     var newline = original.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
     var lines = original.Replace("\r\n", "\n").Split('\n');
 
+    // Only swallow a fenced block when BOTH markers are present. If a profile has
+    // the start marker but no matching end marker (e.g. the end line was deleted by
+    // hand), treating everything after the start as "inside the block" would discard
+    // the user's real config below it. In that malformed case we drop only the marker
+    // lines and stray sourcing lines, keeping everything else intact.
+    var hasStart = lines.Any(l => l.Contains(markerStart, StringComparison.Ordinal));
+    var hasEnd = lines.Any(l => l.Contains(markerEnd, StringComparison.Ordinal));
+    var stripBlock = hasStart && hasEnd;
+
     var kept = new List<string>(lines.Length);
     var inBlock = false;
     foreach (var line in lines)
     {
       if (!inBlock && line.Contains(markerStart, StringComparison.Ordinal))
       {
-        inBlock = true;
+        // Complete block: swallow up to the end marker. Malformed: drop just this line.
+        if (stripBlock)
+        {
+          inBlock = true;
+        }
         continue;
       }
       if (inBlock)
@@ -240,7 +253,12 @@ public static class ShellIntegration
         }
         continue;
       }
-      // Outside the block: drop any leftover line that sources our script.
+      // Outside the block: drop a stray end marker (malformed case) and any leftover
+      // line that sources our script.
+      if (line.Contains(markerEnd, StringComparison.Ordinal))
+      {
+        continue;
+      }
       if (line.Contains(strayLineToken, StringComparison.Ordinal))
       {
         continue;

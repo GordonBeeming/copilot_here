@@ -71,6 +71,30 @@ public class ShellIntegrationTests
   }
 
   [Test]
+  public async Task RemoveBlock_MalformedBlock_MissingEndMarker_PreservesUserContent()
+  {
+    // A start marker with no matching end marker must NOT swallow the rest of the file.
+    var profile = Path.Combine(_tempDir, ".zshrc");
+    var content =
+      "export EDITOR=vim\n" +
+      $"{MarkerStart}\n" +
+      "source \"$HOME/.copilot_here.sh\"\n" +
+      "export FOO=bar\n" +
+      "alias g=git\n";
+    File.WriteAllText(profile, content);
+
+    var changed = ShellIntegration.RemoveBlock(profile, MarkerStart, MarkerEnd, Token);
+    var result = File.ReadAllText(profile);
+
+    await Assert.That(changed).IsTrue();
+    await Assert.That(result).Contains("export EDITOR=vim");
+    await Assert.That(result).Contains("export FOO=bar");
+    await Assert.That(result).Contains("alias g=git");
+    await Assert.That(result).DoesNotContain(MarkerStart);
+    await Assert.That(result).DoesNotContain(".copilot_here.sh");
+  }
+
+  [Test]
   public async Task RemoveBlock_NoMarkersOrStrayLines_LeavesFileUnchanged()
   {
     var profile = Path.Combine(_tempDir, ".zshrc");

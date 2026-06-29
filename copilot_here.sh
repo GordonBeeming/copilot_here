@@ -401,8 +401,13 @@ copilot_here() {
     fi
   done
 
-  # Handle --uninstall before binary check
+  # Handle --uninstall before binary check. Stop at "--" so a passthrough like
+  # `copilot_here -- --uninstall` targets the underlying tool, not the wrapper —
+  # uninstall is destructive, so it must only fire from a real wrapper-level flag.
   for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+      break
+    fi
     if __copilot_is_uninstall_arg "$arg"; then
       __copilot_debug "Uninstall argument detected"
       __copilot_uninstall "$@"
@@ -461,8 +466,13 @@ copilot_yolo() {
     fi
   done
 
-  # Handle --uninstall before binary check
+  # Handle --uninstall before binary check. Stop at "--" so a passthrough like
+  # `copilot_here -- --uninstall` targets the underlying tool, not the wrapper —
+  # uninstall is destructive, so it must only fire from a real wrapper-level flag.
   for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+      break
+    fi
     if __copilot_is_uninstall_arg "$arg"; then
       __copilot_debug "Uninstall argument detected"
       __copilot_uninstall "$@"

@@ -59,11 +59,18 @@ __copilot_uninstall_main() {
     [ -f "$profile" ] || return 0
     grep -qF "$marker_start" "$profile" 2>/dev/null || grep -q "copilot_here.sh" "$profile" 2>/dev/null || return 0
 
+    # Only strip a fenced block when both markers are present. With a start marker
+    # but no matching end marker, treating everything after the start as in-block
+    # would discard the user's config below it; instead drop only the marker and
+    # stray sourcing lines.
+    local has_end=0
+    grep -qF "$marker_end" "$profile" 2>/dev/null && has_end=1
+
     local temp
     temp=$(mktemp)
-    awk -v start="$marker_start" -v end="$marker_end" '
+    awk -v start="$marker_start" -v end="$marker_end" -v strip="$has_end" '
       BEGIN { in_block=0 }
-      $0 ~ start { in_block=1; next }
+      $0 ~ start { if (strip == "1") in_block=1; next }
       $0 ~ end { in_block=0; next }
       !in_block && $0 !~ /copilot_here\.sh/ { print }
     ' "$profile" > "$temp"

@@ -427,8 +427,15 @@ function copilot_here {
         return
     }
 
-    # Handle --uninstall before binary check
-    if ($Arguments | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
+    # Handle --uninstall before binary check. Only look at tokens before "--" so a
+    # passthrough like `copilot_here -- --uninstall` targets the underlying tool, not
+    # the wrapper — uninstall is destructive, so it must only fire from a real flag.
+    $argsBeforeSeparator = @()
+    foreach ($a in $Arguments) {
+        if ($a -eq '--') { break }
+        $argsBeforeSeparator += $a
+    }
+    if ($argsBeforeSeparator | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Uninstall argument detected"
         Uninstall-CopilotHere -PassthroughArgs $Arguments
         return
@@ -510,8 +517,15 @@ function copilot_yolo {
         return
     }
 
-    # Handle --uninstall before binary check
-    if ($Arguments | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
+    # Handle --uninstall before binary check. Only look at tokens before "--" so a
+    # passthrough like `copilot_here -- --uninstall` targets the underlying tool, not
+    # the wrapper — uninstall is destructive, so it must only fire from a real flag.
+    $argsBeforeSeparator = @()
+    foreach ($a in $Arguments) {
+        if ($a -eq '--') { break }
+        $argsBeforeSeparator += $a
+    }
+    if ($argsBeforeSeparator | Where-Object { Test-UninstallArg $_ } | Select-Object -First 1) {
         Write-CopilotDebug "Uninstall argument detected"
         Uninstall-CopilotHere -PassthroughArgs $Arguments
         return
