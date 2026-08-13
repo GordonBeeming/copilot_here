@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text;
 
 namespace CopilotHere.Infrastructure;
 
@@ -606,7 +607,15 @@ public static class ShellIntegration
       Directory.CreateDirectory(dir);
     }
 
-    var existing = File.Exists(filePath) ? File.ReadAllText(filePath) : string.Empty;
+    var fileExists = File.Exists(filePath);
+    // install.ps1 writes the PowerShell profile as UTF-8 with a BOM (Windows PowerShell 5.1
+    // needs the BOM to recognize UTF-8; without it, a profile with non-ASCII content is
+    // reinterpreted using the legacy code page and comes out garbled). File.ReadAllText
+    // strips the BOM on decode without recording that it was there, and the WriteAllText
+    // overload below defaults to BOM-less UTF-8, so a rewrite would silently drop it unless
+    // the original encoding is detected up front and carried through the write.
+    var hasBom = fileExists && FileStartsWithUtf8Bom(filePath);
+    var existing = fileExists ? File.ReadAllText(filePath) : string.Empty;
 
     var startIndex = existing.IndexOf(markerStart, StringComparison.Ordinal);
     if (startIndex >= 0)
@@ -629,7 +638,8 @@ public static class ShellIntegration
 
       if (!string.Equals(current, desired, StringComparison.Ordinal))
       {
-        File.WriteAllText(filePath, string.Concat(existing.AsSpan(0, startIndex), desired, existing.AsSpan(endIndex)));
+        var rewritten = string.Concat(existing.AsSpan(0, startIndex), desired, existing.AsSpan(endIndex));
+        File.WriteAllText(filePath, rewritten, new UTF8Encoding(encoderShouldEmitUTF8Identifier: hasBom));
       }
 
       return;
@@ -652,5 +662,13 @@ public static class ShellIntegration
     {
       return false;
     }
+  }
+
+  private static bool FileStartsWithUtf8Bom(string filePath)
+  {
+    using var stream = File.OpenRead(filePath);
+    Span<byte> preamble = stackalloc byte[3];
+    var read = stream.ReadAtLeast(preamble, preamble.Length, throwOnEndOfStream: false);
+    return read == 3 && preamble[0] == 0xEF && preamble[1] == 0xBB && preamble[2] == 0xBF;
   }
 }

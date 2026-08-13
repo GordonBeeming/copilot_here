@@ -182,6 +182,55 @@ public class ShellIntegrationTests
   }
 
   [Test]
+  public async Task EnsureBlock_StaleBlock_PreservesUtf8Bom()
+  {
+    // install.ps1 writes the PowerShell profile as UTF-8 with a BOM so Windows PowerShell
+    // 5.1 recognizes the encoding instead of falling back to the legacy code page. A rewrite
+    // of the marked region must not silently drop that BOM.
+    var profile = Path.Combine(_tempDir, "profile.ps1");
+    var bomEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+    File.WriteAllText(profile,
+      "# café notes\n" +
+      $"{MarkerStart}\n" +
+      "$env:PATH = \"C:\\old\\bin;$env:PATH\"\n" +
+      $"{MarkerEnd}\n",
+      bomEncoding);
+
+    var block = $"{MarkerStart}\n$env:PATH = \"$HOME\\.local\\bin;$env:PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+
+    var rewrittenBytes = await File.ReadAllBytesAsync(profile);
+    await Assert.That(rewrittenBytes[0]).IsEqualTo((byte)0xEF);
+    await Assert.That(rewrittenBytes[1]).IsEqualTo((byte)0xBB);
+    await Assert.That(rewrittenBytes[2]).IsEqualTo((byte)0xBF);
+
+    var result = File.ReadAllText(profile);
+    await Assert.That(result).Contains("café notes");
+    await Assert.That(result).Contains("$HOME\\.local\\bin");
+  }
+
+  [Test]
+  public async Task EnsureBlock_StaleBlock_NoOriginalBom_WritesWithoutBom()
+  {
+    // Unix profiles (.bashrc/.zshrc) are never BOM'd on disk; a rewrite must not introduce
+    // one, since a leading BOM would corrupt the shell's parsing of the file.
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    File.WriteAllText(profile,
+      "export EDITOR=vim\n" +
+      $"{MarkerStart}\n" +
+      "export PATH=\"/frozen:/usr/bin\"\n" +
+      $"{MarkerEnd}\n");
+
+    var block = $"{MarkerStart}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+
+    var rewrittenBytes = await File.ReadAllBytesAsync(profile);
+    var startsWithBom = rewrittenBytes.Length >= 3
+      && rewrittenBytes[0] == 0xEF && rewrittenBytes[1] == 0xBB && rewrittenBytes[2] == 0xBF;
+    await Assert.That(startsWithBom).IsFalse();
+  }
+
+  [Test]
   public async Task BuildCmdWrapper_UsesArgsSplatForForwarding()
   {
     // Act

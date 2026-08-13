@@ -158,17 +158,22 @@ __copilot_update() {
   if curl -fsSL "${COPILOT_HERE_RELEASE_URL}/copilot_here.sh" -o "$tmp_script" 2>/dev/null; then
     if cat "$tmp_script" > "$script_path" 2>/dev/null; then
       rm -f "$tmp_script"
-      
+
+      # Reload before touching profiles: on an upgrade from a release whose
+      # __copilot_update_profile was itself buggy, the in-memory copy of that
+      # function is still the old one until this source picks up the fix that
+      # was just downloaded. Updating profiles first would re-apply the bug.
+      echo ""
+      echo "🔄 Reloading shell functions..."
+      # shellcheck disable=SC1090
+      source "$script_path"
+
       # Update shell profiles with marker blocks
       echo ""
       echo "🔧 Updating shell profiles..."
       __copilot_update_profile "$HOME/.bashrc" "bash (.bashrc)"
       __copilot_update_profile "$HOME/.zshrc" "zsh (.zshrc)"
-      echo "✅ Profiles updated"
-      
-      echo "✅ Update complete! Reloading shell functions..."
-      # shellcheck disable=SC1090
-      source "$script_path"
+      echo "✅ Update complete!"
       echo ""
       echo "[VERSION] Script: $COPILOT_HERE_VERSION"
       if [ -x "$COPILOT_HERE_BIN" ]; then
