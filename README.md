@@ -252,6 +252,10 @@ Airlock provides an additional layer of security by routing all network traffic 
 - Local: `.copilot_here/network.json`
 - Default Rules: `~/.config/copilot_here/default-airlock-rules.json` (updated with script updates)
 
+A local `network.json` replaces the global one outright, so the two are never merged. That's why the first time `--enable-airlock` or `--disable-airlock` creates a local file in a project, it copies your global config across rather than starting empty. The command tells you when it does this.
+
+Enabling and disabling only ever changes the `enabled` value. The commands leave your comments, key order, indentation, and any keys `copilot_here` doesn't know about exactly as you wrote them.
+
 **Example Configuration:**
 ```json
 {
@@ -276,7 +280,7 @@ Airlock provides an additional layer of security by routing all network traffic 
 - **enforce** (`e`): Blocks requests not matching the allowlist
 - **monitor** (`m`): Allows all requests but logs them for review
 
-When enabling Airlock for the first time, you'll be prompted to choose between enforce and monitor mode.
+New configs start in enforce mode. Switch to monitor by setting `"mode": "monitor"` in `network.json`.
 
 **Logging:**
 When `enable_logging` is true (or in monitor mode), request logs are saved to `.copilot_here/logs/` (excluded from git by default).

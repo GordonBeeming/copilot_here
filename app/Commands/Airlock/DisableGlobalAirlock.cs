@@ -1,5 +1,4 @@
 using System.CommandLine;
-using CopilotHere.Infrastructure;
 
 namespace CopilotHere.Commands.Airlock;
 
@@ -8,13 +7,9 @@ public sealed partial class AirlockCommands
   private static Command SetDisableGlobalAirlockCommand()
   {
     var command = new Command("--disable-global-airlock", "Disable Airlock for global config");
-    command.SetAction(_ =>
-    {
-      var paths = AppPaths.Resolve();
-      AirlockConfig.DisableGlobal(paths);
-      Console.WriteLine("✅ Airlock disabled (global)");
-      return 0;
-    });
+    command.SetAction(_ => RunToggle(
+      "✅ Airlock disabled (global)",
+      paths => (AirlockConfig.DisableGlobal(paths), AirlockConfig.GetGlobalRulesPath(paths))));
     return command;
   }
 }

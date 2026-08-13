@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CopilotHere.Commands.Airlock;
 using CopilotHere.Infrastructure;
 using TUnit.Core;
@@ -181,5 +182,229 @@ public class AirlockConfigTests
 
     // Assert
     await Assert.That(config).IsNull();
+  }
+
+  [Test]
+  public async Task Toggle_KeepsUnknownKeysAndFormatting()
+  {
+    // Arrange
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    const string original = """
+      {
+          "enabled": true,
+          "mode": "monitor",
+          "allowed_rules": [
+              {
+                  "host": "api.nuget.org",
+                  "allowed_paths": ["/v3/*"],
+                  "note": "a key copilot_here doesn't model"
+              }
+          ],
+          "my_custom_top_level": { "a": 1 }
+      }
+      """;
+    File.WriteAllText(localRulesPath, original);
+
+    // Act
+    AirlockConfig.DisableLocal(_paths);
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert - back to the original byte for byte
+    await Assert.That(File.ReadAllText(localRulesPath)).IsEqualTo(original);
+  }
+
+  [Test]
+  public async Task Toggle_KeepsComments()
+  {
+    // Arrange
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    const string original = """
+      {
+        // nuget is needed for restore
+        "enabled": true,
+        "allowed_rules": [ { "host": "api.nuget.org", "allowed_paths": ["*"] } ]
+      }
+      """;
+    File.WriteAllText(localRulesPath, original);
+
+    // Act
+    AirlockConfig.DisableLocal(_paths);
+
+    // Assert
+    await Assert.That(File.ReadAllText(localRulesPath))
+      .IsEqualTo(original.Replace("\"enabled\": true", "\"enabled\": false"));
+  }
+
+  [Test]
+  public async Task Toggle_IgnoresEnabledNestedInsideARule()
+  {
+    // Arrange
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """
+      {
+        "allowed_rules": [
+          { "host": "a.com", "enabled": false, "allowed_paths": ["*"] }
+        ],
+        "enabled": false
+      }
+      """);
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert - only the root flag flipped
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).Contains("\"host\": \"a.com\", \"enabled\": false");
+    await Assert.That(updated).Contains("\"enabled\": true");
+  }
+
+  [Test]
+  public async Task Toggle_InsertsEnabledWhenMissing()
+  {
+    // Arrange
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """
+      {
+        "mode": "monitor",
+        "allowed_rules": []
+      }
+      """);
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).Contains("\"enabled\": true");
+    await Assert.That(updated).Contains("\"mode\": \"monitor\"");
+    await Assert.That(AirlockConfig.Load(_paths).Enabled).IsTrue();
+  }
+
+  [Test]
+  public async Task Toggle_MalformedJson_ThrowsAndLeavesFileAlone()
+  {
+    // Arrange
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    const string broken = """{ "enabled": true, "allowed_rules": [ }""";
+    File.WriteAllText(localRulesPath, broken);
+
+    // Act & Assert
+    await Assert.That(() => AirlockConfig.DisableLocal(_paths)).Throws<JsonException>();
+    await Assert.That(File.ReadAllText(localRulesPath)).IsEqualTo(broken);
+  }
+
+  [Test]
+  public async Task DisableLocal_NoLocalFile_SeedsFromGlobalRules()
+  {
+    // Arrange - rules live globally only, with nothing in the project yet
+    var globalRulesPath = _paths.GetGlobalPath("network.json");
+    File.WriteAllText(globalRulesPath, """
+      {
+        "enabled": true,
+        "mode": "monitor",
+        "allowed_rules": [
+          { "host": "api.nuget.org", "allowed_paths": ["*"] },
+          { "host": "registry.npmjs.org", "allowed_paths": ["*"] }
+        ]
+      }
+      """);
+
+    // Act
+    var outcome = AirlockConfig.DisableLocal(_paths);
+
+    // Assert - the global rules came across instead of being shadowed by an empty file
+    await Assert.That(outcome).IsEqualTo(AirlockToggleOutcome.SeededFromGlobal);
+
+    var local = AirlockConfig.ReadNetworkConfig(_paths.GetLocalPath("network.json"));
+    await Assert.That(local!.Enabled).IsFalse();
+    await Assert.That(local.Mode).IsEqualTo("monitor");
+    await Assert.That(local.AllowedRules.Count).IsEqualTo(2);
+    await Assert.That(local.AllowedRules[0].Host).IsEqualTo("api.nuget.org");
+  }
+
+  [Test]
+  public async Task EnableLocal_NoLocalFile_SeedsFromGlobalRules()
+  {
+    // Arrange
+    var globalRulesPath = _paths.GetGlobalPath("network.json");
+    File.WriteAllText(globalRulesPath, """
+      {
+        "enabled": false,
+        "allowed_rules": [ { "host": "api.nuget.org", "allowed_paths": ["*"] } ]
+      }
+      """);
+
+    // Act
+    var outcome = AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    await Assert.That(outcome).IsEqualTo(AirlockToggleOutcome.SeededFromGlobal);
+
+    var config = AirlockConfig.Load(_paths);
+    await Assert.That(config.Enabled).IsTrue();
+    await Assert.That(config.EnabledSource).IsEqualTo(AirlockConfigSource.Local);
+
+    var local = AirlockConfig.ReadNetworkConfig(_paths.GetLocalPath("network.json"));
+    await Assert.That(local!.AllowedRules.Count).IsEqualTo(1);
+  }
+
+  [Test]
+  public async Task DisableLocal_BrokenGlobalFile_CreatesNoLocalFile()
+  {
+    // Arrange
+    File.WriteAllText(_paths.GetGlobalPath("network.json"), """{ "enabled": true, ]""");
+
+    // Act & Assert - better to fail loudly than seed a project from a broken source
+    await Assert.That(() => AirlockConfig.DisableLocal(_paths)).Throws<JsonException>();
+    await Assert.That(File.Exists(_paths.GetLocalPath("network.json"))).IsFalse();
+  }
+
+  [Test]
+  public async Task DisableLocal_NoConfigAnywhere_WritesDefault()
+  {
+    // Act
+    var outcome = AirlockConfig.DisableLocal(_paths);
+
+    // Assert
+    await Assert.That(outcome).IsEqualTo(AirlockToggleOutcome.CreatedDefault);
+
+    var local = AirlockConfig.ReadNetworkConfig(_paths.GetLocalPath("network.json"));
+    await Assert.That(local!.Enabled).IsFalse();
+    await Assert.That(local.AllowedRules.Count).IsEqualTo(0);
+  }
+
+  [Test]
+  public async Task EnableLocal_ExistingLocalFile_ReportsUpdatedExisting()
+  {
+    // Arrange
+    File.WriteAllText(_paths.GetLocalPath("network.json"), """{ "enabled": false }""");
+
+    // Act
+    var outcome = AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    await Assert.That(outcome).IsEqualTo(AirlockToggleOutcome.UpdatedExisting);
+    await Assert.That(AirlockConfig.Load(_paths).Enabled).IsTrue();
+  }
+
+  [Test]
+  public async Task Load_FileWithCommentsAndTrailingCommas_Reads()
+  {
+    // Arrange
+    File.WriteAllText(_paths.GetLocalPath("network.json"), """
+      {
+        // hand-edited configs happen
+        "enabled": true,
+        "allowed_rules": [
+          { "host": "api.nuget.org", "allowed_paths": ["*"] },
+        ],
+      }
+      """);
+
+    // Act
+    var config = AirlockConfig.Load(_paths);
+
+    // Assert
+    await Assert.That(config.Enabled).IsTrue();
   }
 }
