@@ -210,6 +210,32 @@ public class ShellIntegrationTests
   }
 
   [Test]
+  public async Task EnsureBlock_StaleBlock_PreservesUtf16Bom()
+  {
+    // A profile that predates copilot_here can already be UTF-16 (Notepad's "Unicode" save
+    // option and PowerShell ISE both default to it). File.ReadAllText decodes it correctly,
+    // but a naive rewrite that only checks for a UTF-8 BOM would collapse it to UTF-8 anyway.
+    var profile = Path.Combine(_tempDir, "profile.ps1");
+    var content =
+      "# café notes\n" +
+      $"{MarkerStart}\n" +
+      "$env:PATH = \"C:\\old\\bin;$env:PATH\"\n" +
+      $"{MarkerEnd}\n";
+    File.WriteAllText(profile, content, System.Text.Encoding.Unicode);
+
+    var block = $"{MarkerStart}\n$env:PATH = \"$HOME\\.local\\bin;$env:PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+
+    var rewrittenBytes = await File.ReadAllBytesAsync(profile);
+    await Assert.That(rewrittenBytes[0]).IsEqualTo((byte)0xFF);
+    await Assert.That(rewrittenBytes[1]).IsEqualTo((byte)0xFE);
+
+    var result = File.ReadAllText(profile);
+    await Assert.That(result).Contains("café notes");
+    await Assert.That(result).Contains("$HOME\\.local\\bin");
+  }
+
+  [Test]
   public async Task EnsureBlock_StaleBlock_NoOriginalBom_WritesWithoutBom()
   {
     // Unix profiles (.bashrc/.zshrc) are never BOM'd on disk; a rewrite must not introduce
