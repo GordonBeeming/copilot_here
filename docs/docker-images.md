@@ -10,6 +10,19 @@ The standard copilot_here image with:
 - Python 3 with pip & pipx (Debian 12 enforces PEP 668, so `pipx install <tool>` is the supported path for pip-distributed CLIs)
 - GitHub Copilot CLI
 - Git, curl, gpg, gosu
+- nano and vim (see [Editors](#editors))
+
+## Editors
+
+Every variant ships nano and vim, with `$EDITOR` set to `nano`. So `vi`, `vim`, `nano` and `editor` all resolve, and anything that shells out to an editor opens nano by default: the Copilot CLI's edit-prompt shortcut, `git commit` with no `-m`, and so on.
+
+To use something else for a session, pass it through `SANDBOX_FLAGS`:
+
+```bash
+SANDBOX_FLAGS="--env EDITOR=vim" copilot_here
+```
+
+A run-time `--env` beats the image's own value, so this overrides the default without rebuilding anything.
 
 ## .NET Images
 

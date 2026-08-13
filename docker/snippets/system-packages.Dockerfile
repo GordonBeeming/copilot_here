@@ -1,9 +1,11 @@
 # Set non-interactive frontend to avoid prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install git, curl, gpg, gosu, nano, xdg-utils, zsh, and related utilities for the entrypoint script and testing.
+# Base utilities every image needs for the entrypoint script and testing.
 # Python tooling (pip + venv + pipx) ships here so every image can install pip-distributed
 # CLIs; Debian 12 enforces PEP 668, so `pipx install <tool>` is the supported path.
+# nano and vim are both here so an agent CLI's editor shell-out always finds something:
+# nano for people who just want to type, vim for anyone whose fingers expect `vi`.
 RUN apt-get update && apt-get install -y \
   apt-transport-https \
   curl \
@@ -16,10 +18,20 @@ RUN apt-get update && apt-get install -y \
   python3-pip \
   python3-venv \
   software-properties-common \
+  vim \
   wget \
   xdg-utils \
   zsh \
   && rm -rf /var/lib/apt/lists/*
+
+# Agent CLIs that shell out to an editor read $COPILOT_EDITOR, then $VISUAL, then $EDITOR, and
+# fall back to a hardcoded `vi` when all three are empty. Setting EDITOR keeps that fallback off
+# the table so editing a prompt or a commit message always opens something; nano is the default
+# because it prints how to quit on screen, and vim is installed above for anyone who prefers it.
+# VISUAL is deliberately left unset: it outranks EDITOR in that resolution order, so setting it
+# here would shadow a session override like `SANDBOX_FLAGS="--env EDITOR=vim"` and silently keep
+# opening nano regardless of what the caller asked for.
+ENV EDITOR=nano
 
 # pipx installs apps into the runtime user's ~/.local/bin, so that dir needs to be on PATH
 # for pipx-installed CLIs (e.g. `pipx install apm`) to be reachable without a per-session
