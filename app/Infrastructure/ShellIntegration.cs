@@ -620,6 +620,16 @@ public static class ShellIntegration
     var detectedBomEncoding = fileExists ? DetectBomEncoding(filePath) : null;
     var existing = fileExists ? File.ReadAllText(filePath) : string.Empty;
 
+    // A BOM-less profile saved in a legacy code page decodes with replacement chars, and
+    // writing that text back destroys the original bytes for good. U+FFFD cannot come out
+    // of a clean decode, so its presence is a reliable "we failed to read this" flag: leave
+    // the file alone rather than corrupt it. Detecting the actual code page is undecidable,
+    // which is why the block goes unrepaired here instead.
+    if (existing.Contains('\uFFFD'))
+    {
+      return;
+    }
+
     var startIndex = existing.IndexOf(markerStart, StringComparison.Ordinal);
     if (startIndex >= 0)
     {

@@ -1,3 +1,4 @@
+using System.Text;
 using CopilotHere.Infrastructure;
 using TUnit.Core;
 
@@ -233,6 +234,29 @@ public class ShellIntegrationTests
     var result = File.ReadAllText(profile);
     await Assert.That(result).Contains("café notes");
     await Assert.That(result).Contains("$HOME\\.local\\bin");
+  }
+
+  [Test]
+  public async Task EnsureBlock_UndecodableProfile_IsLeftByteForByteUnchanged()
+  {
+    // A BOM-less profile saved in a legacy code page (CP1252 here, 0xE9 for é) is not valid
+    // UTF-8, so File.ReadAllText substitutes U+FFFD and writing that text back would bake the
+    // loss in permanently. Asserting on bytes rather than decoded text matters: a text-level
+    // assertion passes while the corruption it is meant to catch still happens.
+    var profile = Path.Combine(_tempDir, "legacy-profile.ps1");
+    var original = Encoding.ASCII.GetBytes($"{MarkerStart}\nstale-block\n{MarkerEnd}\nWrite-Host 'caf")
+      .Concat(new byte[] { 0xE9 })
+      .Concat(Encoding.ASCII.GetBytes("'\n"))
+      .ToArray();
+    File.WriteAllBytes(profile, original);
+
+    var block = $"{MarkerStart}\nfresh-block\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+
+    // Compared as hex rather than as collections: the equivalency assertion pulls in
+    // reflection-based structural comparison, which this AOT-compiled project warns on.
+    var after = await File.ReadAllBytesAsync(profile);
+    await Assert.That(Convert.ToHexString(after)).IsEqualTo(Convert.ToHexString(original));
   }
 
   [Test]
