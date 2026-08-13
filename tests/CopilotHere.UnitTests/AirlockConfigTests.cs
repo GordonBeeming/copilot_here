@@ -388,6 +388,59 @@ public class AirlockConfigTests
   }
 
   [Test]
+  public async Task Toggle_InsertsEnabledPreservesCommentInOtherwiseEmptyObject()
+  {
+    // Arrange - the root object has no real properties, only a comment
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """
+      {
+        // explanation
+      }
+      """);
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert - the comment survives alongside the inserted property
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).Contains("// explanation");
+    await Assert.That(updated).Contains("\"enabled\": true");
+  }
+
+  [Test]
+  public async Task Toggle_InsertsEnabledOnSingleLineFile_StaysSingleLine()
+  {
+    // Arrange - a file with no newlines anywhere is deliberately single-line
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """{ "mode": "monitor" }""");
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert - stays on one line instead of being reformatted
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).DoesNotContain("\n");
+    await Assert.That(updated).Contains("\"enabled\": true");
+    await Assert.That(updated).Contains("\"mode\": \"monitor\"");
+  }
+
+  [Test]
+  public async Task Toggle_DuplicateRootEnabled_UpdatesTheOccurrenceLoadWillRead()
+  {
+    // Arrange - a hand-edited duplicate key. System.Text.Json's deserializer
+    // resolves duplicates to the last occurrence, so the splice must target
+    // that one or Load() would disagree with what the toggle just reported.
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """{ "enabled": false, "enabled": false }""");
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    await Assert.That(AirlockConfig.Load(_paths).Enabled).IsTrue();
+  }
+
+  [Test]
   public async Task Load_FileWithCommentsAndTrailingCommas_Reads()
   {
     // Arrange

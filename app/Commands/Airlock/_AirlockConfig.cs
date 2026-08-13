@@ -215,6 +215,7 @@ public sealed record AirlockConfig
   private static (int Start, int Length)? FindRootEnabledValue(ReadOnlySpan<byte> body)
   {
     var reader = new Utf8JsonReader(body, ReaderOptions);
+    (int Start, int Length)? match = null;
 
     while (reader.Read())
     {
@@ -236,10 +237,15 @@ public sealed record AirlockConfig
       }
 
       var start = (int)reader.TokenStartIndex;
-      return (start, (int)reader.BytesConsumed - start);
+      match = (start, (int)reader.BytesConsumed - start);
+
+      // Keep scanning instead of returning here: a hand-edited file can carry a
+      // duplicate root "enabled" key, and System.Text.Json's deserializer resolves
+      // that to the last occurrence, so the splice has to target the same one
+      // Load() will actually read - otherwise the two disagree after a toggle.
     }
 
-    return null;
+    return match;
   }
 
   /// <summary>
@@ -259,16 +265,32 @@ public sealed record AirlockConfig
     if (!reader.Read())
       throw new JsonException("network.json must have a JSON object at its root.");
 
-    var newline = body.IndexOf((byte)'\r') >= 0 ? "\r\n" : "\n";
     var nextTokenStart = (int)reader.TokenStartIndex;
-    var indent = DetectIndent(body, nextTokenStart);
+
+    // A file with no newline anywhere is deliberately single-line; inserting our
+    // usual newline+indent would reformat it onto multiple lines for no reason.
+    string newline;
+    string indent;
+    if (body.IndexOf((byte)'\n') >= 0 || body.IndexOf((byte)'\r') >= 0)
+    {
+      newline = body.IndexOf((byte)'\r') >= 0 ? "\r\n" : "\n";
+      indent = DetectIndent(body, nextTokenStart);
+    }
+    else
+    {
+      newline = "";
+      indent = " ";
+    }
 
     // An empty root object has no property to sit above, so the insert has to
-    // supply the closing brace's own line as well.
-    if (reader.TokenType == JsonTokenType.EndObject)
+    // supply the closing brace's own line as well - but only when it's truly
+    // empty. A root object holding nothing but comments still lands here (the
+    // comments aren't tokens), and replacing the byte range between the braces
+    // would delete them; inserting ahead of that range instead keeps them intact.
+    if (reader.TokenType == JsonTokenType.EndObject && nextTokenStart == afterBrace)
     {
       var text = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)}{newline}";
-      return Splice(json, bomLength + afterBrace, nextTokenStart - afterBrace, Encoding.UTF8.GetBytes(text));
+      return Splice(json, bomLength + afterBrace, 0, Encoding.UTF8.GetBytes(text));
     }
 
     var inserted = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)},";

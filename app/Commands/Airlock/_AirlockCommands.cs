@@ -45,7 +45,7 @@ public sealed partial class AirlockCommands : ICommand
     }
     catch (JsonException ex)
     {
-      Console.Error.WriteLine("❌ Could not update the Airlock config, because it isn't valid JSON.");
+      Console.Error.WriteLine("❌ Could not update the Airlock config.");
       Console.Error.WriteLine($"   {ex.Message}");
       Console.Error.WriteLine("   No changes were written.");
       return 1;
