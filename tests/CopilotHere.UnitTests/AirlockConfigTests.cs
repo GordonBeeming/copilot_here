@@ -294,6 +294,31 @@ public class AirlockConfigTests
   }
 
   [Test]
+  public async Task Toggle_EnabledHoldsObject_ThrowsShapeError_NotSyntaxError()
+  {
+    // Arrange - structurally valid JSON, but "enabled" holds the wrong shape.
+    // Distinguishing this from a syntax error is what lets RunToggle's message
+    // avoid the wrong claim that the file "isn't valid JSON".
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, """{ "enabled": {} }""");
+
+    // Act
+    JsonException? caught = null;
+    try
+    {
+      AirlockConfig.EnableLocal(_paths);
+    }
+    catch (JsonException ex)
+    {
+      caught = ex;
+    }
+
+    // Assert
+    await Assert.That(caught).IsNotNull();
+    await Assert.That(caught!.Message).Contains("must be a boolean");
+  }
+
+  [Test]
   public async Task DisableLocal_NoLocalFile_SeedsFromGlobalRules()
   {
     // Arrange - rules live globally only, with nothing in the project yet
@@ -401,10 +426,48 @@ public class AirlockConfigTests
     // Act
     AirlockConfig.EnableLocal(_paths);
 
-    // Assert - the comment survives alongside the inserted property
+    // Assert - the comment survives alongside the inserted property, and the
+    // result is well-formed strict JSON (no trailing comma left dangling
+    // ahead of a comment with nothing else following it)
     var updated = File.ReadAllText(localRulesPath);
     await Assert.That(updated).Contains("// explanation");
     await Assert.That(updated).Contains("\"enabled\": true");
+    AssertWellFormedStrictJson(updated);
+  }
+
+  [Test]
+  public async Task Toggle_InsertsEnabledOnEmptyObject_StaysWellFormed()
+  {
+    // Arrange - truly empty: nothing at all between the braces
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, "{}");
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).Contains("\"enabled\": true");
+    AssertWellFormedStrictJson(updated);
+  }
+
+  [Test]
+  public async Task Toggle_InsertsEnabledOnWhitespaceOnlyEmptyObject_StaysWellFormed()
+  {
+    // Arrange - empty object spread across lines, no comment, just whitespace.
+    // This is the case that regressed: the insert has nothing following it,
+    // so a trailing comma here would make the file strict-JSON-invalid even
+    // though our own lenient reader tolerates it.
+    var localRulesPath = _paths.GetLocalPath("network.json");
+    File.WriteAllText(localRulesPath, "{\n}");
+
+    // Act
+    AirlockConfig.EnableLocal(_paths);
+
+    // Assert
+    var updated = File.ReadAllText(localRulesPath);
+    await Assert.That(updated).Contains("\"enabled\": true");
+    AssertWellFormedStrictJson(updated);
   }
 
   [Test]
@@ -422,6 +485,17 @@ public class AirlockConfigTests
     await Assert.That(updated).DoesNotContain("\n");
     await Assert.That(updated).Contains("\"enabled\": true");
     await Assert.That(updated).Contains("\"mode\": \"monitor\"");
+    AssertWellFormedStrictJson(updated);
+  }
+
+  /// <summary>
+  /// Parses with comments allowed but trailing commas rejected, so a splice that
+  /// only happens to be readable by our own lenient reader still fails the test.
+  /// </summary>
+  private static void AssertWellFormedStrictJson(string json)
+  {
+    var options = new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = false };
+    using var _ = JsonDocument.Parse(json, options);
   }
 
   [Test]

@@ -282,17 +282,29 @@ public sealed record AirlockConfig
       indent = " ";
     }
 
-    // An empty root object has no property to sit above, so the insert has to
-    // supply the closing brace's own line as well - but only when it's truly
-    // empty. A root object holding nothing but comments still lands here (the
-    // comments aren't tokens), and replacing the byte range between the braces
-    // would delete them; inserting ahead of that range instead keeps them intact.
-    if (reader.TokenType == JsonTokenType.EndObject && nextTokenStart == afterBrace)
+    // EndObject means no property follows, so there's never a comma to add.
+    // A root object holding nothing but comments still lands here too (the
+    // comments aren't tokens), which is why the two sub-cases below insert
+    // ahead of any existing content rather than replacing it outright.
+    if (reader.TokenType == JsonTokenType.EndObject)
     {
-      var text = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)}{newline}";
-      return Splice(json, bomLength + afterBrace, 0, Encoding.UTF8.GetBytes(text));
+      if (nextTokenStart == afterBrace)
+      {
+        // Truly empty root object - nothing at all between the braces, not even
+        // whitespace - so synthesize the whole line ourselves.
+        var text = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)}{newline}";
+        return Splice(json, bomLength + afterBrace, 0, Encoding.UTF8.GetBytes(text));
+      }
+
+      // The object holds only whitespace or comments - insert ahead of that
+      // content so it survives. No trailing comma: nothing follows the new
+      // property, and one here would make the file strict-JSON-invalid even
+      // though our own lenient reader would tolerate it.
+      var noFollowingProperty = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)}";
+      return Splice(json, bomLength + afterBrace, 0, Encoding.UTF8.GetBytes(noFollowingProperty));
     }
 
+    // A real property follows, so the comma is required.
     var inserted = $"{newline}{indent}\"enabled\": {Encoding.UTF8.GetString(value)},";
     return Splice(json, bomLength + afterBrace, 0, Encoding.UTF8.GetBytes(inserted));
   }
