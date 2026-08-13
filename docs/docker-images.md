@@ -14,7 +14,7 @@ The standard copilot_here image with:
 
 ## Editors
 
-Every variant ships nano and vim, with `$EDITOR` and `$VISUAL` both set to `nano`. So `vi`, `vim`, `nano` and `editor` all resolve, and anything that shells out to an editor opens nano by default: the Copilot CLI's edit-prompt shortcut, `git commit` with no `-m`, and so on.
+Every variant ships nano and vim, with `$EDITOR` set to `nano`. So `vi`, `vim`, `nano` and `editor` all resolve, and anything that shells out to an editor opens nano by default: the Copilot CLI's edit-prompt shortcut, `git commit` with no `-m`, and so on.
 
 To use something else for a session, pass it through `SANDBOX_FLAGS`:
 

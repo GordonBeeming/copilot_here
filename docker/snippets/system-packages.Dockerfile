@@ -25,12 +25,13 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Agent CLIs that shell out to an editor read $COPILOT_EDITOR, then $VISUAL, then $EDITOR, and
-# fall back to a hardcoded `vi` when all three are empty. These two keep that fallback off the
-# table so editing a prompt or a commit message always opens something. nano is the default
-# because it prints how to quit on screen; vim is installed above for anyone who prefers it.
-# A run-time `-e EDITOR=...` still beats an image ENV, so SANDBOX_FLAGS overrides this per session.
+# fall back to a hardcoded `vi` when all three are empty. Setting EDITOR keeps that fallback off
+# the table so editing a prompt or a commit message always opens something; nano is the default
+# because it prints how to quit on screen, and vim is installed above for anyone who prefers it.
+# VISUAL is deliberately left unset: it outranks EDITOR in that resolution order, so setting it
+# here would shadow a session override like `SANDBOX_FLAGS="--env EDITOR=vim"` and silently keep
+# opening nano regardless of what the caller asked for.
 ENV EDITOR=nano
-ENV VISUAL=nano
 
 # pipx installs apps into the runtime user's ~/.local/bin, so that dir needs to be on PATH
 # for pipx-installed CLIs (e.g. `pipx install apm`) to be reachable without a per-session

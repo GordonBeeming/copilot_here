@@ -198,7 +198,7 @@ copilot_here
 export SANDBOX_FLAGS="--env DEBUG=1 --env LOG_LEVEL=trace"
 
 # Swap the container's editor (nano is the default; vim also ships in every image)
-export SANDBOX_FLAGS="--env EDITOR=vim"
+SANDBOX_FLAGS="--env EDITOR=vim" copilot_here
 
 # Multiple flags (space-separated)
 export SANDBOX_FLAGS="--network my-net --cap-add SYS_PTRACE"
