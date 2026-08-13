@@ -51,10 +51,15 @@ public sealed class NetworkRule
 /// <summary>
 /// JSON source generator context for AOT-compatible serialization.
 /// </summary>
+// network.json is a hand-edited file, so the reader tolerates comments and trailing
+// commas. Anything that loads here must also survive a toggle, and the toggle's
+// Utf8JsonReader is configured to match.
 [JsonSourceGenerationOptions(
   WriteIndented = true,
   PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-  DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+  DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+  ReadCommentHandling = JsonCommentHandling.Skip,
+  AllowTrailingCommas = true)]
 [JsonSerializable(typeof(NetworkConfig))]
 [JsonSerializable(typeof(NetworkRule))]
 [JsonSerializable(typeof(List<NetworkRule>))]
