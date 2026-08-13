@@ -618,17 +618,20 @@ public static class ShellIntegration
     // collapse any of these to UTF-8 unless the original encoding is detected up front and
     // carried through the write.
     var detectedBomEncoding = fileExists ? DetectBomEncoding(filePath) : null;
-    var existing = fileExists ? File.ReadAllText(filePath) : string.Empty;
 
-    // A BOM-less profile saved in a legacy code page decodes with replacement chars, and
-    // writing that text back destroys the original bytes for good. U+FFFD cannot come out
-    // of a clean decode, so its presence is a reliable "we failed to read this" flag: leave
-    // the file alone rather than corrupt it. Detecting the actual code page is undecidable,
-    // which is why the block goes unrepaired here instead.
-    if (existing.Contains('\uFFFD'))
+    // A BOM-less profile may be a legacy code page rather than UTF-8, and writing it back as
+    // UTF-8 destroys its non-ASCII bytes for good. Decoding strictly is the only reliable
+    // test: a valid UTF-8 profile that happens to contain U+FFFD passes, while CP1252 bytes
+    // throw. Checking the decoded text for U+FFFD instead would reject that valid profile,
+    // since the replacement character is itself a legal thing to write in a file. Identifying
+    // which legacy code page it is remains undecidable, so the block goes unrepaired rather
+    // than rewritten into garbage.
+    if (fileExists && detectedBomEncoding is null && !IsValidUtf8(filePath))
     {
       return;
     }
+
+    var existing = fileExists ? File.ReadAllText(filePath) : string.Empty;
 
     var startIndex = existing.IndexOf(markerStart, StringComparison.Ordinal);
     if (startIndex >= 0)
@@ -688,6 +691,22 @@ public static class ShellIntegration
     (new byte[] { 0xFF, 0xFE }, () => Encoding.Unicode),
     (new byte[] { 0xFE, 0xFF }, () => Encoding.BigEndianUnicode),
   ];
+
+  /// Strict UTF-8 decode used as a readability test for BOM-less files: throws, and so returns
+  /// false, only when the bytes genuinely are not UTF-8.
+  private static bool IsValidUtf8(string filePath)
+  {
+    try
+    {
+      new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+        .GetString(File.ReadAllBytes(filePath));
+      return true;
+    }
+    catch (DecoderFallbackException)
+    {
+      return false;
+    }
+  }
 
   /// Returns the encoding a leading byte-order mark identifies, or null if the file has none
   /// (the caller then falls back to writing BOM-less UTF-8, matching what a marker-less profile

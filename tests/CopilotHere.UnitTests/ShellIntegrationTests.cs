@@ -240,9 +240,9 @@ public class ShellIntegrationTests
   public async Task EnsureBlock_UndecodableProfile_IsLeftByteForByteUnchanged()
   {
     // A BOM-less profile saved in a legacy code page (CP1252 here, 0xE9 for é) is not valid
-    // UTF-8, so File.ReadAllText substitutes U+FFFD and writing that text back would bake the
-    // loss in permanently. Asserting on bytes rather than decoded text matters: a text-level
-    // assertion passes while the corruption it is meant to catch still happens.
+    // UTF-8, so a rewrite would bake in the replacement characters permanently. Asserting on
+    // bytes rather than decoded text matters: a text-level assertion passes while the
+    // corruption it is meant to catch still happens.
     var profile = Path.Combine(_tempDir, "legacy-profile.ps1");
     var original = Encoding.ASCII.GetBytes($"{MarkerStart}\nstale-block\n{MarkerEnd}\nWrite-Host 'caf")
       .Concat(new byte[] { 0xE9 })
@@ -257,6 +257,24 @@ public class ShellIntegrationTests
     // reflection-based structural comparison, which this AOT-compiled project warns on.
     var after = await File.ReadAllBytesAsync(profile);
     await Assert.That(Convert.ToHexString(after)).IsEqualTo(Convert.ToHexString(original));
+  }
+
+  [Test]
+  public async Task EnsureBlock_ValidUtf8ContainingReplacementChar_IsStillUpdated()
+  {
+    // U+FFFD is a legal character to write in a file, so a valid UTF-8 profile can contain one
+    // deliberately. Treating its presence as "we failed to decode" would silently skip the
+    // install while still reporting success, so the readability test has to be a strict decode
+    // of the bytes rather than an inspection of the decoded text.
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    File.WriteAllText(profile, "# legacy note: � marker\n", new UTF8Encoding(false));
+
+    var block = $"{MarkerStart}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+    var result = File.ReadAllText(profile);
+
+    await Assert.That(result).Contains("# legacy note: � marker");
+    await Assert.That(result).Contains(block);
   }
 
   [Test]
