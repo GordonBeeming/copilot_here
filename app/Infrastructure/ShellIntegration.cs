@@ -597,7 +597,8 @@ public static class ShellIntegration
     File.WriteAllText(destinationPath, content);
   }
 
-  private static void EnsureBlock(string filePath, string markerStart, string markerEnd, string block)
+  /// Internal for testing via InternalsVisibleTo.
+  internal static void EnsureBlock(string filePath, string markerStart, string markerEnd, string block)
   {
     var dir = Path.GetDirectoryName(filePath);
     if (!string.IsNullOrWhiteSpace(dir))
@@ -607,8 +608,30 @@ public static class ShellIntegration
 
     var existing = File.Exists(filePath) ? File.ReadAllText(filePath) : string.Empty;
 
-    if (existing.Contains(markerStart, StringComparison.Ordinal))
+    var startIndex = existing.IndexOf(markerStart, StringComparison.Ordinal);
+    if (startIndex >= 0)
     {
+      // A block written by an older release can be wrong (one baked the literal value
+      // of PATH into the profile instead of the variable), so reconcile what is on disk
+      // against what we want rather than trusting the marker's presence. Only the marked
+      // region is rewritten; the user's own config above and below it is untouched.
+      var endMarkerIndex = existing.IndexOf(markerEnd, startIndex, StringComparison.Ordinal);
+      if (endMarkerIndex < 0)
+      {
+        // Start marker with no matching end: the block's extent is unknowable, so
+        // rewriting could swallow the user's config. Leave it for the uninstaller.
+        return;
+      }
+
+      var endIndex = endMarkerIndex + markerEnd.Length;
+      var current = existing[startIndex..endIndex];
+      var desired = block.TrimEnd('\r', '\n');
+
+      if (!string.Equals(current, desired, StringComparison.Ordinal))
+      {
+        File.WriteAllText(filePath, string.Concat(existing.AsSpan(0, startIndex), desired, existing.AsSpan(endIndex)));
+      }
+
       return;
     }
 

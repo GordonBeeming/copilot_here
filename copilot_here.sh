@@ -205,8 +205,7 @@ __copilot_update() {
 __copilot_update_profile() {
   local profile_path="$1"
   local profile_name="$2"
-  local script_path="$HOME/.copilot_here.sh"
-  
+
   # Create profile if it doesn't exist
   if [ ! -f "$profile_path" ]; then
     touch "$profile_path"
@@ -231,10 +230,15 @@ __copilot_update_profile() {
     grep -v "copilot_here.sh" "$profile_path" > "$temp_file" 2>/dev/null || cat "$profile_path" > "$temp_file" 2>/dev/null || true
   fi
   
-  # Add fresh marker block
-  cat >> "$temp_file" << EOF
+  # Add fresh marker block.
+  # The quoted 'EOF' is load-bearing: $HOME and $PATH must land in the profile as
+  # variables, not as their values at install time. An unquoted delimiter bakes in
+  # a snapshot of PATH, and the block then replaces the user's live PATH on every
+  # shell start instead of prepending to it. That is why the markers and the script
+  # path are written out literally here rather than interpolated.
+  cat >> "$temp_file" << 'EOF'
 
-$marker_start
+# >>> copilot_here >>>
 # Ensure user bin directory is on PATH
 if [ -d "$HOME/.local/bin" ]; then
   case ":$PATH:" in
@@ -242,10 +246,10 @@ if [ -d "$HOME/.local/bin" ]; then
     *) export PATH="$HOME/.local/bin:$PATH" ;;
   esac
 fi
-if [ -f "$script_path" ]; then
-  source "$script_path"
+if [ -f "$HOME/.copilot_here.sh" ]; then
+  source "$HOME/.copilot_here.sh"
 fi
-$marker_end
+# <<< copilot_here <<<
 EOF
   
   # Preserve symlinks: if target is a symlink, mv into the resolved path atomically;

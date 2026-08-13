@@ -118,6 +118,70 @@ public class ShellIntegrationTests
   }
 
   [Test]
+  public async Task EnsureBlock_StaleBlock_IsRewritten_PreservingSurroundingContent()
+  {
+    // An older release wrote profiles with the value of PATH baked in rather than the
+    // variable, so a present marker is not proof the block on disk is the right one.
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    File.WriteAllText(profile,
+      "export EDITOR=vim\n" +
+      $"{MarkerStart}\n" +
+      "export PATH=\"/home/someone/.local/bin:/usr/bin:/bin\"\n" +
+      $"{MarkerEnd}\n" +
+      "alias g=git\n");
+
+    var block = $"{MarkerStart}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+    var result = File.ReadAllText(profile);
+
+    await Assert.That(result).Contains("export PATH=\"$HOME/.local/bin:$PATH\"");
+    await Assert.That(result).DoesNotContain("/home/someone/.local/bin");
+    await Assert.That(result).Contains("export EDITOR=vim");
+    await Assert.That(result).Contains("alias g=git");
+  }
+
+  [Test]
+  public async Task EnsureBlock_CurrentBlock_LeavesFileUnchanged()
+  {
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    var block = $"{MarkerStart}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{MarkerEnd}\n";
+    var original = $"export EDITOR=vim\n{block}alias g=git\n";
+    File.WriteAllText(profile, original);
+
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+
+    await Assert.That(File.ReadAllText(profile)).IsEqualTo(original);
+  }
+
+  [Test]
+  public async Task EnsureBlock_MissingEndMarker_LeavesFileUnchanged()
+  {
+    // Without an end marker the block's extent is unknowable, so rewriting could
+    // swallow whatever the user has below the start marker.
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    var original = $"export EDITOR=vim\n{MarkerStart}\nexport PATH=\"/frozen:/usr/bin\"\nalias g=git\n";
+    File.WriteAllText(profile, original);
+
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, $"{MarkerStart}\nfresh\n{MarkerEnd}\n");
+
+    await Assert.That(File.ReadAllText(profile)).IsEqualTo(original);
+  }
+
+  [Test]
+  public async Task EnsureBlock_NoMarker_AppendsBlock()
+  {
+    var profile = Path.Combine(_tempDir, ".bashrc");
+    File.WriteAllText(profile, "export EDITOR=vim\n");
+
+    var block = $"{MarkerStart}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{MarkerEnd}\n";
+    ShellIntegration.EnsureBlock(profile, MarkerStart, MarkerEnd, block);
+    var result = File.ReadAllText(profile);
+
+    await Assert.That(result).Contains("export EDITOR=vim");
+    await Assert.That(result).Contains(block);
+  }
+
+  [Test]
   public async Task BuildCmdWrapper_UsesArgsSplatForForwarding()
   {
     // Act
