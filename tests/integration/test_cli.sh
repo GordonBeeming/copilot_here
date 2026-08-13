@@ -8,6 +8,12 @@
 
 set -e
 
+# Resolved once at load time: tests change the working directory as they run, so
+# deriving these from $BASH_SOURCE later (including in the EXIT trap) resolves
+# against the wrong directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Parse arguments
 CLI_PATH=""
 while [[ $# -gt 0 ]]; do
@@ -122,9 +128,7 @@ setup_cli() {
 }
 
 cleanup() {
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local repo_root="$(cd "$script_dir/../.." && pwd)"
-  rm -rf "$repo_root/publish/cli-test" 2>/dev/null || true
+  rm -rf "$REPO_ROOT/publish/cli-test" 2>/dev/null || true
   rm -rf "$TEST_DIR" 2>/dev/null || true
 }
 
@@ -311,6 +315,48 @@ test_passthrough_help() {
   fi
 }
 
+test_profile_block_keeps_path_variable() {
+  test_start "Profile block references \$PATH instead of a snapshot of it"
+
+  local fake_home profile result
+
+  fake_home="$TEST_DIR/profile-home"
+  mkdir -p "$fake_home/.local/bin"
+  profile="$fake_home/.bashrc"
+  printf 'export USER_CONFIG_KEPT=1\n' > "$profile"
+
+  # Sentinel entries stand in for whatever PATH happens to hold at install time.
+  # If any of them reach the profile, the block has baked in a snapshot and will
+  # wipe the user's live PATH on every shell start.
+  env HOME="$fake_home" PATH="/sentinel/alpha:/sentinel/beta:/usr/bin:/bin" \
+    bash -c "source '$REPO_ROOT/copilot_here.sh' >/dev/null 2>&1; __copilot_update_profile \"\$HOME/.bashrc\" 'test profile'" >/dev/null 2>&1
+
+  if grep -qF '/sentinel/alpha' "$profile" || grep -qF '/sentinel/beta' "$profile"; then
+    test_fail "Profile block baked in the install-time PATH: $(grep -F '/sentinel/' "$profile" | head -n 1)"
+    return
+  fi
+
+  if ! grep -qF ':$PATH:' "$profile" || ! grep -qF '$HOME/.local/bin' "$profile"; then
+    test_fail "Profile block is missing the literal \$PATH / \$HOME references"
+    return
+  fi
+
+  if ! grep -qF 'USER_CONFIG_KEPT' "$profile"; then
+    test_fail "Profile update discarded the user's own config"
+    return
+  fi
+
+  # Sourcing the block from an unrelated PATH must prepend, not replace.
+  result=$(env -i HOME="$fake_home" PATH="/keep/me:/usr/bin:/bin" \
+    bash -c 'source "$HOME/.bashrc" >/dev/null 2>&1; echo "$PATH"')
+
+  if [[ "$result" == "$fake_home/.local/bin:/keep/me:/usr/bin:/bin" ]]; then
+    test_pass "Block prepends ~/.local/bin and preserves the existing PATH"
+  else
+    test_fail "Unexpected PATH after sourcing profile: $result"
+  fi
+}
+
 # ============================================================================
 # MAIN
 # ============================================================================
@@ -339,7 +385,8 @@ main() {
   test_dotnet_alias
   test_yolo_flag
   test_passthrough_help
-  
+  test_profile_block_keeps_path_variable
+
   print_summary
   exit $?
 }

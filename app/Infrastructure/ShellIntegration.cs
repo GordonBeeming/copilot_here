@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text;
 
 namespace CopilotHere.Infrastructure;
 
@@ -597,7 +598,8 @@ public static class ShellIntegration
     File.WriteAllText(destinationPath, content);
   }
 
-  private static void EnsureBlock(string filePath, string markerStart, string markerEnd, string block)
+  /// Internal for testing via InternalsVisibleTo.
+  internal static void EnsureBlock(string filePath, string markerStart, string markerEnd, string block)
   {
     var dir = Path.GetDirectoryName(filePath);
     if (!string.IsNullOrWhiteSpace(dir))
@@ -605,10 +607,58 @@ public static class ShellIntegration
       Directory.CreateDirectory(dir);
     }
 
-    var existing = File.Exists(filePath) ? File.ReadAllText(filePath) : string.Empty;
+    var fileExists = File.Exists(filePath);
+    // install.ps1 writes the PowerShell profile as UTF-8 with a BOM (Windows PowerShell 5.1
+    // needs the BOM to recognize UTF-8; without it, a profile with non-ASCII command or string
+    // content is reinterpreted using the legacy code page and comes out garbled). A profile
+    // can also predate copilot_here entirely and already be UTF-16 (Notepad's "Unicode" save
+    // option, or PowerShell ISE, both default to it) or UTF-32. File.ReadAllText auto-detects
+    // and decodes all of those correctly but doesn't report which one it found, and the
+    // WriteAllText overload below defaults to BOM-less UTF-8, so a rewrite would silently
+    // collapse any of these to UTF-8 unless the original encoding is detected up front and
+    // carried through the write.
+    var detectedBomEncoding = fileExists ? DetectBomEncoding(filePath) : null;
 
-    if (existing.Contains(markerStart, StringComparison.Ordinal))
+    // A BOM-less profile may be a legacy code page rather than UTF-8, and writing it back as
+    // UTF-8 destroys its non-ASCII bytes for good. Decoding strictly is the only reliable
+    // test: a valid UTF-8 profile that happens to contain U+FFFD passes, while CP1252 bytes
+    // throw. Checking the decoded text for U+FFFD instead would reject that valid profile,
+    // since the replacement character is itself a legal thing to write in a file. Identifying
+    // which legacy code page it is remains undecidable, so the block goes unrepaired rather
+    // than rewritten into garbage.
+    if (fileExists && detectedBomEncoding is null && !IsValidUtf8(filePath))
     {
+      return;
+    }
+
+    var existing = fileExists ? File.ReadAllText(filePath) : string.Empty;
+
+    var startIndex = existing.IndexOf(markerStart, StringComparison.Ordinal);
+    if (startIndex >= 0)
+    {
+      // A block written by an older release can be wrong (one baked the literal value
+      // of PATH into the profile instead of the variable), so reconcile what is on disk
+      // against what we want rather than trusting the marker's presence. Only the marked
+      // region is rewritten; the user's own config above and below it is untouched.
+      var endMarkerIndex = existing.IndexOf(markerEnd, startIndex, StringComparison.Ordinal);
+      if (endMarkerIndex < 0)
+      {
+        // Start marker with no matching end: the block's extent is unknowable, so
+        // rewriting could swallow the user's config. Leave it for the uninstaller.
+        return;
+      }
+
+      var endIndex = endMarkerIndex + markerEnd.Length;
+      var current = existing[startIndex..endIndex];
+      var desired = block.TrimEnd('\r', '\n');
+
+      if (!string.Equals(current, desired, StringComparison.Ordinal))
+      {
+        var rewritten = string.Concat(existing.AsSpan(0, startIndex), desired, existing.AsSpan(endIndex));
+        var writeEncoding = detectedBomEncoding ?? new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        File.WriteAllText(filePath, rewritten, writeEncoding);
+      }
+
       return;
     }
 
@@ -629,5 +679,53 @@ public static class ShellIntegration
     {
       return false;
     }
+  }
+
+  // Checked longest-preamble-first: UTF-32LE's 4-byte BOM starts with the same 2 bytes as
+  // UTF-16LE's, so testing UTF-16LE first would misclassify every UTF-32LE file.
+  private static readonly (byte[] Preamble, Func<Encoding> MakeEncoding)[] BomSignatures =
+  [
+    (new byte[] { 0xFF, 0xFE, 0x00, 0x00 }, () => new UTF32Encoding(bigEndian: false, byteOrderMark: true)),
+    (new byte[] { 0x00, 0x00, 0xFE, 0xFF }, () => new UTF32Encoding(bigEndian: true, byteOrderMark: true)),
+    (new byte[] { 0xEF, 0xBB, 0xBF }, () => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)),
+    (new byte[] { 0xFF, 0xFE }, () => Encoding.Unicode),
+    (new byte[] { 0xFE, 0xFF }, () => Encoding.BigEndianUnicode),
+  ];
+
+  /// Strict UTF-8 decode used as a readability test for BOM-less files: throws, and so returns
+  /// false, only when the bytes genuinely are not UTF-8.
+  private static bool IsValidUtf8(string filePath)
+  {
+    try
+    {
+      new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+        .GetString(File.ReadAllBytes(filePath));
+      return true;
+    }
+    catch (DecoderFallbackException)
+    {
+      return false;
+    }
+  }
+
+  /// Returns the encoding a leading byte-order mark identifies, or null if the file has none
+  /// (the caller then falls back to writing BOM-less UTF-8, matching what a marker-less profile
+  /// already looks like).
+  private static Encoding? DetectBomEncoding(string filePath)
+  {
+    using var stream = File.OpenRead(filePath);
+    Span<byte> buffer = stackalloc byte[4];
+    var read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+    var bytes = buffer[..read];
+
+    foreach (var (preamble, makeEncoding) in BomSignatures)
+    {
+      if (bytes.Length >= preamble.Length && bytes[..preamble.Length].SequenceEqual(preamble))
+      {
+        return makeEncoding();
+      }
+    }
+
+    return null;
   }
 }
