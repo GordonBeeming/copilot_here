@@ -4,6 +4,26 @@ Run the GitHub Copilot CLI from any directory on your machine, inside a sandboxe
 
 [![Build and Publish Docker Images](https://github.com/GordonBeeming/copilot_here/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/GordonBeeming/copilot_here/actions/workflows/publish.yml)
 
+## Quick install
+
+Check the [prerequisites](#-prerequisites), then run the installer for your shell.
+
+**Linux/macOS (Bash/Zsh):**
+
+```bash
+source <(curl -fsSL https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.sh)
+```
+
+**Windows (PowerShell):**
+
+```powershell
+iex ([System.Text.Encoding]::UTF8.GetString((iwr -UseBasicParsing 'https://github.com/GordonBeeming/copilot_here/releases/download/cli-latest/install.ps1').Content))
+```
+
+Restart your shell after installation, then run `copilot_here --help`.
+
+Prefer Homebrew, WinGet, or a .NET global tool? See [package managers](#package-managers). For manual installation, shell integration, and configuration, see the [full setup instructions](#️-setup-instructions).
+
 ## 🚀 What is this?
 
 This project solves a simple problem: you want to use the awesome [GitHub Copilot CLI](https://github.com/features/copilot/cli), but you also want a clean, portable, and secure environment for it.
