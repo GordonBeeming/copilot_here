@@ -1,0 +1,147 @@
+name: Track GHCR downloads
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: ghcr-download-tracker
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read package download count
+        id: downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          total="$(
+            gh api --paginate               "/users/${{ github.repository_owner }}/packages/container/copilot_here/versions?per_page=100"               --jq '.[].download_count // 0' |
+              awk '{ total += $1 } END { print total + 0 }'
+          )"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "Current GHCR downloads: $total"
+
+      - name: Update history and chart
+        env:
+          TOTAL_DOWNLOADS: ${{ steps.downloads.outputs.total }}
+        run: |
+          python3 <<'PY'
+          import csv
+          import html
+          import os
+          from datetime import date, timedelta
+          from pathlib import Path
+
+          data_path = Path("docs/ghcr-downloads.csv")
+          chart_path = Path("docs/ghcr-downloads.svg")
+          data_path.parent.mkdir(parents=True, exist_ok=True)
+
+          today = date.today()
+          total = int(os.environ["TOTAL_DOWNLOADS"])
+          rows = {}
+
+          if data_path.exists():
+              with data_path.open(newline="", encoding="utf-8") as f:
+                  for row in csv.DictReader(f):
+                      rows[date.fromisoformat(row["date"])] = int(row["downloads"])
+
+          rows[today] = total
+          cutoff = today - timedelta(days=89)
+          rows = {d: count for d, count in rows.items() if d >= cutoff}
+          points = sorted(rows.items())
+
+          with data_path.open("w", newline="", encoding="utf-8") as f:
+              writer = csv.writer(f)
+              writer.writerow(["date", "downloads"])
+              for d, count in points:
+                  writer.writerow([d.isoformat(), count])
+
+          width, height = 900, 360
+          left, right, top, bottom = 72, 24, 54, 54
+          plot_w = width - left - right
+          plot_h = height - top - bottom
+          counts = [count for _, count in points]
+          min_count = min(counts)
+          max_count = max(counts)
+          span = max(max_count - min_count, 1)
+          y_min = max(0, min_count - max(1, span // 10))
+          y_span = max(max_count - y_min, 1)
+
+          def x(i):
+              return left + (plot_w * i / max(len(points) - 1, 1))
+
+          def y(value):
+              return top + plot_h - ((value - y_min) / y_span * plot_h)
+
+          polyline = " ".join(f"{x(i):.1f},{y(count):.1f}" for i, (_, count) in enumerate(points))
+          start_date = points[0][0].isoformat()
+          end_date = points[-1][0].isoformat()
+          latest = points[-1][1]
+
+          grid = []
+          labels = []
+          for i in range(5):
+              value = y_min + y_span * i / 4
+              yy = y(value)
+              grid.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{width-right}" y2="{yy:.1f}" class="grid"/>')
+              labels.append(f'<text x="{left-10}" y="{yy+4:.1f}" text-anchor="end" class="axis">{int(value):,}</text>')
+
+          svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">
+            <title id="title">GHCR downloads over the last 90 days</title>
+            <desc id="desc">Cumulative downloads for ghcr.io/gordonbeeming/copilot_here. Latest total: {latest:,}.</desc>
+            <style>
+              text {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #24292f; }}
+              .title {{ font-size: 20px; font-weight: 600; }}
+              .subtitle {{ font-size: 13px; fill: #57606a; }}
+              .axis {{ font-size: 12px; fill: #57606a; }}
+              .grid {{ stroke: #d8dee4; stroke-width: 1; }}
+              .line {{ fill: none; stroke: #0969da; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }}
+              .dot {{ fill: #0969da; }}
+              @media (prefers-color-scheme: dark) {{
+                text {{ fill: #f0f6fc; }}
+                .subtitle, .axis {{ fill: #8c959f; }}
+                .grid {{ stroke: #30363d; }}
+                .line {{ stroke: #58a6ff; }}
+                .dot {{ fill: #58a6ff; }}
+              }}
+            </style>
+            <text x="{left}" y="26" class="title">GHCR downloads — {latest:,}</text>
+            <text x="{left}" y="45" class="subtitle">Cumulative package downloads, rolling 90-day history</text>
+            {"".join(grid)}
+            {"".join(labels)}
+            <polyline points="{polyline}" class="line"/>
+            <circle cx="{x(len(points)-1):.1f}" cy="{y(latest):.1f}" r="4" class="dot"/>
+            <text x="{left}" y="{height-18}" class="axis">{html.escape(start_date)}</text>
+            <text x="{width-right}" y="{height-18}" text-anchor="end" class="axis">{html.escape(end_date)}</text>
+          </svg>"""
+          chart_path.write_text(svg, encoding="utf-8")
+          PY
+
+      - name: Commit updated statistics
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/ghcr-downloads.csv docs/ghcr-downloads.svg; then
+            echo "No statistics changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ghcr-downloads.csv docs/ghcr-downloads.svg
+          git commit -m "chore: update GHCR download statistics"
+          git push
