@@ -1,3 +1,19 @@
+> [!IMPORTANT]
+> **This project is no longer actively maintained.** I'll keep the daily Copilot CLI image updates running, but I won't be adding features or fixing bugs in the wrapper.
+>
+> With [Local sandboxing for GitHub Copilot now generally available](https://github.blog/changelog/2026-10-07-local-sandboxing-for-github-copilot-now-generally-available/), I recommend native sandboxing for most users. It's a better fit for what I originally set out to solve:
+>
+> - No container runtime needed; use your existing host tools.
+> - Masked Git and GitHub CLI credentials, rather than exposing your real token to sandboxed commands.
+> - Explicit filesystem deny rules and enterprise-managed policies, maintained by GitHub.
+>
+> `copilot_here` can still be useful if you need:
+>
+> - A disposable Linux environment with packaged .NET, Rust, Go, Java, or Playwright tooling.
+> - An outer container boundary around the entire CLI and its subprocesses. Native sandboxing leaves the CLI itself on the host.
+>
+> If you feel strongly about keeping this project going, [reach out through an issue](https://github.com/GordonBeeming/copilot_here/issues). I'd be happy to discuss where it still adds value and what continued maintenance could look like.
+
 # copilot_here: A Secure, Portable Copilot CLI Environment
 
 Run the GitHub Copilot CLI from any directory on your machine, inside a sandboxed Docker container that automatically uses your existing `gh` authentication.
