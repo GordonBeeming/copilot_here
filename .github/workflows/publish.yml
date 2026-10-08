@@ -410,23 +410,53 @@ jobs:
 
       - name: Get latest dependency versions
         id: versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
+          # Every value resolved here feeds a download URL in a Dockerfile. A
+          # failed lookup used to yield an empty string that silently built a
+          # broken URL — a rate-limited GitHub API call left PLANTUML_TAG empty
+          # and the java image tried to fetch .../download//plantuml-.jar, which
+          # 404s. Fail the step at the lookup instead of in the image build.
+          fetch() {
+            local url="$1"; shift
+            if ! curl -fsSL "$url" "$@"; then
+              echo "::error::failed to fetch $url" >&2
+              exit 1
+            fi
+          }
+
+          require() {
+            if [ -z "$2" ] || [ "$2" = "null" ]; then
+              echo "::error::could not resolve $1" >&2
+              exit 1
+            fi
+          }
+
           COPILOT_VERSION=$(npm view @github/copilot version)
+          require copilot_version "$COPILOT_VERSION"
           echo "copilot_version=$COPILOT_VERSION" >> $GITHUB_OUTPUT
 
           PLAYWRIGHT_VERSION=$(npm view playwright version)
+          require playwright_version "$PLAYWRIGHT_VERSION"
           echo "playwright_version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
 
-          DOTNET_8_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json | jq -r '."latest-sdk"')
+          DOTNET_8_VERSION=$(fetch https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json | jq -r '."latest-sdk"')
+          require dotnet_8_version "$DOTNET_8_VERSION"
           echo "dotnet_8_version=$DOTNET_8_VERSION" >> $GITHUB_OUTPUT
 
-          DOTNET_9_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/9.0/releases.json | jq -r '."latest-sdk"')
+          DOTNET_9_VERSION=$(fetch https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/9.0/releases.json | jq -r '."latest-sdk"')
+          require dotnet_9_version "$DOTNET_9_VERSION"
           echo "dotnet_9_version=$DOTNET_9_VERSION" >> $GITHUB_OUTPUT
 
-          DOTNET_10_VERSION=$(curl -s https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
+          DOTNET_10_VERSION=$(fetch https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json | jq -r '."latest-sdk"')
+          require dotnet_10_version "$DOTNET_10_VERSION"
           echo "dotnet_10_version=$DOTNET_10_VERSION" >> $GITHUB_OUTPUT
 
-          CSHARP_LS_VERSION=$(curl -s https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json | jq -r '.versions[-1]')
+          CSHARP_LS_VERSION=$(fetch https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json | jq -r '.versions[-1]')
+          require csharp_ls_version "$CSHARP_LS_VERSION"
           echo "csharp_ls_version=$CSHARP_LS_VERSION" >> $GITHUB_OUTPUT
 
           # Toolchains pinned per-build so the resolved version is the layer cache
@@ -434,19 +464,31 @@ jobs:
           # The snippets resolve these themselves when the arg is empty (local dev
           # builds), but CI must resolve here or the registry layer cache freezes
           # the version. Go strips the "go" prefix; the snippet re-adds it.
-          GOLANG_VERSION=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)
+          GOLANG_VERSION=$(fetch 'https://go.dev/VERSION?m=text')
+          GOLANG_VERSION=${GOLANG_VERSION%%$'\n'*}
+          require golang_version "$GOLANG_VERSION"
           echo "golang_version=${GOLANG_VERSION#go}" >> $GITHUB_OUTPUT
 
-          MAVEN_VERSION=$(curl -fsSL https://dlcdn.apache.org/maven/maven-3/ | grep -oE '3\.[0-9]+\.[0-9]+/' | tr -d / | sort -uV | tail -1)
+          MAVEN_INDEX=$(fetch https://dlcdn.apache.org/maven/maven-3/)
+          MAVEN_VERSION=$(printf '%s\n' "$MAVEN_INDEX" | grep -oE '3\.[0-9]+\.[0-9]+/' | tr -d / | sort -uV | tail -1 || true)
+          require maven_version "$MAVEN_VERSION"
           echo "maven_version=$MAVEN_VERSION" >> $GITHUB_OUTPUT
 
-          GRADLE_VERSION=$(curl -fsSL https://services.gradle.org/versions/current | jq -r '.version')
+          GRADLE_VERSION=$(fetch https://services.gradle.org/versions/current | jq -r '.version')
+          require gradle_version "$GRADLE_VERSION"
           echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
 
-          JDTLS_FILE=$(curl -fsSL https://download.eclipse.org/jdtls/snapshots/latest.txt)
+          JDTLS_FILE=$(fetch https://download.eclipse.org/jdtls/snapshots/latest.txt)
+          require jdtls_file "$JDTLS_FILE"
           echo "jdtls_url=https://download.eclipse.org/jdtls/snapshots/${JDTLS_FILE}" >> $GITHUB_OUTPUT
 
-          PLANTUML_TAG=$(curl -fsSL https://api.github.com/repos/plantuml/plantuml/releases/latest | jq -r '.tag_name')
+          # Authenticated: the anonymous api.github.com limit is 60/hour shared
+          # across everything on the runner's IP, and a 403 here is what broke
+          # the java image build.
+          PLANTUML_TAG=$(fetch https://api.github.com/repos/plantuml/plantuml/releases/latest \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' | jq -r '.tag_name')
+          require plantuml_tag "$PLANTUML_TAG"
           echo "plantuml_url=https://github.com/plantuml/plantuml/releases/download/${PLANTUML_TAG}/plantuml-${PLANTUML_TAG#v}.jar" >> $GITHUB_OUTPUT
 
   # Build all container images in parallel (each builds independently from node:20-slim)
